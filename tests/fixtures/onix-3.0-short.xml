@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
+  <header>
+    <sender>
+      <x300>Bokbasen AS</x300>
+    </sender>
+    <m182>20260507T0930</m182>
+  </header>
+  <product>
+    <a001>bokbasen-9788234567892</a001>
+    <a002>03</a002>
+    <productidentifier>
+      <b221>15</b221>
+      <b244>9788234567892</b244>
+    </productidentifier>
+    <descriptivedetail>
+      <b012>BC</b012>
+      <titledetail>
+        <b202>01</b202>
+        <titleelement>
+          <x409>01</x409>
+          <b203>Kortform-eksempel</b203>
+        </titleelement>
+      </titledetail>
+      <contributor>
+        <b035>A01</b035>
+        <b036>Kari Nordmann</b036>
+      </contributor>
+    </descriptivedetail>
+  </product>
+</ONIXMessage>

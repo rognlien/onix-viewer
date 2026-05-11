@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "ONIX Viewer",
+  "version": "0.9.0",
+  "description": "Pretty-print raw XML in the browser, with ONIX-aware codelist resolution, Product summaries and a side-by-side blocks view.",
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png",
+    "256": "icons/icon-256.png",
+    "512": "icons/icon-512.png"
+  },
+
+  "permissions": [],
+
+  "host_permissions": [
+    "<all_urls>"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "run_at": "document_start",
+      "all_frames": false,
+      "js": ["content.js"]
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "viewer.css",
+        "viewer.js",
+        "onix.js",
+        "onix-codelists.js",
+        "onix-blocks.js",
+        "onix-popup.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

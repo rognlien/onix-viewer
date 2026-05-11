@@ -1,0 +1,781 @@
+/* viewer.css — ONIX Viewer
+ *
+ * Theme: auto (prefers-color-scheme). Color tokens declared once at :root,
+ * then overridden in @media (prefers-color-scheme: dark).
+ */
+
+:root {
+  /* Surfaces — three layers from bottom (page) to top (cards) so the right
+     pane reads as a clearly raised surface above the tree pane. */
+  --bg: #fbfcfd;
+  --bg-surface: #ffffff;
+  --bg-toolbar: #f3f5f8;
+  --bg-hover: #eef1f6;
+
+  --bg-match: #fff7c2;
+  --bg-match-current: #ffd84d;
+
+  --fg: #1c2026;
+  --fg-muted: #545d68;
+  --fg-faint: #8a939e;
+
+  --border: #e3e8ee;
+  --border-strong: #c8cfd7;
+
+  /* Syntax colours — slightly desaturated from the GitHub-style originals
+     so the tag colour doesn't dominate next to ONIX badges and links. */
+  --tag: #1a7741;          /* element names */
+  --tag-onix-ref: #1f6dc4;  /* ONIX reference-name elements */
+  --attr-name: #7b4dc7;
+  --attr-value: #1a3d76;
+  --text-node: #1c2026;
+  --comment: #6e7781;
+  --pi: #8250df;
+  --cdata-marker: #a8327d;
+
+  /* One unified badge token (colour-list label, list link, summary, etc.). */
+  --badge-bg: #eef1f6;
+  --badge-fg: #545d68;
+
+  /* Single accent used for: focus rings, selected state, links, divider hover,
+     current-match highlight, popup link. */
+  --accent: #1f6dc4;
+  --accent-soft: rgba(31, 109, 196, 0.12);
+
+  /* Subtle drop shadow for cards/popup. */
+  --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.05);
+  --shadow-popup: 0 24px 60px rgba(15, 22, 36, 0.28);
+
+  --indent: 1.25rem;
+  --row-pad-y: 1px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --bg-surface: #131922;
+    --bg-toolbar: #161c25;
+    --bg-hover: #1f2630;
+
+    --bg-match: #4d3f00;
+    --bg-match-current: #b08800;
+
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-faint: #6e7681;
+
+    --border: #2a3038;
+    --border-strong: #444c56;
+
+    --tag: #7ee787;
+    --tag-onix-ref: #79c0ff;
+    --attr-name: #d2a8ff;
+    --attr-value: #a5d6ff;
+    --text-node: #e6edf3;
+    --comment: #8b949e;
+    --pi: #d2a8ff;
+    --cdata-marker: #ff7b72;
+
+    --badge-bg: #1f2630;
+    --badge-fg: #8b949e;
+
+    --accent: #58a6ff;
+    --accent-soft: rgba(88, 166, 255, 0.18);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-popup: 0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ───────── toolbar ───────── */
+
+#oxv-toolbar {
+  flex: 0 0 auto;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--ui);
+  font-size: 12px;
+}
+
+#oxv-toolbar button {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-right: 4px;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+#oxv-toolbar button:hover { background: var(--bg-hover); }
+#oxv-toolbar button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+#oxv-toolbar .px-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+#oxv-search {
+  appearance: none;
+  width: min(420px, 100%);
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+#oxv-search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+#oxv-search-status {
+  color: var(--fg-muted);
+  min-width: 8ch;
+  text-align: left;
+}
+
+#oxv-meta {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────── split layout ───────── */
+
+#oxv-main {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  --split-pos: 50%;
+}
+
+#oxv-root {
+  flex: 0 0 var(--split-pos);
+  min-width: 0;
+  overflow: auto;
+  padding: 12px 16px 96px;
+  outline: none;
+}
+
+#oxv-divider {
+  flex: 0 0 6px;
+  cursor: col-resize;
+  background: var(--border);
+  user-select: none;
+  touch-action: none;
+}
+#oxv-divider:hover,
+#oxv-divider:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+#oxv-blocks-pane {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 16px 18px 96px;
+  background: var(--bg);
+  font-family: var(--ui);
+}
+
+/* When the document isn't ONIX, hide the right pane and the divider, and let
+   the tree fill the entire main area. */
+body.px-no-onix #oxv-divider,
+body.px-no-onix #oxv-blocks-pane { display: none; }
+body.px-no-onix #oxv-root { flex: 1; }
+
+/* The toolbar "Wrap" toggle now reverses the default: turning it OFF disables
+   wrapping so the viewer behaves like the original raw-XML mode. */
+body.px-no-wrap .px-row { white-space: pre; word-break: normal; }
+body.px-no-wrap #oxv-root { overflow-x: auto; }
+
+.px-row {
+  display: block;
+  padding: var(--row-pad-y) 4px var(--row-pad-y) calc(var(--indent) * var(--depth, 0) + 18px);
+  position: relative;
+  /* Soft-wrap by default — long text contents (descriptions, blurbs) would
+     otherwise force a horizontal scrollbar across the whole tree. */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.px-row.px-collapsible { cursor: pointer; }
+.px-row.px-collapsible:hover { background: var(--bg-hover); }
+
+.px-toggle {
+  position: absolute;
+  left: calc(var(--indent) * var(--depth, 0) + 0px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  user-select: none;
+  font-size: 13px;
+}
+.px-row.px-collapsible:hover > .px-toggle { color: var(--accent); }
+.px-toggle::before { content: "▾"; }
+.px-row.px-folded > .px-toggle::before { content: "▸"; }
+
+.px-row.px-folded + .px-children { display: none; }
+
+/* Fold suffix: "…</Tag>" appears inline on the open row when folded so the
+   collapsed element reads as <Tag>…</Tag>. Hidden when the row is expanded
+   (the children container + dedicated close row are then visible instead). */
+.px-fold-ellipsis,
+.px-fold-close {
+  display: none;
+  margin-left: 1px;
+}
+.px-row.px-folded > .px-fold-ellipsis,
+.px-row.px-folded > .px-fold-close { display: inline; }
+.px-fold-ellipsis { color: var(--fg-faint); padding: 0 2px; }
+
+.px-tag { color: var(--tag); }
+.px-tag.px-onix-ref { color: var(--tag-onix-ref); }
+.px-tag.px-onix-short { color: var(--tag); font-style: italic; }
+
+.px-attr-name { color: var(--attr-name); }
+.px-attr-value { color: var(--attr-value); }
+.px-text { color: var(--text-node); }
+.px-comment { color: var(--comment); font-style: italic; }
+.px-pi { color: var(--pi); }
+.px-cdata-marker { color: var(--cdata-marker); }
+
+body.px-no-attrs .px-attr { display: none; }
+
+/* inline summary shown on collapsed parents */
+.px-summary {
+  margin-left: 8px;
+  padding: 0 6px;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  border-radius: 4px;
+  font-family: var(--ui);
+  font-size: 11px;
+  vertical-align: 1px;
+}
+.px-row:not(.px-folded) > .px-summary { display: none; }
+
+/* ONIX code-list resolution badge */
+.px-codelist {
+  margin-left: 6px;
+  padding: 0 5px;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  border-radius: 3px;
+  font-family: var(--ui);
+  font-size: 10.5px;
+  vertical-align: 1px;
+  cursor: help;
+}
+
+/* Link to the EDItEUR list page (e.g. "List 5") next to the resolved label. */
+.px-codelist-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 0 5px;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  border-radius: 3px;
+  font-family: var(--ui);
+  font-size: 10.5px;
+  vertical-align: 1px;
+  text-decoration: none;
+}
+.px-codelist-link:hover,
+.px-codelist-link:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
+  outline: none;
+}
+.px-extlink-icon {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  opacity: 0.85;
+}
+
+/* ───────── code-list popup ───────── */
+
+.px-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 18, 22, 0.55);
+  font-family: var(--ui);
+}
+.px-popup-overlay[hidden] { display: none; }
+
+.px-popup {
+  display: flex;
+  flex-direction: column;
+  max-width: 640px;
+  max-height: 80vh;
+  width: 100%;
+  background: var(--bg-surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-popup);
+  overflow: hidden;
+}
+
+.px-popup-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-toolbar);
+}
+.px-popup-title-wrap { flex: 1; min-width: 0; }
+.px-popup-eyebrow {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+}
+.px-popup-title {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.px-popup-close {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.px-popup-close:hover { background: var(--bg-hover); color: var(--fg); }
+
+.px-popup-body {
+  padding: 18px 20px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.px-popup-list {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.px-popup-row {
+  display: grid;
+  grid-template-columns: minmax(60px, max-content) 1fr;
+  gap: 16px;
+  align-items: baseline;
+  padding: 7px 12px;
+  border-radius: 4px;
+}
+/* Subtle zebra striping. Every other row picks up a translucent overlay so
+   it works in both light and dark themes without colour-pair maintenance. */
+.px-popup-row:nth-child(even) {
+  background: var(--bg-toolbar);
+}
+
+.px-popup-row + .px-popup-row {
+  margin-top: 1px;
+}
+
+.px-popup-row dt,
+.px-popup-row dd {
+  margin: 0;
+}
+
+.px-popup-code {
+  font-family: var(--mono);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.px-popup-label { color: var(--fg); }
+
+.px-popup-row-current,
+.px-popup-row-current:nth-child(even) {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.px-popup-row-current .px-popup-code,
+.px-popup-row-current .px-popup-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.px-popup-note {
+  margin: 18px 0 0;
+  padding: 10px 12px;
+  background: var(--bg-toolbar);
+  border-left: 3px solid var(--fg-faint);
+  border-radius: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.px-popup-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-toolbar);
+}
+.px-popup-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 13px;
+}
+.px-popup-link:hover { text-decoration: underline; }
+.px-popup-link .px-extlink-icon { width: 12px; height: 12px; flex-basis: 12px; }
+
+body.px-popup-open { overflow: hidden; }
+
+/* search highlight */
+.px-match {
+  background: var(--bg-match);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+.px-match-current {
+  background: var(--bg-match-current);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* ───────── ONIX blocks pane ───────── */
+
+/* Unified chevron for every collapsible <details> in the right pane.
+   Real DOM (not ::before) so click handlers can distinguish a chevron click
+   ("toggle") from a click on the rest of the summary ("highlight match"). */
+.px-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  user-select: none;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.px-chevron::before { content: "▸"; }
+details[open] > summary > .px-chevron::before { content: "▾"; }
+.px-chevron:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Direct fields under the Product/Message-Header card (RecordReference,
+   NotificationType, RecordSourceType, …). Padded so it reads as part of
+   the card chrome rather than the first block section. */
+.px-block-product-fields {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.px-block-product-fields:empty { display: none; }
+
+/* Click-to-highlight: shared class set on the matched element when the user
+   clicks its partner in the other pane. Persists until the next click. */
+.px-active {
+  background: var(--accent-soft) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
+  border-radius: 3px;
+}
+.px-row.px-active { box-shadow: inset 2px 0 0 var(--accent); }
+
+
+.px-block-product {
+  margin: 0 0 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+/* Message Header is structurally a card but shouldn't claim the same accent
+   stripe as a Product — neutral border instead. */
+.px-block-product.px-message-header {
+  border-left-color: var(--border-strong);
+}
+
+.px-block-product-header {
+  padding: 10px 14px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.px-block-product-header:hover { background: var(--bg-hover); }
+.px-block-product:not([open]) > .px-block-product-header {
+  border-bottom: none;
+}
+.px-block-product-header::-webkit-details-marker { display: none; }
+
+.px-block-product-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 1px 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 4px;
+}
+.px-block-product-isbn {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.px-block-product-sep {
+  color: var(--fg-faint);
+}
+
+.px-block-section {
+  border-bottom: 1px solid var(--border);
+}
+.px-block-section:last-child { border-bottom: none; }
+
+.px-block-section > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  user-select: none;
+  /* Subtle tint so block headings stand out from sub-block items below. */
+  background: var(--bg-toolbar);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.px-block-section[open] > summary { border-bottom-color: var(--border); }
+.px-block-section > summary:hover { background: var(--bg-hover); }
+.px-block-section-body { padding: 10px 14px; }
+
+/* Nested plural-group sections (e.g. "Contributors (1)" inside Block 1)
+   sit flush with leaf siblings — the section's tinted summary bar is the
+   visual cue, and inside its body children align with the same chevron
+   column as everywhere else. */
+.px-block-section-body > .px-block-section {
+  margin-top: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.px-block-section > summary::-webkit-details-marker { display: none; }
+.px-block-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.px-block-section-body {
+  font-size: 13px;
+}
+
+.px-block-field {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 2px 0;
+}
+.px-block-field-label {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.px-block-field-value { color: var(--fg); }
+.px-block-field-note {
+  color: var(--fg-faint);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.px-block-subhead {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.px-block-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.px-block-list > li {
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+.px-block-list > li:first-child { border-top: none; }
+
+.px-block-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  /* Reserve a chevron-width left padding so leaf rows align with their
+     composite siblings' content (whose chevron occupies the first 24 px). */
+  padding: 2px 0 2px 24px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.px-block-row[data-oxv-onix-element]:hover {
+  background: var(--bg-hover);
+}
+
+.px-block-contributor > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.px-block-contributor > summary::-webkit-details-marker { display: none; }
+
+.px-block-contributor-name {
+  font-weight: 500;
+  color: var(--fg);
+}
+.px-block-contributor-role {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.px-block-contributor-body {
+  margin-top: 6px;
+  padding-left: 1em;
+  border-left: 2px solid var(--border);
+}
+
+/* Generic sub-block item: ProductIdentifier, Publisher, PublishingDate,
+   TextContent, etc. Each is a <details> bound to a tree row for sync. The
+   item itself has no left offset — alignment with leaf siblings happens
+   via the chevron column inside summary; nesting comes from the body. */
+.px-block-item {
+  margin-top: 4px;
+}
+.px-block-item:first-child { margin-top: 0; }
+.px-block-item > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.px-block-item > summary::-webkit-details-marker { display: none; }
+.px-block-item-summary {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.px-block-item-body {
+  /* Total left offset = margin (9) + border (1) + padding (14) = 24 px,
+     which equals the chevron column width (chevron 18 + gap 6) used by
+     summaries. Children of the body therefore align with the chevron of
+     the parent's summary, giving a clean tree look. */
+  margin-top: 4px;
+  margin-left: 9px;
+  padding: 4px 0 4px 14px;
+  border-left: 1px solid var(--border);
+  font-size: 12px;
+}
+
+/* error fallback */
+.px-error {
+  margin: 24px 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--cdata-marker);
+  border-radius: 6px;
+  font-family: var(--ui);
+  background: var(--bg-toolbar);
+}
+.px-error h2 { margin: 0 0 6px; font-size: 14px; }
+.px-error pre {
+  margin: 8px 0 0;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: auto;
+  font-size: 12px;
+}

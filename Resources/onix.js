@@ -1,0 +1,301 @@
+// onix.js
+// ONIX-aware decorations layered on top of the generic XML viewer.
+//
+// Two things ONIX needs that generic XML doesn't:
+//  1. Tag style classification — ONIX comes in either "reference names"
+//     (<ProductIdentifier>) or "short tags" (<productidentifier> in the spec,
+//     but in practice the short tags are 4-character codes like <b221>).
+//     Showing which dialect a doc is in helps a lot.
+//  2. Code-list resolution — ProductIDType "15" means more if you can hover
+//     and see "ISBN-13".
+//
+// This module exposes one function on window.OnixViewerOnix that the viewer
+// calls during rendering. Keeping the contract narrow means non-ONIX docs
+// pay almost nothing for this module being loaded.
+
+(function () {
+  "use strict";
+
+  // ONIX namespace varies. The reference DTD/XSDs use:
+  //   http://ns.editeur.org/onix/3.0/reference
+  //   http://ns.editeur.org/onix/3.0/short
+  // Older 2.1 docs may have no namespace at all and rely on doctype.
+  const ONIX_NS_PREFIX = "http://ns.editeur.org/onix/";
+
+  // Reference-name root candidates (3.0 + 2.1).
+  const REFERENCE_ROOTS = new Set(["ONIXMessage", "ONIXmessage"]);
+  // Short-tag roots. ONIX 3.0 short uses <ONIXMessage> too with a /short
+  // namespace; ONIX 2.1 short uses <ONIXmessage> with lowercase children.
+  // The reliable signal is the namespace URI, which we check first.
+
+  // Map from short tag → reference-name (subset; the full mapping is in
+  // EDItEUR's "Element name aliases" table). Used both for highlighting and
+  // for codelist lookups (so b221 still resolves ProductIDType).
+  const SHORT_TO_REFERENCE = {
+    "ONIXmessage": "ONIXMessage",
+    "header":      "Header",
+    "product":     "Product",
+    "a001": "RecordReference",
+    "a002": "NotificationType",
+    "notificationtype": "NotificationType",
+    "productidentifier": "ProductIdentifier",
+    "b221": "ProductIDType",
+    "b244": "IDValue",
+    "b012": "ProductForm",
+    "b035": "ContributorRole",
+    "descriptivedetail": "DescriptiveDetail",
+    "titledetail": "TitleDetail",
+    "titleelement": "TitleElement",
+    "titletext": "TitleText",
+    "titletype": "TitleType",
+    "b202": "TitleType",
+    "productcomposition": "ProductComposition",
+    "x314": "ProductComposition",
+    "contributor": "Contributor",
+    "personname":  "PersonName",
+    "nameidentifier": "NameIdentifier",
+    "nameidtype": "NameIDType",
+    "b390": "NameIDType",
+    "publishingdetail": "PublishingDetail",
+    "publishingdate":   "PublishingDate",
+    "x448": "PublishingDateRole",
+    "b332": "PublishingStatus",
+    "language":      "Language",
+    "languagerole":  "LanguageRole",
+    "languagecode":  "LanguageCode",
+    "b005": "LanguageRole",
+    "b252": "LanguageCode",
+    "countrycode": "CountryCode",
+    "b251": "CountryCode",
+    "b003": "PublishingStatus",
+    "datevalue": "Date",
+    "b306": "Date",
+    "extent": "Extent",
+    "extenttype": "ExtentType",
+    "b218": "ExtentType",
+    "extentvalue": "ExtentValue",
+    "b219": "ExtentValue",
+    "extentunit": "ExtentUnit",
+    "b220": "ExtentUnit",
+    "subjectschemeidentifier": "SubjectSchemeIdentifier",
+    "b067": "SubjectSchemeIdentifier",
+    "editiontype": "EditionType",
+    "b056": "EditionType",
+  };
+
+  /**
+   * Inspect a parsed XML Document and return:
+   *   { isOnix, dialect: "reference"|"short"|null, version: "3.0"|"2.1"|null }
+   */
+  function detect(doc) {
+    const root = doc && doc.documentElement;
+    if (!root) return { isOnix: false, dialect: null, version: null };
+
+    const ns = root.namespaceURI || "";
+    const localName = root.localName || root.nodeName;
+
+    let isOnix = false;
+    let dialect = null;
+    let version = null;
+
+    if (ns.startsWith(ONIX_NS_PREFIX)) {
+      isOnix = true;
+      // e.g. http://ns.editeur.org/onix/3.0/reference
+      const tail = ns.slice(ONIX_NS_PREFIX.length); // "3.0/reference"
+      const parts = tail.split("/");
+      version = parts[0] || null;
+      dialect = (parts[1] === "short") ? "short" : "reference";
+    } else if (REFERENCE_ROOTS.has(localName)) {
+      // No namespace — likely ONIX 2.1 reference.
+      isOnix = true;
+      dialect = (localName === "ONIXmessage") ? "short" : "reference";
+      // Best-effort: read release attribute if present.
+      version = root.getAttribute("release") || "2.1";
+    } else if (localName.toLowerCase() === "onixmessage") {
+      // No-namespace short — ONIX 2.1 short.
+      isOnix = true;
+      dialect = "short";
+      version = root.getAttribute("release") || "2.1";
+    }
+
+    return { isOnix, dialect, version };
+  }
+
+  /**
+   * Classify a single element. Returns extra CSS classes to apply to its
+   * tag span: "px-onix-ref" or "px-onix-short" (or empty).
+   */
+  function tagClass(element, ctx) {
+    if (!ctx.isOnix) return "";
+    return ctx.dialect === "short" ? "px-onix-short" : "px-onix-ref";
+  }
+
+  /**
+   * For an element with a text-node child whose tag is a known codelist key,
+   * resolve the code to a human-readable label. The viewer renders this as a
+   * small badge after the value, optionally followed by a link to the
+   * canonical EDItEUR list page.
+   *
+   * Returns `null` when the code (or the list itself) is unknown, or
+   * `{ value, label, listName, listNumber, url }` otherwise.
+   */
+  function resolveCodelist(element, ctx) {
+    if (!ctx.isOnix) return null;
+    const lists = window.OnixViewerCodeLists;
+    if (!lists) return null;
+
+    let name = element.localName || element.nodeName;
+    // Map short tags to reference names so the same lookup table works for both.
+    if (ctx.dialect === "short") {
+      const ref = SHORT_TO_REFERENCE[name.toLowerCase()];
+      if (ref) name = ref;
+    }
+
+    const list = lists[name];
+    if (!list) return null;
+
+    // Read the element's direct text content (trimmed). We only resolve
+    // when there's exactly one text-node child — codelist elements never
+    // have mixed content in valid ONIX.
+    let value = "";
+    for (const child of element.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) value += child.nodeValue;
+      else if (child.nodeType === Node.ELEMENT_NODE) return null; // mixed
+    }
+    value = value.trim();
+    if (!value) return null;
+
+    const label = list.get(value);
+    if (!label) return null;
+
+    const meta = codelistMeta(name);
+    return {
+      codelistKey: name,
+      value,
+      label,
+      listName: meta ? meta.listName : null,
+      listNumber: meta ? meta.listNumber : null,
+      url: meta ? meta.url : null,
+    };
+  }
+
+  /**
+   * For a codelist key (e.g. "ProductIDType"), return its EDItEUR list
+   * metadata: `{ listName, listNumber, url }` or null when unknown.
+   * Used by the right-pane block view, which already knows the codelist key.
+   */
+  function codelistMeta(name) {
+    const meta = (window.OnixViewerCodeListMeta || {})[name];
+    if (!meta) return null;
+    return {
+      key: name,
+      listName: `List ${meta.listNumber}`,
+      listNumber: meta.listNumber,
+      title: meta.title || null,
+      url: `https://ns.editeur.org/onix/en/${meta.listNumber}`,
+    };
+  }
+
+  /**
+   * Build a small inline SVG external-link icon. Shared by both panes so
+   * the visual is consistent.
+   */
+  function externalLinkIcon() {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "px-extlink-icon");
+    const path = document.createElementNS(SVG_NS, "path");
+    // Outline of an arrow leaving a box. Single-color, scaled with currentColor.
+    path.setAttribute(
+      "d",
+      "M14 3h7v7h-2V6.414l-9.293 9.293-1.414-1.414L17.586 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"
+    );
+    path.setAttribute("fill", "currentColor");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  /**
+   * For collapsed <Product> blocks, build a one-line summary like:
+   *   ISBN 9780123456789 · Hardback · "Title goes here"
+   * shown as a faint badge so you can scan thousands of products quickly.
+   */
+  function productSummary(element, ctx) {
+    if (!ctx.isOnix) return null;
+    const name = (element.localName || element.nodeName).toLowerCase();
+    if (name !== "product") return null;
+
+    // Helper: find first descendant by either reference name or short tag.
+    const find = (refName, shortTag) => {
+      // querySelector ignores namespaces in the way we'd want; walk manually.
+      const stack = [element];
+      const lcRef = refName.toLowerCase();
+      const lcShort = shortTag && shortTag.toLowerCase();
+      while (stack.length) {
+        const n = stack.pop();
+        for (const c of n.children) {
+          const cn = (c.localName || c.nodeName).toLowerCase();
+          if (cn === lcRef || (lcShort && cn === lcShort)) return c;
+          stack.push(c);
+        }
+      }
+      return null;
+    };
+
+    const textOf = (el) => (el ? (el.textContent || "").trim() : "");
+
+    // Find first ProductIdentifier whose type is ISBN-13 (15) or fall back to first.
+    let isbn = null;
+    const productIds = [];
+    const stack = [element];
+    while (stack.length) {
+      const n = stack.pop();
+      for (const c of n.children) {
+        const cn = (c.localName || c.nodeName).toLowerCase();
+        if (cn === "productidentifier") productIds.push(c);
+        else stack.push(c);
+      }
+    }
+    for (const pid of productIds) {
+      const typeEl = find.call(null, "ProductIDType", "b221");
+      // pid-scoped lookup
+      const t = pid.querySelector
+        ? Array.from(pid.children).find((c) => /^(productidtype|b221)$/i.test(c.localName || c.nodeName))
+        : null;
+      const v = pid.querySelector
+        ? Array.from(pid.children).find((c) => /^(idvalue|b244)$/i.test(c.localName || c.nodeName))
+        : null;
+      if (t && v && textOf(t) === "15") { isbn = textOf(v); break; }
+      if (!isbn && v) isbn = textOf(v);
+    }
+
+    const formEl = find("ProductForm", "b012");
+    const titleEl = find("TitleText", "b203");
+
+    const parts = [];
+    if (isbn) parts.push(`ISBN ${isbn}`);
+    if (formEl) {
+      const code = textOf(formEl);
+      const lists = window.OnixViewerCodeLists;
+      const label = lists && lists.ProductForm && lists.ProductForm.get(code);
+      parts.push(label || code);
+    }
+    if (titleEl) {
+      const t = textOf(titleEl);
+      if (t) parts.push(`"${t.length > 60 ? t.slice(0, 57) + "…" : t}"`);
+    }
+
+    return parts.length ? parts.join(" · ") : null;
+  }
+
+  window.OnixViewerOnix = {
+    detect,
+    tagClass,
+    resolveCodelist,
+    codelistMeta,
+    externalLinkIcon,
+    productSummary,
+  };
+})();

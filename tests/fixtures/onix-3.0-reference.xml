@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/reference" release="3.0">
+  <Header>
+    <Sender>
+      <SenderName>Bokbasen AS</SenderName>
+    </Sender>
+    <SentDateTime>20260507T0930</SentDateTime>
+  </Header>
+  <Product>
+    <RecordReference>bokbasen-9788234567890</RecordReference>
+    <NotificationType>03</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788234567890</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductForm>BB</ProductForm>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText>Eksempelboken</TitleText>
+        </TitleElement>
+      </TitleDetail>
+      <Contributor>
+        <SequenceNumber>1</SequenceNumber>
+        <ContributorRole>A01</ContributorRole>
+        <PersonName>Ola Nordmann</PersonName>
+      </Contributor>
+      <Language>
+        <LanguageRole>01</LanguageRole>
+        <LanguageCode>nor</LanguageCode>
+        <CountryCode>NO</CountryCode>
+      </Language>
+    </DescriptiveDetail>
+    <PublishingDetail>
+      <PublishingStatus>04</PublishingStatus>
+      <PublishingDate>
+        <PublishingDateRole>01</PublishingDateRole>
+        <Date>20260415</Date>
+      </PublishingDate>
+    </PublishingDetail>
+  </Product>
+  <Product>
+    <RecordReference>bokbasen-9788234567891</RecordReference>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788234567891</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductForm>EB</ProductForm>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText>Et Annet Verk</TitleText>
+        </TitleElement>
+      </TitleDetail>
+    </DescriptiveDetail>
+  </Product>
+</ONIXMessage>

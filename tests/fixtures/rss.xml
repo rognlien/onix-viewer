@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Feed</title>
+    <link>https://example.com/</link>
+    <description>An example RSS feed</description>
+    <item>
+      <title>First post</title>
+      <link>https://example.com/1</link>
+      <description>Hello world</description>
+    </item>
+    <item>
+      <title>Second post</title>
+      <link>https://example.com/2</link>
+      <description>Another item</description>
+    </item>
+  </channel>
+</rss>
