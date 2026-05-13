@@ -29,6 +29,7 @@
   --attr-name: #7b4dc7;
   --attr-value: #1a3d76;
   --text-node: #1c2026;
+  --codelist-value: #b8541c;  /* short codes resolved via an ONIX list */
   --comment: #6e7781;
   --pi: #8250df;
   --cdata-marker: #a8327d;
@@ -74,6 +75,7 @@
     --attr-name: #d2a8ff;
     --attr-value: #a5d6ff;
     --text-node: #e6edf3;
+    --codelist-value: #ffa657;
     --comment: #8b949e;
     --pi: #d2a8ff;
     --cdata-marker: #ff7b72;
@@ -309,6 +311,7 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-attr-name { color: var(--attr-name); }
 .px-attr-value { color: var(--attr-value); }
 .px-text { color: var(--text-node); }
+.px-codelist-value { color: var(--codelist-value); }
 .px-comment { color: var(--comment); font-style: italic; }
 .px-pi { color: var(--pi); }
 .px-cdata-marker { color: var(--cdata-marker); }

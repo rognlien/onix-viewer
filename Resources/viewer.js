@@ -221,6 +221,10 @@
 
     if (onlyText) {
       // <Tag>text</Tag> — single row, with optional codelist badge.
+      const resolved = window.OnixViewerOnix
+        ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
+        : null;
+      const textClass = resolved ? "px-text px-codelist-value" : "px-text";
       appendRow(parent, depth, false, (row) => {
         writeOpenTag(row, el, false);
         for (const c of elementChildren) {
@@ -229,7 +233,7 @@
             open.className = "px-cdata-marker";
             open.textContent = "<![CDATA[";
             const body = document.createElement("span");
-            body.className = "px-text";
+            body.className = textClass;
             body.textContent = c.nodeValue;
             const close = document.createElement("span");
             close.className = "px-cdata-marker";
@@ -237,23 +241,20 @@
             row.append(open, body, close);
           } else {
             const t = document.createElement("span");
-            t.className = "px-text";
+            t.className = textClass;
             t.textContent = c.nodeValue;
             row.appendChild(t);
           }
         }
         writeCloseTag(row, el);
 
-        if (window.OnixViewerOnix) {
-          const resolved = window.OnixViewerOnix.resolveCodelist(el, onixCtx);
-          if (resolved) {
-            const badge = document.createElement("span");
-            badge.className = "px-codelist";
-            badge.textContent = `→ ${resolved.label}`;
-            badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
-            row.appendChild(badge);
-            if (resolved.url) row.appendChild(buildListLink(resolved));
-          }
+        if (resolved) {
+          const badge = document.createElement("span");
+          badge.className = "px-codelist";
+          badge.textContent = `→ ${resolved.label}`;
+          badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
+          row.appendChild(badge);
+          if (resolved.url) row.appendChild(buildListLink(resolved));
         }
       });
       return;

@@ -257,6 +257,24 @@ describe("ONIX 3.0 short-tag", () => {
   });
 });
 
+describe("Codelist value styling", () => {
+  test("text spans of codelist elements carry .px-codelist-value", () => {
+    const w = render("onix-3.0-reference.xml");
+    const styled = $$(w, "#oxv-root .px-codelist-value");
+    assert(styled.length > 0, "expected at least one .px-codelist-value span");
+    const values = styled.map((s) => s.textContent.trim());
+    assert(values.some((v) => v === "15" || v === "BB" || v === "01"),
+      `expected at least one recognised code value, got [${values.join(", ")}]`);
+  });
+
+  test("plain text spans without a resolved codelist stay .px-text only", () => {
+    const w = render("onix-3.0-reference.xml");
+    const texts = $$(w, "#oxv-root .px-text:not(.px-codelist-value)");
+    assert(texts.length > 0,
+      "expected some plain text spans (e.g. titles) to remain un-styled as codelist");
+  });
+});
+
 describe("Folding", () => {
   test("collapsible row produces a tagged close row", () => {
     const w = render("onix-3.0-reference.xml");
