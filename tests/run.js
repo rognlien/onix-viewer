@@ -58,11 +58,16 @@ function render(fixtureName) {
   const xml = fs.readFileSync(path.join(FIXTURES, fixtureName), "utf8");
 
   const html = `<!doctype html><html><head><style>${viewerCss}</style></head>
-<body>
+<body class="oxv-view-xml">
   <div id="oxv-toolbar">
     <button data-action="expand-all"></button>
     <button data-action="collapse-all"></button>
     <button data-action="toggle-wrap"></button>
+    <span class="px-view-group">
+      <button data-action="view-xml"></button>
+      <button data-action="view-split"></button>
+      <button data-action="view-structure"></button>
+    </span>
     <input id="oxv-search">
     <span id="oxv-search-status"></span>
     <span id="oxv-meta"></span>
@@ -80,7 +85,11 @@ function render(fixtureName) {
     throw e;
   });
 
-  const dom = new JSDOM(html, { runScripts: "outside-only", virtualConsole: vc });
+  const dom = new JSDOM(html, {
+    url: "https://example.com/" + fixtureName,
+    runScripts: "outside-only",
+    virtualConsole: vc,
+  });
   const { window } = dom;
   window.__OXV_SOURCE__ = xml;
 
@@ -549,6 +558,52 @@ describe("ONIX blocks pane", () => {
     const contribs = $$(w, "#oxv-blocks .px-block-contributor");
     assert(contribs.length === 1, `expected 1 contributor, got ${contribs.length}`);
     assert(contribs[0].querySelector("summary").textContent.includes("Kari Nordmann"), "short contributor name missing");
+  });
+});
+
+describe("View mode toggle", () => {
+  function clickViewBtn(window, mode) {
+    const btn = window.document.querySelector(`#oxv-toolbar [data-action="view-${mode}"]`);
+    btn.dispatchEvent(new window.Event("click", { bubbles: true }));
+  }
+
+  test("ONIX docs default to XML view", () => {
+    const w = render("onix-3.0-reference.xml");
+    assert(w.document.body.classList.contains("oxv-view-xml"),
+      `expected oxv-view-xml on body, got "${w.document.body.className}"`);
+    const xmlBtn = w.document.querySelector('[data-action="view-xml"]');
+    assert(xmlBtn.getAttribute("aria-pressed") === "true", "XML button should be pressed by default");
+  });
+
+  test("clicking Split applies split view and presses only Split", () => {
+    const w = render("onix-3.0-reference.xml");
+    clickViewBtn(w, "split");
+    assert(w.document.body.classList.contains("oxv-view-split"), "missing oxv-view-split");
+    assert(!w.document.body.classList.contains("oxv-view-xml"), "stale oxv-view-xml still on body");
+    const pressed = $$(w, '#oxv-toolbar [data-action^="view-"][aria-pressed="true"]')
+      .map((b) => b.dataset.action);
+    assert(pressed.length === 1 && pressed[0] === "view-split",
+      `expected only view-split pressed, got ${pressed.join(",")}`);
+  });
+
+  test("clicking Structure applies structure view", () => {
+    const w = render("onix-3.0-reference.xml");
+    clickViewBtn(w, "structure");
+    assert(w.document.body.classList.contains("oxv-view-structure"), "missing oxv-view-structure");
+  });
+
+  test("view mode persists in localStorage", () => {
+    const w = render("onix-3.0-reference.xml");
+    clickViewBtn(w, "split");
+    assert(w.localStorage.getItem("oxv-view-mode") === "split",
+      `expected "split" in localStorage, got "${w.localStorage.getItem("oxv-view-mode")}"`);
+  });
+
+  test("non-ONIX docs are locked to XML view and do not persist", () => {
+    const w = render("generic-note.xml");
+    assert(w.document.body.classList.contains("oxv-view-xml"), "non-ONIX should start in XML view");
+    assert(w.localStorage.getItem("oxv-view-mode") === null,
+      "non-ONIX should not write to localStorage");
   });
 });
 

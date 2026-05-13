@@ -171,12 +171,23 @@
 <title>${escapeHtml(deriveTitle(document.location.href))}</title>
 <link rel="stylesheet" href="${cssURL}">
 </head>
-<body>
+<body class="oxv-view-xml">
 <div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
     <button type="button" data-action="expand-all" title="Expand all (E)">Expand all</button>
     <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
     <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
+    <span class="px-view-group" role="group" aria-label="View mode">
+      <button type="button" class="px-icon-btn" data-action="view-xml" title="XML only" aria-label="XML only" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="px-icon-btn" data-action="view-split" title="Split (XML + Structure)" aria-label="Split view" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1" stroke="currentColor" stroke-width="1.25" fill="none"/><path d="M8 3.25v9.5" stroke="currentColor" stroke-width="1.25"/></svg>
+      </button>
+      <button type="button" class="px-icon-btn" data-action="view-structure" title="Structure only" aria-label="Structure only" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1" stroke="currentColor" stroke-width="1.25" fill="none"/><path d="M5 6.5h6M5 9h6M5 11.5h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>
+      </button>
+    </span>
   </div>
   <div class="px-center">
     <input type="search" id="oxv-search" placeholder="Search (/ to focus)" autocomplete="off" spellcheck="false">

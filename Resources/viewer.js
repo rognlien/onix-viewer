@@ -28,6 +28,9 @@
   let activeTreeRow = null;
   let activeBlockEl = null;
 
+  const VIEW_MODES = ["xml", "split", "structure"];
+  const VIEW_STORAGE_KEY = "oxv-view-mode";
+
   // We render into a document whose contentType is still "application/xml"
   // (we only swapped documentElement; the document type is set at navigation
   // time and is read-only). In an XML document, document.createElement
@@ -100,6 +103,7 @@
   meta.textContent = metaText;
 
   setupToolbar();
+  setupViewMode(onixCtx.isOnix);
   setupSearch();
   setupKeyboard();
   setupDivider();
@@ -426,8 +430,41 @@
           btn.setAttribute("aria-pressed", off ? "false" : "true");
           break;
         }
+        case "view-xml":
+        case "view-split":
+        case "view-structure":
+          applyViewMode(btn.dataset.action.slice("view-".length));
+          break;
       }
     });
+  }
+
+  // ---- view mode (XML / Split / Structure) ---------------------------------
+
+  function setupViewMode(isOnix) {
+    // Non-ONIX docs have no structure pane — lock to XML view and skip persistence.
+    if (!isOnix) {
+      applyViewMode("xml", { persist: false });
+      return;
+    }
+    let stored = null;
+    try { stored = window.localStorage && localStorage.getItem(VIEW_STORAGE_KEY); } catch (_) {}
+    const initial = VIEW_MODES.includes(stored) ? stored : "xml";
+    applyViewMode(initial, { persist: false });
+  }
+
+  function applyViewMode(mode, opts) {
+    if (!VIEW_MODES.includes(mode)) return;
+    const persist = !opts || opts.persist !== false;
+    for (const m of VIEW_MODES) document.body.classList.remove(`oxv-view-${m}`);
+    document.body.classList.add(`oxv-view-${mode}`);
+    for (const btn of document.querySelectorAll('#oxv-toolbar [data-action^="view-"]')) {
+      const isActive = btn.dataset.action === `view-${mode}`;
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    }
+    if (persist) {
+      try { localStorage.setItem(VIEW_STORAGE_KEY, mode); } catch (_) {}
+    }
   }
 
   // ---- search ---------------------------------------------------------------
