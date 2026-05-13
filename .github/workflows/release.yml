@@ -1,0 +1,72 @@
+# Release to Chrome Web Store
+#
+# Trigger: push a tag of the form vX.Y.Z (use `tools/release.sh X.Y.Z` to
+# create one). The workflow runs the test suite, builds the zip, sanity-
+# checks that the tag matches Resources/manifest.json, uploads to CWS with
+# --auto-publish (queued for review immediately), and publishes a GitHub
+# release with the zip attached.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   CWS_EXTENSION_ID    — extension ID from the CWS developer dashboard
+#   CWS_CLIENT_ID       — Google OAuth client ID
+#   CWS_CLIENT_SECRET   — Google OAuth client secret
+#   CWS_REFRESH_TOKEN   — long-lived refresh token tied to the developer account
+#
+# See README.md → "Release" for one-time OAuth setup steps.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write  # for creating the GitHub release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Verify tag matches manifest version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION=$(node -p "require('./Resources/manifest.json').version")
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match manifest version '$MANIFEST_VERSION'"
+            exit 1
+          fi
+          echo "VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build zip
+        run: bash tools/package-extension.sh
+
+      - name: Upload to Chrome Web Store
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          npx --yes chrome-webstore-upload-cli@3 upload \
+            --source "dist/onix-viewer-${VERSION}.zip" \
+            --auto-publish
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            "dist/onix-viewer-${VERSION}.zip"
