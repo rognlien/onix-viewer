@@ -89,6 +89,7 @@
   // Names are lowercase to match how the DOM exposes attribute names.
   const ATTR_CODELISTS = {
     "textcase":        14,
+    "textformat":      34,
     "language":        74,
     "transliteration": 121,
     "script":          121,
