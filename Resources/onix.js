@@ -83,18 +83,19 @@
     "b056": "EditionType",
   };
 
-  // ONIX-defined attribute names → EDItEUR code list number. These attributes
-  // carry codes that resolve through the same lists as element-level codes,
-  // but they aren't included in the generated element-to-list bindings.
-  // Names are lowercase to match how the DOM exposes attribute names.
+  // ONIX-defined attribute names → EDItEUR code list number. Derived from
+  // the codelist-bound attributes in ONIX_BookProduct_3.1_reference.xsd
+  // (direct `type="ListN"` and via `*Code` simpleTypes that restrict to
+  // List N). Names are lowercase to match how the DOM exposes attribute
+  // names. If EDItEUR ever adds another codelist attribute, extend this
+  // map alongside a schema regeneration.
   const ATTR_CODELISTS = {
-    "textcase":        14,
-    "textformat":      34,
-    "language":        74,
-    "transliteration": 121,
-    "script":          121,
-    "dateformat":      55,
-    "sourcetype":      3,
+    "sourcetype":  3,
+    "textcase":    14,
+    "textformat":  34,
+    "dateformat":  55,
+    "language":    74,
+    "textscript":  121,
   };
 
   /**
