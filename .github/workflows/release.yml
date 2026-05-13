@@ -1,18 +1,10 @@
-# Release to Chrome Web Store
+# Build a release zip on tag push.
 #
 # Trigger: push a tag of the form vX.Y.Z (use `tools/release.sh X.Y.Z` to
 # create one). The workflow runs the test suite, builds the zip, sanity-
-# checks that the tag matches Resources/manifest.json, uploads to CWS with
-# --auto-publish (queued for review immediately), and publishes a GitHub
-# release with the zip attached.
-#
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   CWS_EXTENSION_ID    — extension ID from the CWS developer dashboard
-#   CWS_CLIENT_ID       — Google OAuth client ID
-#   CWS_CLIENT_SECRET   — Google OAuth client secret
-#   CWS_REFRESH_TOKEN   — long-lived refresh token tied to the developer account
-#
-# See README.md → "Release" for one-time OAuth setup steps.
+# checks that the tag matches Resources/manifest.json, and publishes a
+# GitHub release with the zip attached — ready to drag into the Chrome
+# Web Store developer dashboard.
 
 name: Release
 
@@ -50,17 +42,6 @@ jobs:
 
       - name: Build zip
         run: bash tools/package-extension.sh
-
-      - name: Upload to Chrome Web Store
-        env:
-          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
-          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
-        run: |
-          npx --yes chrome-webstore-upload-cli@3 upload \
-            --source "dist/onix-viewer-${VERSION}.zip" \
-            --auto-publish
 
       - name: Create GitHub release
         env:

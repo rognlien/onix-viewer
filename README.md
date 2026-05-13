@@ -82,37 +82,25 @@ node tools/generate-codelists.js --source=/path/to/xsd      # override source di
 
 ## Release
 
-Releases to the Chrome Web Store are automated via GitHub Actions (`.github/workflows/release.yml`). To ship a new version:
+GitHub Actions (`.github/workflows/release.yml`) handles the boring parts; the actual CWS upload stays manual (Google's OAuth setup is too painful to be worth automating for a small extension).
+
+To ship a new version:
 
 ```bash
-tools/release.sh 0.9.2
-git push origin main v0.9.2
+tools/release.sh 0.9.2          # bumps manifest.json + package.json, commits, tags
+git push origin main v0.9.2     # main commit and the tag
 ```
 
-The script bumps `Resources/manifest.json` and `package.json`, commits, and creates the tag locally. The push triggers the workflow, which runs the test suite, builds the zip, verifies the tag matches the manifest version, uploads to CWS with `--auto-publish`, and creates a GitHub release with the zip attached.
+The tag push triggers the workflow, which runs tests, verifies the tag matches the manifest version, builds the zip, and creates a GitHub release with the zip attached.
 
-Review time is set by Google, not the workflow — most updates clear in minutes to a few hours, but changes that touch permissions or trigger heuristics can stall for several days. For in-progress iteration, prefer the **Trusted testers** track in the CWS dashboard (private install link, no review, instant).
+Then upload to the store:
 
-### One-time OAuth setup
+1. Open the [CWS developer dashboard](https://chrome.google.com/webstore/devconsole/).
+2. Click the ONIX Viewer extension → **Package** → **Upload new package**.
+3. Drag in the zip from the new GitHub release (`onix-viewer-X.Y.Z.zip`).
+4. Click **Submit for review**.
 
-The workflow needs four repository secrets (Settings → Secrets and variables → Actions):
-
-| Secret | What it is |
-|--------|------------|
-| `CWS_EXTENSION_ID` | Extension ID from the [CWS developer dashboard](https://chrome.google.com/webstore/devconsole/) |
-| `CWS_CLIENT_ID` | Google OAuth 2.0 client ID |
-| `CWS_CLIENT_SECRET` | Google OAuth 2.0 client secret |
-| `CWS_REFRESH_TOKEN` | Long-lived refresh token tied to the developer account |
-
-To generate the OAuth credentials:
-
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create (or reuse) a project.
-2. Enable the **Chrome Web Store API** for that project.
-3. Configure the OAuth consent screen (External; only your developer account needs to be added as a test user).
-4. Create OAuth 2.0 credentials of type **Desktop app** → record the `client_id` and `client_secret`.
-5. Exchange the client credentials for a refresh token. The simplest path is the [chrome-webstore-upload generator](https://github.com/fregante/chrome-webstore-upload/blob/main/How%20to%20generate%20Google%20API%20keys.md) — follow steps 8–13 of that guide.
-
-Store all four values as repo secrets with the names above. After that, every `tools/release.sh X.Y.Z && git push --tags` pushes a release.
+Review time is up to Google — usually minutes to a few hours, occasionally days if anything trips heuristics.
 
 ## Known limitations
 
