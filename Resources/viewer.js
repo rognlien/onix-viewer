@@ -300,9 +300,10 @@
     parent.appendChild(childrenContainer);
     for (const c of el.childNodes) renderNode(c, childrenContainer, depth + 1);
 
-    appendRow(parent, depth, false, (row) => {
+    const closeRow = appendRow(parent, depth, false, (row) => {
       writeCloseTag(row, el);
     });
+    closeRow.classList.add("px-close-row");
 
     // Fold/highlight handling is delegated on #oxv-root in setupClickHandlers
     // — clicking the chevron toggles, clicking elsewhere highlights the

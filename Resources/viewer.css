@@ -288,6 +288,7 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-row.px-folded > .px-toggle::before { content: "▸"; }
 
 .px-row.px-folded + .px-children { display: none; }
+.px-row.px-folded + .px-children + .px-close-row { display: none; }
 
 /* Fold suffix: "…</Tag>" appears inline on the open row when folded so the
    collapsed element reads as <Tag>…</Tag>. Hidden when the row is expanded
