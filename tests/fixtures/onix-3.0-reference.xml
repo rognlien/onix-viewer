@@ -19,7 +19,7 @@
         <TitleType>01</TitleType>
         <TitleElement>
           <TitleElementLevel>01</TitleElementLevel>
-          <TitleText>Eksempelboken</TitleText>
+          <TitleText textcase="01" language="nob">Eksempelboken</TitleText>
         </TitleElement>
       </TitleDetail>
       <Contributor>

@@ -83,6 +83,19 @@
     "b056": "EditionType",
   };
 
+  // ONIX-defined attribute names → EDItEUR code list number. These attributes
+  // carry codes that resolve through the same lists as element-level codes,
+  // but they aren't included in the generated element-to-list bindings.
+  // Names are lowercase to match how the DOM exposes attribute names.
+  const ATTR_CODELISTS = {
+    "textcase":        14,
+    "language":        74,
+    "transliteration": 121,
+    "script":          121,
+    "dateformat":      55,
+    "sourcetype":      3,
+  };
+
   /**
    * Inspect a parsed XML Document and return:
    *   { isOnix, dialect: "reference"|"short"|null, version: "3.0"|"2.1"|null }
@@ -290,10 +303,30 @@
     return parts.length ? parts.join(" · ") : null;
   }
 
+  /**
+   * For an attribute on an ONIX element, resolve a code-list value when the
+   * attribute name is one of the ONIX-defined codelist attributes
+   * (textcase, language, dateformat, etc.).
+   *
+   * Returns `{ value, label, listNumber }` or null.
+   */
+  function resolveAttributeCodelist(attrName, value) {
+    if (!attrName || value == null) return null;
+    const listNumber = ATTR_CODELISTS[String(attrName).toLowerCase()];
+    if (!listNumber) return null;
+    const byNumber = window.OnixViewerCodeListsByNumber;
+    const list = byNumber && byNumber[listNumber];
+    if (!list) return null;
+    const label = list.get(String(value).trim());
+    if (!label) return null;
+    return { value: String(value).trim(), label, listNumber };
+  }
+
   window.OnixViewerOnix = {
     detect,
     tagClass,
     resolveCodelist,
+    resolveAttributeCodelist,
     codelistMeta,
     externalLinkIcon,
     productSummary,

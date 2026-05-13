@@ -5746,4 +5746,9 @@
   window.OnixViewerCodeListMeta["WorkIDType"] = { listNumber: 16, title: "Work identifier type" };
   window.OnixViewerCodeLists["WorkRelationCode"] = _lists[164];
   window.OnixViewerCodeListMeta["WorkRelationCode"] = { listNumber: 164, title: "Work relation" };
+
+  // Expose every list by its EDItEUR number too, so consumers can look up
+  // lists that are bound to attributes (textcase, dateformat) rather than
+  // element names.
+  window.OnixViewerCodeListsByNumber = _lists;
 })();

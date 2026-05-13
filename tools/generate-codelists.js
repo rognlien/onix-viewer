@@ -168,6 +168,12 @@ function render(lists, elementToList) {
     out.push(`  window.OnixViewerCodeListMeta[${jsString(name)}] = { listNumber: ${listNumber}, title: ${jsString(list.title || "")} };`);
   }
 
+  out.push("");
+  out.push("  // Expose every list by its EDItEUR number too, so consumers can look up");
+  out.push("  // lists that are bound to attributes (textcase, dateformat) rather than");
+  out.push("  // element names.");
+  out.push("  window.OnixViewerCodeListsByNumber = _lists;");
+
   out.push("})();");
   out.push("");
   return out.join("\n");

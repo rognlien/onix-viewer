@@ -338,6 +338,13 @@
       const av = document.createElement("span");
       av.className = "px-attr-value";
       av.textContent = `"${attr.value.replace(/"/g, "&quot;")}"`;
+      if (window.OnixViewerOnix && onixCtx.isOnix) {
+        const resolvedAttr = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
+        if (resolvedAttr) {
+          av.classList.add("px-codelist-value");
+          av.title = `${attr.name}: ${resolvedAttr.label}`;
+        }
+      }
       span.append(an, eq, av);
       row.appendChild(span);
     }
