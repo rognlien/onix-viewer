@@ -115,20 +115,13 @@
     body.appendChild(dl);
 
     if (currentValue && !highlighted) {
-      // The doc has a code outside our curated subset. Surface that, so the
-      // user knows the popup isn't lying about coverage.
+      // The document uses a code that isn't defined in the bundled list.
+      // Likely from a newer ONIX issue, or a typo. Surface it either way.
       const note = document.createElement("p");
       note.className = "px-popup-note";
       note.textContent =
-        `Code "${currentValue}" isn't in the bundled subset for this list. ` +
-        `Open on EDItEUR for the canonical, complete definition.`;
-      body.appendChild(note);
-    } else if (count < 20) {
-      // Be honest about the curated nature.
-      const note = document.createElement("p");
-      note.className = "px-popup-note";
-      note.textContent =
-        "Curated subset (most common codes only). The EDItEUR page below is canonical.";
+        `Code "${currentValue}" isn't defined in this list. ` +
+        `It may be from a newer ONIX issue, or an error in the document.`;
       body.appendChild(note);
     }
 
