@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ONIX Viewer",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Pretty-print raw XML in the browser, with ONIX-aware codelist resolution, Product summaries and a side-by-side blocks view.",
 
   "icons": {
