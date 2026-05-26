@@ -451,7 +451,16 @@
   // ---- view mode (XML / Split / Structure) ---------------------------------
 
   function setupViewMode(isOnix) {
-    // Non-ONIX docs have no structure pane — lock to XML view and skip persistence.
+    // View mode (XML / Split / Structure) is currently DISABLED in the UI:
+    // the toggle buttons are commented out of the toolbar in content.js.
+    // We force XML view here so any state previously persisted in
+    // localStorage (from when the toggle was exposed) doesn't bleed through.
+    // To re-enable: restore the .px-view-group block in content.js and
+    // delete this early-return.
+    applyViewMode("xml", { persist: false });
+    return;
+
+    // eslint-disable-next-line no-unreachable
     if (!isOnix) {
       applyViewMode("xml", { persist: false });
       return;
@@ -578,9 +587,6 @@
           break;
         case "c":
           for (const r of root.querySelectorAll(".px-collapsible")) r.classList.add("px-folded");
-          break;
-        case "a":
-          document.body.classList.toggle("px-no-attrs");
           break;
         case "w":
           document.body.classList.toggle("px-no-wrap");

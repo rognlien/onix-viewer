@@ -66,18 +66,18 @@
   <text x="600" y="285"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="30" font-weight="500" fill="#9BA8C4" letter-spacing="-0.2">
-    Pretty-print and inspect ONIX bibliographic XML in Chrome.
+    Pretty-print ONIX XML in Chrome.
   </text>
 
   <!-- Feature bullets -->
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
      font-size="22" font-weight="500" fill="#C9D4EC">
     <circle cx="612" cy="350" r="5" fill="#2DD4FF"/>
-    <text x="630" y="357">Side-by-side tree + structured ONIX blocks</text>
+    <text x="630" y="357">Syntax-highlighted, collapsible XML tree</text>
     <circle cx="612" cy="390" r="5" fill="#7C5CFF"/>
-    <text x="630" y="397">Click-to-highlight matching elements across panes</text>
+    <text x="630" y="397">Inline EDItEUR code-list resolution</text>
     <circle cx="612" cy="430" r="5" fill="#63FF9B"/>
-    <text x="630" y="437">Full EDItEUR code-list resolution and look-up</text>
+    <text x="630" y="437">One-click popup with every code in a list</text>
   </g>
 
   <!-- Accent badges -->

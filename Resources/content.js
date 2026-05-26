@@ -177,6 +177,13 @@
     <button type="button" data-action="expand-all" title="Expand all (E)">Expand all</button>
     <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
     <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
+    <!--
+      View-mode toggle (XML / Split / Structure) is currently DISABLED.
+      The blocks-pane code (onix-blocks.js, the right pane, sync logic) is
+      still bundled and tested but hidden from the UI. To re-enable, restore
+      this <span class="px-view-group"> block and remove the early return in
+      viewer.js's setupViewMode.
+
     <span class="px-view-group" role="group" aria-label="View mode">
       <button type="button" class="px-icon-btn" data-action="view-xml" title="XML only" aria-label="XML only" aria-pressed="false">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
@@ -188,6 +195,7 @@
         <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1" stroke="currentColor" stroke-width="1.25" fill="none"/><path d="M5 6.5h6M5 9h6M5 11.5h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>
       </button>
     </span>
+    -->
   </div>
   <div class="px-center">
     <input type="search" id="oxv-search" placeholder="Search (/ to focus)" autocomplete="off" spellcheck="false">

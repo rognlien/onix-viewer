@@ -7,7 +7,7 @@ number when you regenerate the zip via `tools/package-extension.sh`.
 
 ```bash
 tools/package-extension.sh
-# → dist/onix-viewer-0.1.0.zip
+# → dist/onix-viewer-0.9.3.zip
 ```
 
 Upload that file at https://chrome.google.com/webstore/devconsole.
@@ -23,34 +23,40 @@ ONIX Viewer
 **Summary / short description** (max 132 chars):
 
 ```
-Pretty-print raw XML in the browser, with ONIX-aware codelist resolution, Product summaries and a side-by-side blocks view.
+Pretty-print ONIX XML in Chrome, with syntax highlighting, Product summaries and inline EDItEUR code-list resolution.
 ```
 
 **Description** (longer marketing copy — paste into Detailed description):
 
 ```
-ONIX Viewer turns raw XML pages into a usable, readable view. It works
-on every XML page Chrome would otherwise show as a wall of source, and
-it knows about ONIX for Books — the bibliographic-metadata format used
-across the publishing industry.
+ONIX Viewer turns raw ONIX XML pages into a readable view inside Chrome.
+ONIX (the bibliographic-metadata format used across the publishing
+industry) is normally shown as a wall of tags; this extension renders
+it as a syntax-highlighted, collapsible tree with the EDItEUR code
+lists wired in.
 
 Features
 
   • Collapsible, syntax-highlighted XML tree
   • Search, expand-all, collapse-all, soft-wrap toggle
-  • ONIX 3.0 / 3.1 detection, both reference-name and short-tag dialects
-  • Side-by-side "blocks" view: each ONIX P.x block as its own panel
-  • Resolved code-list labels (ProductIDType, ContributorRole, etc.)
-  • One-click popup showing every code in any list, linked to the
-    canonical EDItEUR definition
-  • Cross-pane collapse sync — click a Contributor in the tree, the
-    corresponding card on the right collapses with it
+  • Auto-collapsed <Product> blocks with a one-line summary
+    (ISBN · form · title) so a 10,000-product feed stays scannable
+  • Resolved code-list labels (ProductIDType, ProductForm,
+    ContributorRole, LanguageCode, CountryCode, …) inline beside
+    every value
+  • One-click popup showing every entry of any list (all 165
+    EDItEUR lists bundled, ~4,750 codes), linked to the canonical
+    EDItEUR definition page
+  • ONIX 3.0 / 3.1 detection, both reference-name and short-tag
+    dialects, plus older 2.1 docs
+  • Leaves non-ONIX XML alone — the browser's native viewer
+    handles RSS, generic XML and SOAP responses
 
 Works on local .xml files (after enabling the per-extension toggle in
 chrome://extensions → Details → Allow access to file URLs) as well as
 remote URLs.
 
-Built for Bokbasen — works for anyone reading ONIX.
+Built at Bokbasen — useful for anyone reading ONIX.
 ```
 
 **Category**: `Developer Tools` (or `Productivity` — both are reasonable)
@@ -62,8 +68,8 @@ Built for Bokbasen — works for anyone reading ONIX.
 **Single purpose**:
 
 ```
-Render raw XML pages as a readable, collapsible tree, with extra
-formatting and reference look-ups for ONIX bibliographic metadata.
+Render raw ONIX XML pages as a readable, collapsible tree, with inline
+EDItEUR code-list resolution.
 ```
 
 **Permission justifications**:
@@ -121,13 +127,11 @@ group in the dashboard under "Distribution" once the org is connected.
 | Marquee promo tile | 1400 × 560 | Optional but recommended |
 | Screenshot(s) | 1280 × 800 or 640 × 400 | At least 1 required, up to 5 |
 
-**Screenshot suggestion**: open the rendered split-pane view on a real ONIX
-file (the Bokbasen test fixture works well), grab the full Chrome viewport
-at 1280×800, no toolbar reflection, light theme. A second screenshot of
-the codelist popup makes the feature explicit.
-
-**Promo tile suggestion**: solid teal (`#0e7c66` matches the existing icon)
-with the ONIX Viewer name and a tiny `</>` motif.
+**Screenshot suggestion (re-take for 0.9.3)**: open a real ONIX file in the
+extension and grab a 1280 × 800 (or 2× HiDPI then resize) shot of the
+syntax-highlighted tree. A second shot of the code-list popup makes the
+feature concrete. The old screenshots in `dist/listing/` were taken when
+the structure pane was enabled and no longer match the shipping UI.
 
 ## Review notes (paste into "Notes for reviewer")
 
@@ -142,7 +146,6 @@ The extension has a two-stage activation gate:
      that doesn't look like ONIX is left for the browser's native viewer.
 
 Test pages:
-  https://www.w3schools.com/xml/cd_catalog.xml
-  https://www.w3schools.com/xml/note.xml
+  https://www.w3schools.com/xml/cd_catalog.xml  (non-ONIX — extension does nothing)
   Any local file:// .xml file (after enabling Allow access to file URLs)
 ```

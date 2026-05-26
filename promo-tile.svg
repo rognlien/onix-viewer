@@ -63,12 +63,12 @@
   <text x="225" y="160"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="15" font-weight="500" fill="#9BA8C4" letter-spacing="0">
-    Pretty-print and inspect
+    Pretty-print ONIX XML
   </text>
   <text x="225" y="180"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="15" font-weight="500" fill="#9BA8C4" letter-spacing="0">
-    ONIX bibliographic XML
+    with inline code-list lookup
   </text>
 
   <!-- Accent badges -->
@@ -78,10 +78,10 @@
         font-size="11" font-weight="600" fill="#2DD4FF" letter-spacing="0.4">
     ONIX 3.1
   </text>
-  <rect x="290" y="208" width="92" height="22" rx="11" fill="rgba(124, 92, 255, 0.15)" stroke="#7C5CFF" stroke-width="1"/>
-  <text x="336" y="223" text-anchor="middle"
+  <rect x="290" y="208" width="118" height="22" rx="11" fill="rgba(124, 92, 255, 0.15)" stroke="#7C5CFF" stroke-width="1"/>
+  <text x="349" y="223" text-anchor="middle"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="11" font-weight="600" fill="#A593FF" letter-spacing="0.4">
-    Code lists
+    165 code lists
   </text>
 </svg>

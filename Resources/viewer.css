@@ -333,6 +333,9 @@ body.px-no-attrs .px-attr { display: none; }
 
 /* ONIX code-list resolution badge */
 .px-codelist {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
   margin-left: 6px;
   padding: 0 5px;
   background: var(--badge-bg);
@@ -340,6 +343,7 @@ body.px-no-attrs .px-attr { display: none; }
   border-radius: 3px;
   font-family: var(--ui);
   font-size: 10.5px;
+  line-height: 1;
   vertical-align: 1px;
   cursor: help;
 }
@@ -349,6 +353,7 @@ body.px-no-attrs .px-attr { display: none; }
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  height: 16px;
   margin-left: 4px;
   padding: 0 5px;
   background: var(--badge-bg);
@@ -356,6 +361,7 @@ body.px-no-attrs .px-attr { display: none; }
   border-radius: 3px;
   font-family: var(--ui);
   font-size: 10.5px;
+  line-height: 1;
   vertical-align: 1px;
   text-decoration: none;
 }
