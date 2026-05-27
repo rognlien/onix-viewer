@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ONIX Viewer",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Pretty-print ONIX XML in Chrome, with syntax highlighting, Product summaries and inline EDItEUR code-list resolution.",
 
   "icons": {
