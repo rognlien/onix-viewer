@@ -202,6 +202,7 @@
     <span id="oxv-search-status" aria-live="polite"></span>
   </div>
   <div class="px-right">
+    <span id="oxv-schema"></span>
     <span id="oxv-meta"></span>
   </div>
 </div>

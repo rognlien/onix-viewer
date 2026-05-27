@@ -1,60 +1,22 @@
-<svg width="440" height="280" viewBox="0 0 440 280" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg width="440" height="280" viewBox="0 0 440 280" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="440" y2="280" gradientUnits="userSpaceOnUse">
       <stop stop-color="#07111F"/>
       <stop offset="1" stop-color="#0B1730"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2DD4FF"/>
-      <stop offset="1" stop-color="#7C5CFF"/>
-    </linearGradient>
-    <linearGradient id="divider" x1="0" y1="0" x2="0" y2="200" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#44F1FF"/>
-      <stop offset="1" stop-color="#63FF9B"/>
-    </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
   <!-- Background -->
   <rect width="440" height="280" fill="url(#bg)"/>
 
-  <!-- Icon at left (scaled 0.43× from the 512px master). Centered vertically. -->
-  <g transform="translate(20 40) scale(0.39)">
-    <rect x="40" y="40" width="432" height="432" rx="92" fill="#0F1B33"/>
+  <!-- Soft accent glows -->
+  <circle cx="60" cy="60" r="120" fill="#2DD4FF" opacity="0.10"/>
+  <circle cx="400" cy="240" r="140" fill="#F4A35C" opacity="0.10"/>
 
-    <!-- Tree panel -->
-    <g opacity="0.95">
-      <line x1="140" y1="180" x2="140" y2="332" stroke="#31456B" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="170" cy="190" r="12" fill="#2DD4FF"/>
-      <rect x="194" y="178" width="90" height="24" rx="12" fill="url(#accent)"/>
-      <line x1="140" y1="250" x2="165" y2="250" stroke="#31456B" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="180" cy="250" r="12" fill="#7C5CFF"/>
-      <rect x="204" y="238" width="100" height="24" rx="12" fill="#7C5CFF"/>
-      <line x1="140" y1="310" x2="165" y2="310" stroke="#31456B" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="180" cy="310" r="12" fill="#6E8BFF"/>
-      <rect x="204" y="298" width="88" height="24" rx="12" fill="#44537A"/>
-    </g>
+  <!-- Book + crystal artwork at the left, 180×180 centred vertically -->
+  <image href="icons/image.png" x="20" y="50" width="180" height="180"/>
 
-    <!-- Divider -->
-    <rect x="248" y="112" width="16" height="288" rx="8" fill="url(#divider)" filter="url(#glow)"/>
-
-    <!-- Right panel -->
-    <rect x="290" y="120" width="140" height="272" rx="34" fill="#F8FAFC"/>
-    <path d="M340 185L318 208L340 231" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M382 185L404 208L382 231" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="326" y="264" width="80" height="12" rx="6" fill="#CBD5E1"/>
-    <rect x="326" y="290" width="58" height="12" rx="6" fill="#CBD5E1"/>
-    <rect x="326" y="330" width="72" height="52" rx="14" fill="#E2E8F0"/>
-    <path d="M338 366L356 344L374 362L388 346L398 366" stroke="#5B5CF0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-
-  <!-- Wordmark + tagline -->
+  <!-- Wordmark -->
   <text x="225" y="125"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="34" font-weight="700" fill="#F4F8FF" letter-spacing="-0.5">
@@ -78,10 +40,10 @@
         font-size="11" font-weight="600" fill="#2DD4FF" letter-spacing="0.4">
     ONIX 3.1
   </text>
-  <rect x="290" y="208" width="118" height="22" rx="11" fill="rgba(124, 92, 255, 0.15)" stroke="#7C5CFF" stroke-width="1"/>
+  <rect x="290" y="208" width="118" height="22" rx="11" fill="rgba(244, 163, 92, 0.15)" stroke="#F4A35C" stroke-width="1"/>
   <text x="349" y="223" text-anchor="middle"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
-        font-size="11" font-weight="600" fill="#A593FF" letter-spacing="0.4">
+        font-size="11" font-weight="600" fill="#F4A35C" letter-spacing="0.4">
     165 code lists
   </text>
 </svg>

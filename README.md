@@ -75,13 +75,26 @@ Pages worth opening:
 
 ## ONIX code lists
 
-`Resources/onix-codelists.js` is **auto-generated** from the official EDItEUR ONIX 3.1 schema (issue 72) by `tools/generate-codelists.js`. It contains all 165 lists with full code/label pairs (~4,750 entries) and 158 element bindings — about 190 KB unminified, ~50 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
+`Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from two committed inputs:
 
-To regenerate after a schema update:
+- `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently Issue 73). The authoritative source of (list number, code, label).
+- `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, used only for the element-name → list-number bindings (those rarely change between minor issues).
+
+Both files are committed so the generator has no external dependencies and re-runs are reproducible offline.
+
+It contains 165 lists with ~4,770 code/label pairs and 158 element bindings — about 190 KB unminified, ~50 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
+
+To regenerate (e.g. after EDItEUR publishes a new Issue):
 
 ```bash
-node tools/generate-codelists.js                            # uses the bundled bokbasen schema cache
-node tools/generate-codelists.js --source=/path/to/xsd      # override source dir
+# Refresh the JSON cache from EDItEUR
+curl -fsSL "https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/ONIX_BookProduct_Codelists_Issue_73.json" \
+  -o tools/data/onix-codelists.json
+
+# Regenerate
+node tools/generate-codelists.js
+# or override inputs:
+node tools/generate-codelists.js --json=/path/to/codelists.json --xsd=/path/to/reference.xsd
 ```
 
 ## Release

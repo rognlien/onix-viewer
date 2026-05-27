@@ -199,6 +199,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+#oxv-schema {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-family: var(--ui);
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+}
+#oxv-schema:empty { display: none; }
+
 /* ───────── split layout ───────── */
 
 #oxv-main {

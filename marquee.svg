@@ -4,97 +4,59 @@
       <stop stop-color="#07111F"/>
       <stop offset="1" stop-color="#0B1730"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="500" y2="500" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2DD4FF"/>
-      <stop offset="1" stop-color="#7C5CFF"/>
-    </linearGradient>
-    <linearGradient id="divider" x1="0" y1="0" x2="0" y2="500" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#44F1FF"/>
-      <stop offset="1" stop-color="#63FF9B"/>
-    </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="14" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
   <!-- Background -->
   <rect width="1400" height="560" fill="url(#bg)"/>
 
   <!-- Soft accent glows so the dark background feels less flat -->
-  <circle cx="220" cy="160" r="220" fill="#2DD4FF" opacity="0.08"/>
-  <circle cx="1180" cy="420" r="280" fill="#7C5CFF" opacity="0.10"/>
+  <circle cx="240" cy="160" r="240" fill="#2DD4FF" opacity="0.10"/>
+  <circle cx="1180" cy="440" r="300" fill="#F4A35C" opacity="0.10"/>
 
-  <!-- Icon at left, ~440 px square, vertically centered -->
-  <g transform="translate(80 60) scale(0.86)">
-    <rect x="40" y="40" width="432" height="432" rx="92" fill="#0F1B33"/>
-
-    <g opacity="0.95">
-      <line x1="140" y1="180" x2="140" y2="332" stroke="#31456B" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="170" cy="190" r="12" fill="#2DD4FF"/>
-      <rect x="194" y="178" width="90" height="24" rx="12" fill="url(#accent)"/>
-      <line x1="140" y1="250" x2="165" y2="250" stroke="#31456B" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="180" cy="250" r="12" fill="#7C5CFF"/>
-      <rect x="204" y="238" width="100" height="24" rx="12" fill="#7C5CFF"/>
-      <line x1="140" y1="310" x2="165" y2="310" stroke="#31456B" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="180" cy="310" r="12" fill="#6E8BFF"/>
-      <rect x="204" y="298" width="88" height="24" rx="12" fill="#44537A"/>
-    </g>
-
-    <rect x="248" y="112" width="16" height="288" rx="8" fill="url(#divider)" filter="url(#glow)"/>
-
-    <rect x="290" y="120" width="140" height="272" rx="34" fill="#F8FAFC"/>
-    <path d="M340 185L318 208L340 231" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M382 185L404 208L382 231" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="326" y="264" width="80" height="12" rx="6" fill="#CBD5E1"/>
-    <rect x="326" y="290" width="58" height="12" rx="6" fill="#CBD5E1"/>
-    <rect x="326" y="330" width="72" height="52" rx="14" fill="#E2E8F0"/>
-    <path d="M338 366L356 344L374 362L388 346L398 366" stroke="#5B5CF0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
+  <!-- Book + crystal artwork (the real extension icon) at the left,
+       360×360 centred vertically. -->
+  <image href="icons/image.png" x="90" y="100" width="360" height="360"/>
 
   <!-- Wordmark -->
-  <text x="600" y="220"
+  <text x="540" y="220"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
-        font-size="92" font-weight="700" fill="#F4F8FF" letter-spacing="-1.5">
+        font-size="96" font-weight="700" fill="#F4F8FF" letter-spacing="-1.5">
     ONIX Viewer
   </text>
 
   <!-- Tagline -->
-  <text x="600" y="285"
+  <text x="540" y="285"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="30" font-weight="500" fill="#9BA8C4" letter-spacing="-0.2">
-    Pretty-print ONIX XML in Chrome.
+    Pretty-print ONIX bibliographic XML in Chrome.
   </text>
 
   <!-- Feature bullets -->
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
      font-size="22" font-weight="500" fill="#C9D4EC">
-    <circle cx="612" cy="350" r="5" fill="#2DD4FF"/>
-    <text x="630" y="357">Syntax-highlighted, collapsible XML tree</text>
-    <circle cx="612" cy="390" r="5" fill="#7C5CFF"/>
-    <text x="630" y="397">Inline EDItEUR code-list resolution</text>
-    <circle cx="612" cy="430" r="5" fill="#63FF9B"/>
-    <text x="630" y="437">One-click popup with every code in a list</text>
+    <circle cx="552" cy="350" r="5" fill="#2DD4FF"/>
+    <text x="570" y="357">Syntax-highlighted, collapsible XML tree</text>
+    <circle cx="552" cy="390" r="5" fill="#F4A35C"/>
+    <text x="570" y="397">Inline EDItEUR code-list resolution (Issue 73)</text>
+    <circle cx="552" cy="430" r="5" fill="#63FF9B"/>
+    <text x="570" y="437">One-click popup with every code in a list</text>
   </g>
 
   <!-- Accent badges -->
-  <rect x="600" y="470" width="98" height="32" rx="16" fill="rgba(45, 212, 255, 0.15)" stroke="#2DD4FF" stroke-width="1"/>
-  <text x="649" y="491" text-anchor="middle"
+  <rect x="540" y="470" width="98" height="32" rx="16" fill="rgba(45, 212, 255, 0.15)" stroke="#2DD4FF" stroke-width="1"/>
+  <text x="589" y="491" text-anchor="middle"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="15" font-weight="600" fill="#2DD4FF" letter-spacing="0.4">
     ONIX 3.1
   </text>
-  <rect x="710" y="470" width="148" height="32" rx="16" fill="rgba(124, 92, 255, 0.15)" stroke="#7C5CFF" stroke-width="1"/>
-  <text x="784" y="491" text-anchor="middle"
+  <rect x="650" y="470" width="148" height="32" rx="16" fill="rgba(244, 163, 92, 0.15)" stroke="#F4A35C" stroke-width="1"/>
+  <text x="724" y="491" text-anchor="middle"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
-        font-size="15" font-weight="600" fill="#A593FF" letter-spacing="0.4">
+        font-size="15" font-weight="600" fill="#F4A35C" letter-spacing="0.4">
     165 code lists
   </text>
-  <rect x="870" y="470" width="148" height="32" rx="16" fill="rgba(99, 255, 155, 0.13)" stroke="#63FF9B" stroke-width="1"/>
-  <text x="944" y="491" text-anchor="middle"
+  <rect x="810" y="470" width="148" height="32" rx="16" fill="rgba(99, 255, 155, 0.13)" stroke="#63FF9B" stroke-width="1"/>
+  <text x="884" y="491" text-anchor="middle"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
         font-size="15" font-weight="600" fill="#63FF9B" letter-spacing="0.4">
     No data collected

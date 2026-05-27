@@ -70,6 +70,7 @@ function render(fixtureName) {
     </span>
     <input id="oxv-search">
     <span id="oxv-search-status"></span>
+    <span id="oxv-schema"></span>
     <span id="oxv-meta"></span>
   </div>
   <div id="oxv-main">

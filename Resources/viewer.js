@@ -50,12 +50,21 @@
   const SOURCE = (sourceEl && sourceEl.textContent) || window.__OXV_SOURCE__ || "";
   const root = document.getElementById("oxv-root");
   const meta = document.getElementById("oxv-meta");
+  // EDItEUR schema info label in the toolbar — driven by the constant
+  // OnixViewerCodeListSchema baked into onix-codelists.js at generation time.
+  const schemaLabel = document.getElementById("oxv-schema");
+  if (schemaLabel && window.OnixViewerCodeListSchema) {
+    const s = window.OnixViewerCodeListSchema;
+    if (s.issue != null) {
+      schemaLabel.textContent = `EDItEUR ONIX ${s.version}, Issue ${s.issue}`;
+      if (s.releaseDate) schemaLabel.title = `Schema released ${s.releaseDate}`;
+    }
+  }
   const search = document.getElementById("oxv-search");
   const status = document.getElementById("oxv-search-status");
 
   // ---- parse ----------------------------------------------------------------
 
-  const t0 = performance.now();
   const parser = new DOMParser();
 
   // DOMParser silently inserts a <parsererror> element instead of throwing.
@@ -78,9 +87,7 @@
   // overflow the JS stack (the standard browser limit is ~10k frames).
   renderNode(doc, root, 0);
 
-  const t1 = performance.now();
   const sizeKB = (SOURCE.length / 1024).toFixed(1);
-  const ms = (t1 - t0).toFixed(0);
 
   // Right pane: ONIX blocks. Hidden entirely when the document isn't ONIX,
   // so non-ONIX XML keeps a single full-width tree.
@@ -92,7 +99,7 @@
     document.body.classList.add("px-no-onix");
   }
 
-  let metaText = `${sizeKB} KB · parsed in ${ms} ms`;
+  let metaText = `${sizeKB} KB`;
   if (onixCtx.isOnix) {
     const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
     metaText = `ONIX ${onixCtx.version || "?"} (${productsLabel}) · ` + metaText;
