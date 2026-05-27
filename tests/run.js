@@ -63,6 +63,7 @@ function render(fixtureName) {
     <button data-action="expand-all"></button>
     <button data-action="collapse-all"></button>
     <button data-action="toggle-wrap"></button>
+    <button data-action="copy-xml"></button>
     <span class="px-view-group">
       <button data-action="view-xml"></button>
       <button data-action="view-split"></button>

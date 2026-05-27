@@ -177,6 +177,7 @@
     <button type="button" data-action="expand-all" title="Expand all (E)">Expand all</button>
     <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
     <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
+    <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
     <!--
       View-mode toggle (XML / Split / Structure) is currently DISABLED.
       The blocks-pane code (onix-blocks.js, the right pane, sync logic) is

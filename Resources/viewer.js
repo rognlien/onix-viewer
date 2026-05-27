@@ -451,8 +451,57 @@
         case "view-structure":
           applyViewMode(btn.dataset.action.slice("view-".length));
           break;
+        case "copy-xml":
+          copyRawXml(btn);
+          break;
       }
     });
+  }
+
+  // ---- copy raw XML ---------------------------------------------------------
+
+  // The "Copy XML" toolbar button hands the user the unannotated source.
+  // SOURCE is the full original XML the viewer parsed — no codelist badges,
+  // no List-N chips, no folding markers. navigator.clipboard.writeText is
+  // the modern API; we keep a document.execCommand fallback for the rare
+  // environments where the modern API isn't available (some file:// pages,
+  // older browsers).
+  function copyRawXml(btn) {
+    const text = SOURCE || "";
+    if (!text) {
+      flashButton(btn, "Empty");
+      return;
+    }
+    const done = () => flashButton(btn, "Copied");
+    const fail = () => execCopyFallback(text) ? done() : flashButton(btn, "Failed");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fail);
+    } else {
+      fail();
+    }
+  }
+
+  function execCopyFallback(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function flashButton(btn, msg) {
+    const original = btn.textContent;
+    btn.textContent = msg;
+    btn.setAttribute("disabled", "");
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.removeAttribute("disabled");
+    }, 1200);
   }
 
   // ---- view mode (XML / Split / Structure) ---------------------------------
