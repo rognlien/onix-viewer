@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/reference" release="3.0">
+  <Header>
+    <Sender><SenderName>Test Sender</SenderName></Sender>
+    <SentDateTime>20260507T0930</SentDateTime>
+  </Header>
+  <Product>
+    <RecordReference>multi-title-9788234567899</RecordReference>
+    <NotificationType>03</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788234567899</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductForm>BB</ProductForm>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <SequenceNumber>1</SequenceNumber>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText>Fra en dag til en annen</TitleText>
+        </TitleElement>
+      </TitleDetail>
+      <TitleDetail>
+        <TitleType>03</TitleType>
+        <TitleElement>
+          <SequenceNumber>1</SequenceNumber>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText>The difference a day makes</TitleText>
+        </TitleElement>
+      </TitleDetail>
+    </DescriptiveDetail>
+  </Product>
+</ONIXMessage>

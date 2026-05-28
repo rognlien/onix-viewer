@@ -31,7 +31,11 @@
   // Map from short tag → reference-name (subset; the full mapping is in
   // EDItEUR's "Element name aliases" table). Used both for highlighting and
   // for codelist lookups (so b221 still resolves ProductIDType).
-  const SHORT_TO_REFERENCE = {
+  // Both maps are accessed with keys derived from untrusted XML (element /
+  // attribute names). Object.create(null) prevents an XML element named e.g.
+  // "constructor" or "__proto__" from accidentally resolving to a prototype
+  // property and bypassing the falsy-check guards below.
+  const SHORT_TO_REFERENCE = Object.assign(Object.create(null), {
     "ONIXmessage": "ONIXMessage",
     "header":      "Header",
     "product":     "Product",
@@ -81,7 +85,7 @@
     "b067": "SubjectSchemeIdentifier",
     "editiontype": "EditionType",
     "b056": "EditionType",
-  };
+  });
 
   // ONIX-defined attribute names → EDItEUR code list number. Derived from
   // the codelist-bound attributes in ONIX_BookProduct_3.1_reference.xsd
@@ -89,14 +93,14 @@
   // List N). Names are lowercase to match how the DOM exposes attribute
   // names. If EDItEUR ever adds another codelist attribute, extend this
   // map alongside a schema regeneration.
-  const ATTR_CODELISTS = {
+  const ATTR_CODELISTS = Object.assign(Object.create(null), {
     "sourcetype":  3,
     "textcase":    14,
     "textformat":  34,
     "dateformat":  55,
     "language":    74,
     "textscript":  121,
-  };
+  });
 
   /**
    * Inspect a parsed XML Document and return:
@@ -242,64 +246,30 @@
     const name = (element.localName || element.nodeName).toLowerCase();
     if (name !== "product") return null;
 
-    // Helper: find first descendant by either reference name or short tag.
-    const find = (refName, shortTag) => {
-      // querySelector ignores namespaces in the way we'd want; walk manually.
-      const stack = [element];
-      const lcRef = refName.toLowerCase();
-      const lcShort = shortTag && shortTag.toLowerCase();
-      while (stack.length) {
-        const n = stack.pop();
-        for (const c of n.children) {
-          const cn = (c.localName || c.nodeName).toLowerCase();
-          if (cn === lcRef || (lcShort && cn === lcShort)) return c;
-          stack.push(c);
-        }
-      }
-      return null;
-    };
-
-    const textOf = (el) => (el ? (el.textContent || "").trim() : "");
-
-    // Find first ProductIdentifier whose type is ISBN-13 (15) or fall back to first.
-    let isbn = null;
-    const productIds = [];
-    const stack = [element];
-    while (stack.length) {
-      const n = stack.pop();
-      for (const c of n.children) {
-        const cn = (c.localName || c.nodeName).toLowerCase();
-        if (cn === "productidentifier") productIds.push(c);
-        else stack.push(c);
-      }
-    }
-    for (const pid of productIds) {
-      const typeEl = find.call(null, "ProductIDType", "b221");
-      // pid-scoped lookup
-      const t = pid.querySelector
-        ? Array.from(pid.children).find((c) => /^(productidtype|b221)$/i.test(c.localName || c.nodeName))
-        : null;
-      const v = pid.querySelector
-        ? Array.from(pid.children).find((c) => /^(idvalue|b244)$/i.test(c.localName || c.nodeName))
-        : null;
-      if (t && v && textOf(t) === "15") { isbn = textOf(v); break; }
-      if (!isbn && v) isbn = textOf(v);
-    }
-
-    const formEl = find("ProductForm", "b012");
-    const titleEl = find("TitleText", "b203");
-
     const parts = [];
-    if (isbn) parts.push(`ISBN ${isbn}`);
-    if (formEl) {
-      const code = textOf(formEl);
-      const lists = window.OnixViewerCodeLists;
-      const label = lists && lists.ProductForm && lists.ProductForm.get(code);
-      parts.push(label || code);
-    }
-    if (titleEl) {
-      const t = textOf(titleEl);
-      if (t) parts.push(`"${t.length > 60 ? t.slice(0, 57) + "…" : t}"`);
+
+    // Primary identifier — try the EDItEUR ID types in this preference
+    // order: 15 (ISBN-13), 03 (GTIN-13), 02 (ISBN-10). If a Product has
+    // none of those (e.g. only a proprietary ID), the summary omits the
+    // identifier segment entirely rather than guessing.
+    const id = pickPrimaryIdentifier(element);
+    if (id) parts.push(`${id.label} ${id.value}`);
+
+    // ProductForm + Title both live inside DescriptiveDetail.
+    const desc = directChild(element, "descriptivedetail");
+    if (desc) {
+      const formCode = textOfDirectChild(desc, "productform", "b012");
+      if (formCode) {
+        const lists = window.OnixViewerCodeLists;
+        const label = lists && lists.ProductForm && lists.ProductForm.get(formCode);
+        parts.push(label || formCode);
+      }
+
+      const title = pickDistinctiveTitle(desc);
+      if (title) {
+        const t = title.length > 60 ? title.slice(0, 57) + "…" : title;
+        parts.push(`"${t}"`);
+      }
     }
 
     return parts.length ? parts.join(" · ") : null;
@@ -322,6 +292,85 @@
     const label = list.get(String(value).trim());
     if (!label) return null;
     return { value: String(value).trim(), label, listNumber };
+  }
+
+  // ---- helpers used by productSummary -------------------------------------
+
+  function directChild(parentEl, lcName, lcShortAlt) {
+    for (const c of parentEl.children) {
+      const cn = (c.localName || c.nodeName).toLowerCase();
+      if (cn === lcName || (lcShortAlt && cn === lcShortAlt)) return c;
+    }
+    return null;
+  }
+
+  function textOfDirectChild(parentEl, lcName, lcShortAlt) {
+    const el = directChild(parentEl, lcName, lcShortAlt);
+    return el ? (el.textContent || "").trim() : "";
+  }
+
+  function directChildren(parentEl, lcName, lcShortAlt) {
+    const out = [];
+    for (const c of parentEl.children) {
+      const cn = (c.localName || c.nodeName).toLowerCase();
+      if (cn === lcName || (lcShortAlt && cn === lcShortAlt)) out.push(c);
+    }
+    return out;
+  }
+
+  // ProductIdentifier is a direct child of <Product> per the ONIX schema.
+  // Returns { label, value } for the best identifier the Product carries,
+  // walking this preference list:
+  //   1. ProductIDType 15 — ISBN-13 (the modern ISBN)
+  //   2. ProductIDType 03 — GTIN-13 (used when the producer signals a
+  //      generic trade-item barcode rather than an ISBN; for books these
+  //      digits are usually the same number as the ISBN-13)
+  //   3. ProductIDType 02 — ISBN-10 (legacy form, pre-2007 titles)
+  // If none of those is present (e.g. only a proprietary internal ID),
+  // returns null so the summary skips the identifier segment.
+  const IDENTIFIER_PREFERENCE = [
+    { type: "15", label: "ISBN" },
+    { type: "03", label: "GTIN" },
+    { type: "02", label: "ISBN" },
+  ];
+
+  function pickPrimaryIdentifier(productEl) {
+    const byType = Object.create(null);
+    for (const pid of directChildren(productEl, "productidentifier")) {
+      const type = textOfDirectChild(pid, "productidtype", "b221");
+      const val = textOfDirectChild(pid, "idvalue", "b244");
+      if (!type || !val) continue;
+      if (byType[type] == null) byType[type] = val;
+    }
+    for (const { type, label } of IDENTIFIER_PREFERENCE) {
+      if (byType[type]) return { label, value: byType[type] };
+    }
+    return null;
+  }
+
+  // A DescriptiveDetail can contain multiple <TitleDetail> blocks (original-
+  // language title, abbreviated, distributor's, …). The "distinctive title"
+  // is the one with TitleType=01 — that's the title we want in the summary.
+  // Fall back to the first TitleDetail if none is explicitly distinctive.
+  function pickDistinctiveTitle(descEl) {
+    const titleDetails = directChildren(descEl, "titledetail");
+    if (!titleDetails.length) return "";
+
+    let chosen = null;
+    for (const td of titleDetails) {
+      if (textOfDirectChild(td, "titletype", "b202") === "01") {
+        chosen = td;
+        break;
+      }
+    }
+    if (!chosen) chosen = titleDetails[0];
+
+    // TitleText lives one level down, inside <TitleElement>.
+    for (const te of directChildren(chosen, "titleelement")) {
+      const txt = textOfDirectChild(te, "titletext", "b203");
+      if (txt) return txt;
+    }
+    return "";
   }
 
   window.OnixViewerOnix = {

@@ -126,6 +126,10 @@ Review time is up to Google — usually minutes to a few hours, occasionally day
 - **Very large documents** (>10 MB) — rendering is synchronous; you'll see a freeze.
 - **Complex namespace prefix usage** — rendering preserves source `nodeName` exactly; namespace-aware lookup against URIs isn't implemented beyond ONIX detection.
 
+## Security & privacy
+
+See [SECURITY.md](SECURITY.md) for the threat model, the exhaustive list of what the extension can and can't do, and the one network call it makes (a same-origin re-fetch of the page you're viewing — no data leaves the origin). The extension declares zero `permissions` and zero `host_permissions`, so cross-origin exfiltration would be CORS-blocked by the browser, not just by absent code.
+
 ## See also
 
 `CLAUDE.md` — design rationale, the gotchas behind the takeover-pattern choice, and notes for Claude Code sessions iterating on this project.

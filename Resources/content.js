@@ -9,6 +9,13 @@
 (function () {
   "use strict";
 
+  // Diagnostic logging flag — flip to true while debugging activation /
+  // fallback paths. Off in release so we don't spam the console of every
+  // XML page the user opens.
+  const DEBUG = false;
+  function dlog(...args) { if (DEBUG) console.info(...args); }
+  function dwarn(...args) { if (DEBUG) console.warn(...args); }
+
   // We run at document_start. document.contentType is available immediately,
   // but the body may not be parsed yet. We check the type up front and bail
   // out fast for non-XML pages (the vast majority).
@@ -59,13 +66,13 @@
       // documents that actually look like ONIX. For non-ONIX XML the user
       // gets the browser's native view, undisturbed.
       if (!looksLikeOnix(xmlSource)) {
-        console.info("[OnixViewer] XML is not ONIX, leaving native view.");
+        dlog("[OnixViewer] XML is not ONIX, leaving native view.");
         return;
       }
       takeOver(xmlSource);
     })
     .catch((err) => {
-      console.warn("[OnixViewer] Could not load source, leaving native view:", err);
+      dwarn("[OnixViewer] Could not load source, leaving native view:", err);
     });
 
   function looksLikeOnix(xml) {
@@ -93,7 +100,7 @@
         return r.text();
       })
       .catch((err) => {
-        console.info("[OnixViewer] re-fetch failed, reading from DOM:", err.message);
+        dlog("[OnixViewer] re-fetch failed, reading from DOM:", err.message);
         return readSourceFromDom();
       });
   }

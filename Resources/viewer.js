@@ -344,7 +344,8 @@
       const eq = document.createTextNode("=");
       const av = document.createElement("span");
       av.className = "px-attr-value";
-      av.textContent = `"${attr.value.replace(/"/g, "&quot;")}"`;
+      // textContent neutralises the inner string; no HTML escaping needed.
+      av.textContent = `"${attr.value}"`;
       if (window.OnixViewerOnix && onixCtx.isOnix) {
         const resolvedAttr = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
         if (resolvedAttr) {

@@ -1,6 +1,6 @@
 {
   "name": "onix-viewer",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "private": true,
   "description": "Chrome extension that pretty-prints raw XML pages with ONIX-aware features.",
   "scripts": {

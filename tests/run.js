@@ -203,6 +203,39 @@ describe("ONIX 3.0 reference", () => {
     }
   });
 
+  test("product summary picks GTIN-13 when ISBN-13 is absent (preference: 15 → 03 → 02)", () => {
+    const w = render("onix-3.0-gtin-only.xml");
+    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    assert(summary.startsWith("GTIN 9780000000003"),
+      `expected "GTIN 9780000000003 …" prefix, got: ${summary}`);
+  });
+
+  test("product summary labels ISBN-10 as ISBN", () => {
+    const w = render("onix-3.0-isbn10-only.xml");
+    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    assert(summary.startsWith("ISBN 0123456789"),
+      `expected "ISBN 0123456789 …" prefix, got: ${summary}`);
+  });
+
+  test("product summary omits the identifier segment when no ISBN-13 / GTIN-13 / ISBN-10 is present", () => {
+    const w = render("onix-3.0-proprietary-only.xml");
+    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    assert(!/^(ISBN|GTIN)\b/.test(summary),
+      `expected no ISBN / GTIN prefix when only a proprietary ID exists, got: ${summary}`);
+    assert(summary.includes("No ISBN here"),
+      `expected the title segment to still appear, got: ${summary}`);
+  });
+
+  test("product summary picks the distinctive title (TitleType=01) when multiple TitleDetails exist", () => {
+    const w = render("onix-3.0-multi-title.xml");
+    const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);
+    assert(summaries.length === 1, `expected 1 product summary, got ${summaries.length}`);
+    assert(summaries[0].includes("Fra en dag til en annen"),
+      `summary should pick TitleType=01 title, got: ${summaries[0]}`);
+    assert(!summaries[0].includes("The difference a day makes"),
+      `summary should NOT contain TitleType=03 title, got: ${summaries[0]}`);
+  });
+
   test("renders product summaries with ISBN + form + title", () => {
     const w = render("onix-3.0-reference.xml");
     const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);
