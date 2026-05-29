@@ -27,7 +27,7 @@ Iteration loop: edit a file in `Resources/` → click the **reload** circular ar
 
 ## Install (for colleagues — before Chrome Web Store approval)
 
-While the Chrome Web Store review is pending you can sideload the extension as an "unpacked" install. Send colleagues the most recent zip from `dist/` (e.g. `dist/onix-viewer-0.9.3.zip`) along with these steps:
+While the Chrome Web Store review is pending you can sideload the extension as an "unpacked" install. Send colleagues the most recent zip from `dist/` (e.g. `dist/onix-viewer-0.9.8.zip`) along with these steps:
 
 1. Download the zip and unzip it somewhere stable — `~/Documents/onix-viewer/` is a good default. The folder must stay there after install; moving or renaming it later breaks the extension.
 2. Open Chrome and go to `chrome://extensions`.
@@ -51,7 +51,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (52 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, and the (currently disabled) structure view.
+Runs the full jsdom suite (56 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, product-summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
 
 ### Visual loop — Chrome
 
@@ -104,8 +104,8 @@ GitHub Actions (`.github/workflows/release.yml`) handles the boring parts; the a
 To ship a new version:
 
 ```bash
-tools/release.sh 0.9.3          # bumps manifest.json + package.json, commits, tags
-git push origin main v0.9.3     # main commit and the tag
+tools/release.sh 0.9.9          # bumps manifest.json + package.json, commits, tags
+git push origin main v0.9.9     # main commit and the tag
 ```
 
 The tag push triggers the workflow, which runs tests, verifies the tag matches the manifest version, builds the zip, and creates a GitHub release with the zip attached.
@@ -132,4 +132,7 @@ See [SECURITY.md](SECURITY.md) for the threat model, the exhaustive list of what
 
 ## See also
 
-`CLAUDE.md` — design rationale, the gotchas behind the takeover-pattern choice, and notes for Claude Code sessions iterating on this project.
+- [`CHANGELOG.md`](CHANGELOG.md) — version-by-version release notes.
+- [`SECURITY.md`](SECURITY.md) — threat model, what the extension can and can't do, how to verify it.
+- [`CLAUDE.md`](CLAUDE.md) — design rationale, the gotchas behind the takeover-pattern choice, and notes for Claude Code sessions iterating on this project.
+- [`CWS_LISTING.md`](CWS_LISTING.md) — paste-ready copy for the Chrome Web Store dashboard.
