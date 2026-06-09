@@ -3,6 +3,21 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## 0.9.9 — 2026-06-09
+
+### Added
+- **Support for the ONIX Acknowledgement message** (root
+  `<ONIXMessageAcknowledgement>`, EDItEUR's optional response format). The
+  extension now detects, takes over, and renders these files; they're
+  labelled `ONIX Acknowledgement 3.0 (N records)` in the toolbar. Their
+  status code-lists — `MessageStatus` (221), `MessageStatusDateRole` (222),
+  `StatusDetailCodeType` (223), `StatusDetailType` (224),
+  `StatusDetailCode` (225) and `RecordStatus` (226) — resolve to readable
+  labels in both reference and short-tag dialects. The code lists were
+  already bundled; only the element→list bindings were added (by hand in
+  `onix.js`, since these elements aren't in the Book Product schema the
+  bindings are generated from).
+
 ## 0.9.8 — 2026-05-28
 
 ### Security

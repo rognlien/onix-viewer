@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessageAcknowledgement release="3.0" xmlns="http://ns.editeur.org/onix/acknowledgement/3.0/short">
+  <header>
+    <m489>03</m489>
+  </header>
+  <product>
+    <a001>com.acme.9780000000003</a001>
+    <a498>03</a498>
+  </product>
+</ONIXMessageAcknowledgement>

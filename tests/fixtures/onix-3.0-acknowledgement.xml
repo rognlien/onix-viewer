@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessageAcknowledgement release="3.0" xmlns="http://ns.editeur.org/onix/acknowledgement/3.0/reference">
+  <Header>
+    <Sender>
+      <SenderName>Big Book Distributor</SenderName>
+    </Sender>
+    <Addressee>
+      <AddresseeName>Acme Publishing</AddresseeName>
+    </Addressee>
+    <MessageNumber>20260609-001</MessageNumber>
+    <SentDateTime>20260609T1430</SentDateTime>
+    <MessageStatus>03</MessageStatus>
+  </Header>
+  <Product>
+    <RecordReference>com.acme.9780000000001</RecordReference>
+    <RecordStatus>02</RecordStatus>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9780000000001</IDValue>
+    </ProductIdentifier>
+    <RecordStatusDetail>
+      <StatusDetailType>E</StatusDetailType>
+      <StatusDetailCodeType>02</StatusDetailCodeType>
+      <StatusDetailCode>000</StatusDetailCode>
+      <StatusDetailText>Mandatory element &lt;TitleText&gt; is missing.</StatusDetailText>
+      <StatusDetailXPath>/Product[1]/DescriptiveDetail/TitleDetail</StatusDetailXPath>
+    </RecordStatusDetail>
+  </Product>
+  <Product>
+    <RecordReference>com.acme.9780000000002</RecordReference>
+    <RecordStatus>00</RecordStatus>
+  </Product>
+</ONIXMessageAcknowledgement>

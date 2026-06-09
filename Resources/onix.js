@@ -24,6 +24,10 @@
 
   // Reference-name root candidates (3.0 + 2.1).
   const REFERENCE_ROOTS = new Set(["ONIXMessage", "ONIXmessage"]);
+  // Root of an ONIX Acknowledgement message (EDItEUR's optional response
+  // format). Its namespace is the canonical signal; this set only catches
+  // the rare no-namespace case so the root name alone still identifies it.
+  const ACK_ROOTS = new Set(["ONIXMessageAcknowledgement"]);
   // Short-tag roots. ONIX 3.0 short uses <ONIXMessage> too with a /short
   // namespace; ONIX 2.1 short uses <ONIXmessage> with lowercase children.
   // The reliable signal is the namespace URI, which we check first.
@@ -102,13 +106,49 @@
     "textscript":  121,
   });
 
+  // Acknowledgement-message elements that carry a code-list value. The
+  // Acknowledgement format reuses the shared ONIX code lists (221–226), but
+  // its elements live in a separate schema, not the Book Product schema the
+  // codelist bindings are generated from — so they're declared here, the way
+  // SHORT_TO_REFERENCE and ATTR_CODELISTS hold hand-maintained ONIX knowledge.
+  // Each entry names the reference element, its short tag, and the EDItEUR
+  // list number. registerAcknowledgementBindings() (below) folds these into
+  // the lookup tables onix-codelists.js publishes, so resolveCodelist,
+  // codelistMeta and the popup all work for them with no special-casing.
+  const ACK_CODELIST_ELEMENTS = [
+    { ref: "MessageStatus",         short: "m489", list: 221, title: "Message status" },
+    { ref: "MessageStatusDateRole", short: "m490", list: 222, title: "Message status date role" },
+    { ref: "StatusDetailCodeType",  short: "a492", list: 223, title: "Status detail code type" },
+    { ref: "StatusDetailType",      short: "a494", list: 224, title: "Status detail type" },
+    { ref: "StatusDetailCode",      short: "a495", list: 225, title: "Message / Record status detail" },
+    { ref: "RecordStatus",          short: "a498", list: 226, title: "Record status" },
+  ];
+
+  function registerAcknowledgementBindings() {
+    const byNumber = window.OnixViewerCodeListsByNumber;
+    const byName = window.OnixViewerCodeLists;
+    const metaByName = window.OnixViewerCodeListMeta;
+    for (const { ref, short, list, title } of ACK_CODELIST_ELEMENTS) {
+      SHORT_TO_REFERENCE[short] = ref;
+      if (byName && byNumber && byNumber[list] && !byName[ref]) {
+        byName[ref] = byNumber[list];
+      }
+      if (metaByName && !metaByName[ref]) {
+        metaByName[ref] = { listNumber: list, title };
+      }
+    }
+  }
+
+  // onix-codelists.js loads before this module, so the global tables exist.
+  registerAcknowledgementBindings();
+
   /**
    * Inspect a parsed XML Document and return:
    *   { isOnix, dialect: "reference"|"short"|null, version: "3.0"|"2.1"|null }
    */
   function detect(doc) {
     const root = doc && doc.documentElement;
-    if (!root) return { isOnix: false, dialect: null, version: null };
+    if (!root) return { isOnix: false, dialect: null, version: null, messageType: null };
 
     const ns = root.namespaceURI || "";
     const localName = root.localName || root.nodeName;
@@ -116,14 +156,26 @@
     let isOnix = false;
     let dialect = null;
     let version = null;
+    let messageType = "product";
 
     if (ns.startsWith(ONIX_NS_PREFIX)) {
       isOnix = true;
-      // e.g. http://ns.editeur.org/onix/3.0/reference
-      const tail = ns.slice(ONIX_NS_PREFIX.length); // "3.0/reference"
-      const parts = tail.split("/");
+      // Product message: "3.0/reference". Acknowledgement message:
+      // "acknowledgement/3.0/reference" — strip the leading segment so the
+      // version/dialect parsing below is shared between the two.
+      let parts = ns.slice(ONIX_NS_PREFIX.length).split("/");
+      if (parts[0] === "acknowledgement") {
+        messageType = "acknowledgement";
+        parts = parts.slice(1);
+      }
       version = parts[0] || null;
       dialect = (parts[1] === "short") ? "short" : "reference";
+    } else if (ACK_ROOTS.has(localName)) {
+      // No namespace — an Acknowledgement message identified by its root.
+      isOnix = true;
+      messageType = "acknowledgement";
+      dialect = "reference";
+      version = root.getAttribute("release") || "3.0";
     } else if (REFERENCE_ROOTS.has(localName)) {
       // No namespace — likely ONIX 2.1 reference.
       isOnix = true;
@@ -137,7 +189,7 @@
       version = root.getAttribute("release") || "2.1";
     }
 
-    return { isOnix, dialect, version };
+    return { isOnix, dialect, version, messageType };
   }
 
   /**

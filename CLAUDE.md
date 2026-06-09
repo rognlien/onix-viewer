@@ -82,17 +82,25 @@ Things that still won't work:
 
 ## ONIX detection logic
 
-Lives in `Resources/onix.js`. The detector returns `{ isOnix, dialect, version }` for the parsed `Document`.
+Lives in `Resources/onix.js`. The detector returns `{ isOnix, dialect, version, messageType }` for the parsed `Document`. `messageType` is `"product"` for a normal product-information message, or `"acknowledgement"` for an Acknowledgement message (see below).
 
 Signals checked, in order:
-1. **Namespace URI** on the root element (`http://ns.editeur.org/onix/3.0/reference`, `.../3.1/reference`, `.../short`, etc.). Canonical ONIX 3.x signal.
-2. **Root local name** (`ONIXMessage` / `ONIXmessage`) when no namespace is set — typical of ONIX 2.1 docs.
+1. **Namespace URI** on the root element (`http://ns.editeur.org/onix/3.0/reference`, `.../3.1/reference`, `.../short`, etc.). Canonical ONIX 3.x signal. The Acknowledgement namespace inserts an extra segment — `http://ns.editeur.org/onix/acknowledgement/3.0/{reference,short}` — which the parser strips before reading version/dialect, setting `messageType` accordingly.
+2. **Root local name** (`ONIXMessage` / `ONIXmessage`) when no namespace is set — typical of ONIX 2.1 docs. `ONIXMessageAcknowledgement` is matched here too for the rare no-namespace Acknowledgement file.
 3. The **`release` attribute** on the root if version isn't already known.
 
 Reference vs. short tag matters because:
 - Reference dialect uses `<ProductIdentifier>`, `<ProductIDType>`, etc.
 - Short dialect uses `<productidentifier>`, `<b221>`, etc.
 - The codelist resolver handles both via a `SHORT_TO_REFERENCE` map in `onix.js`. The map is the most common short tags; extending it is mechanical (mirror the EDItEUR aliases table).
+
+## Acknowledgement message support
+
+The ONIX **Acknowledgement** message (EDItEUR's optional response format, root `<ONIXMessageAcknowledgement>`, `release="3.0"`) is detected, taken over, and rendered like any other ONIX document. Its body is almost entirely status codes, so codelist resolution is the point — but its elements (`MessageStatus`, `RecordStatus`, `StatusDetailType`, …) live in a separate schema, not the Book Product schema that `tools/generate-codelists.js` derives element→list bindings from. The needed code lists (221–226) *are* already in the bundled data; only the bindings are missing.
+
+Rather than feed a second schema to the generator, `onix.js` declares those bindings by hand in `ACK_CODELIST_ELEMENTS` (reference name, short tag, list number) and `registerAcknowledgementBindings()` folds them into the global lookup tables (`OnixViewerCodeLists`, `OnixViewerCodeListMeta`, `SHORT_TO_REFERENCE`) at load time — so `resolveCodelist`, `codelistMeta`, and the popup all work for them with no special-casing downstream. This sits alongside the other hand-maintained ONIX maps (`SHORT_TO_REFERENCE`, `ATTR_CODELISTS`) and keeps the generated `onix-codelists.js` untouched. To add more Acknowledgement code-list elements, extend that one array.
+
+The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the toolbar meta pill — "records" rather than "products", since the `<Product>` blocks here are record statuses, not product descriptions.
 
 ## Product summary
 
@@ -211,6 +219,8 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-gtin-only.xml` | Identifier preference order: GTIN-13 wins when ISBN-13 absent |
 | `onix-3.0-isbn10-only.xml` | ISBN-10 labelled as "ISBN" in the summary |
 | `onix-3.0-proprietary-only.xml` | Summary omits the identifier segment when no ISBN/GTIN present |
+| `onix-3.0-acknowledgement.xml` | Acknowledgement message: detection, "ONIX Acknowledgement" label, "records" count, ack-specific codelist resolution (MessageStatus, RecordStatus, StatusDetailType) |
+| `onix-3.0-acknowledgement-short.xml` | Short-tag acknowledgement: `m489`/`a498` resolve via the registered ack short→reference bindings |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 

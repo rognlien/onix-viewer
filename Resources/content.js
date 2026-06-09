@@ -82,10 +82,13 @@
     //      3.1, both reference and short dialects, and standalone <Product>
     //      records).
     //   2. An <ONIXMessage> / <ONIXmessage> root element with no namespace,
-    //      typical of older ONIX 2.1 documents.
+    //      typical of older ONIX 2.1 documents, or an
+    //      <ONIXMessageAcknowledgement> root (the ONIX Acknowledgement
+    //      message — usually namespaced, so signal 1 already covers it, but
+    //      the root match catches the rare no-namespace case too).
     const head = (xml || "").slice(0, 2048);
     if (head.includes("ns.editeur.org/onix")) return true;
-    if (/<ONIXMessage[\s>]/i.test(head)) return true;
+    if (/<ONIXMessage(Acknowledgement)?[\s>]/i.test(head)) return true;
     return false;
   }
 

@@ -4,7 +4,7 @@ A Chrome extension (Manifest V3) that pretty-prints raw ONIX XML pages with synt
 
 ## What it does
 
-When the browser loads a page whose `Content-Type` is `application/xml`, `text/xml`, or `application/onix+xml` **and the content looks like ONIX** (EDItEUR namespace or `<ONIXMessage>` root), the extension:
+When the browser loads a page whose `Content-Type` is `application/xml`, `text/xml`, or `application/onix+xml` **and the content looks like ONIX** (EDItEUR namespace, `<ONIXMessage>` root, or an `<ONIXMessageAcknowledgement>` root), the extension:
 
 1. Re-fetches the source (the native viewer's DOM isn't reliable to read from).
 2. Replaces the document with an indented, syntax-highlighted, foldable, searchable tree.
@@ -12,6 +12,8 @@ When the browser loads a page whose `Content-Type` is `application/xml`, `text/x
    - Distinct colour for ONIX element tags.
    - Auto-collapsed `<Product>` blocks with a one-line summary (ISBN · form · title) so you can scan thousands of products without scrolling forever.
    - Resolved code-list labels for every value the bundled EDItEUR lists know about — shown as a small `→ ISBN-13` style badge after the value, with a clickable `List N ↗` chip that opens a popup containing every code in that list (and a link to the canonical EDItEUR page).
+
+It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAcknowledgement>`) — the optional response format a recipient sends back to confirm or reject a feed. It's labelled `ONIX Acknowledgement 3.0` in the toolbar, and the status codes it's built from (`MessageStatus`, `RecordStatus`, status-detail severity, …) resolve to readable labels just like product code-lists.
 
 Non-ONIX XML (RSS, generic XML, anything without an EDItEUR namespace) is left alone — the browser's native viewer handles it. XHTML and SVG are also skipped (browsers render them natively).
 
