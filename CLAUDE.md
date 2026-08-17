@@ -87,7 +87,8 @@ Lives in `Resources/onix.js`. The detector returns `{ isOnix, dialect, version, 
 Signals checked, in order:
 1. **Namespace URI** on the root element (`http://ns.editeur.org/onix/3.0/reference`, `.../3.1/reference`, `.../short`, etc.). Canonical ONIX 3.x signal. The Acknowledgement namespace inserts an extra segment — `http://ns.editeur.org/onix/acknowledgement/3.0/{reference,short}` — which the parser strips before reading version/dialect, setting `messageType` accordingly.
 2. **Root local name** (`ONIXMessage` / `ONIXmessage`) when no namespace is set — typical of ONIX 2.1 docs. `ONIXMessageAcknowledgement` is matched here too for the rare no-namespace Acknowledgement file.
-3. The **`release` attribute** on the root if version isn't already known.
+3. **Bare `<Product>` root** when no namespace is set — a standalone Product record exported without an `<ONIXMessage>` envelope. `<Product>` alone is too generic to trust, so it's only accepted when it carries a corroborating ONIX-specific child (`RecordReference`, `NotificationType`, `RecordSourceType`, `ProductIdentifier`, `DescriptiveDetail`, or short tags `a001`/`a002`) — see `hasOnixProductChild`. The dialect is inferred from element-name casing (`inferProductDialect`) since there's no `/short` namespace marker, and the version is left `null` (the meta pill then reads `ONIX (N products)` with no version). `content.js`'s `looksLikeOnix` sniff mirrors this with a `<Product>` + corroborating-element check so the takeover fires in the first place.
+4. The **`release` attribute** on the root if version isn't already known.
 
 Reference vs. short tag matters because:
 - Reference dialect uses `<ProductIdentifier>`, `<ProductIDType>`, etc.
@@ -221,6 +222,8 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-proprietary-only.xml` | Summary omits the identifier segment when no ISBN/GTIN present |
 | `onix-3.0-acknowledgement.xml` | Acknowledgement message: detection, "ONIX Acknowledgement" label, "records" count, ack-specific codelist resolution (MessageStatus, RecordStatus, StatusDetailType) |
 | `onix-3.0-acknowledgement-short.xml` | Short-tag acknowledgement: `m489`/`a498` resolve via the registered ack short→reference bindings |
+| `onix-standalone-product-no-namespace.xml` | Bare `<Product>` root, no namespace, no XML declaration: detection via corroborating child, version-less meta label, codelist resolution |
+| `non-onix-product.xml` | A non-ONIX `<Product>` root (sku/price/…) is **not** misdetected as ONIX — guards the corroboration heuristic |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 

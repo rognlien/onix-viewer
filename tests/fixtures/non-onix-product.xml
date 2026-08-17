@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Product>
+  <sku>WID-001</sku>
+  <name>Stainless Steel Widget</name>
+  <price currency="USD">19.99</price>
+  <inStock>true</inStock>
+</Product>

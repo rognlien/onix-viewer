@@ -101,15 +101,17 @@
 
   let metaText = `${sizeKB} KB`;
   if (onixCtx.isOnix) {
-    const version = onixCtx.version || "?";
+    // Version is unknown for un-namespaced standalone <Product> records (there's
+    // no namespace to read it from) — omit it rather than show "ONIX ?".
+    const versionPart = onixCtx.version ? ` ${onixCtx.version}` : "";
     if (onixCtx.messageType === "acknowledgement") {
       // Acknowledgement <Product> blocks are record statuses, not product
       // records — label the count "records" to match.
       const recordsLabel = productCount === 1 ? "1 record" : `${productCount} records`;
-      metaText = `ONIX Acknowledgement ${version} (${recordsLabel}) · ` + metaText;
+      metaText = `ONIX Acknowledgement${versionPart} (${recordsLabel}) · ` + metaText;
     } else {
       const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
-      metaText = `ONIX ${version} (${productsLabel}) · ` + metaText;
+      metaText = `ONIX${versionPart} (${productsLabel}) · ` + metaText;
     }
     // Auto-collapse Product blocks for big ONIX feeds — otherwise scrolling
     // through 50,000 products is hostile.

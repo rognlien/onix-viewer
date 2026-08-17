@@ -1,0 +1,20 @@
+<Product>
+  <RecordReference>Kagge14349</RecordReference>
+  <NotificationType>02</NotificationType>
+  <RecordSourceType>01</RecordSourceType>
+  <ProductIdentifier>
+    <ProductIDType>15</ProductIDType>
+    <IDValue>9788248929567</IDValue>
+  </ProductIdentifier>
+  <DescriptiveDetail>
+    <ProductComposition>00</ProductComposition>
+    <ProductForm>BB</ProductForm>
+    <TitleDetail>
+      <TitleType>01</TitleType>
+      <TitleElement>
+        <TitleElementLevel>01</TitleElementLevel>
+        <TitleText>Den lange veien hjem</TitleText>
+      </TitleElement>
+    </TitleDetail>
+  </DescriptiveDetail>
+</Product>

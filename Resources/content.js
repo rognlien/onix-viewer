@@ -89,6 +89,15 @@
     const head = (xml || "").slice(0, 2048);
     if (head.includes("ns.editeur.org/onix")) return true;
     if (/<ONIXMessage(Acknowledgement)?[\s>]/i.test(head)) return true;
+    //   3. A standalone <Product> record exported with no <ONIXMessage>
+    //      envelope and no namespace. <Product> on its own is too generic to
+    //      trust, so require a corroborating ONIX-specific child element
+    //      (RecordReference / NotificationType, or their short tags a001 /
+    //      a002) — the same idea as onix.js's detect() corroboration.
+    if (/<Product[\s>]/i.test(head) &&
+        /<(RecordReference|NotificationType|a001|a002)[\s>]/i.test(head)) {
+      return true;
+    }
     return false;
   }
 

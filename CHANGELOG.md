@@ -3,6 +3,20 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Fixed
+- **Recognise standalone `<Product>` records that have no `<ONIXMessage>`
+  envelope and no namespace.** Such files (e.g. single-record exports, some
+  served as blob URLs) were left to the browser's native view because both
+  the `content.js` activation sniff and `onix.js`'s `detect()` only knew the
+  EDItEUR namespace and `<ONIXMessage>`/`<ONIXMessageAcknowledgement>` roots.
+  A bare `<Product>` root is now treated as ONIX when it carries a
+  corroborating ONIX-specific child (`RecordReference`, `NotificationType`,
+  `ProductIdentifier`, …, or short tags `a001`/`a002`) — generic non-ONIX
+  `<Product>` documents are still left alone. The dialect is inferred from
+  element-name casing; the version is unknown without a namespace, so the
+  toolbar reads `ONIX (N products)` with no version number.
 ## 0.9.9 — 2026-06-09
 
 ### Added

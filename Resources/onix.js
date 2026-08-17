@@ -142,9 +142,45 @@
   // onix-codelists.js loads before this module, so the global tables exist.
   registerAcknowledgementBindings();
 
+  // Direct-child element names that mark an un-namespaced <Product> root as
+  // genuine ONIX. <Product> alone is too generic to trust (plenty of non-ONIX
+  // vocabularies use it), so a standalone Product is only treated as ONIX when
+  // it carries one of these ONIX-specific children. Reference names and the
+  // short tags for the two most diagnostic ones (a001 = RecordReference,
+  // a002 = NotificationType) are both listed; keys are compared lower-cased.
+  const PRODUCT_CHILD_SIGNALS = new Set([
+    "recordreference", "notificationtype", "recordsourcetype",
+    "productidentifier", "descriptivedetail",
+    "a001", "a002",
+  ]);
+
+  function hasOnixProductChild(root) {
+    for (const c of root.children) {
+      const name = (c.localName || c.nodeName).toLowerCase();
+      if (PRODUCT_CHILD_SIGNALS.has(name)) return true;
+    }
+    return false;
+  }
+
+  // For an un-namespaced document there's no /short marker to read, so infer
+  // the dialect from the element names: short tags are all-lowercase (4-char
+  // codes like a001, or lowercase composite names like productidentifier),
+  // whereas reference names are CamelCase (RecordReference). Reference is the
+  // safe default.
+  function inferProductDialect(root) {
+    for (const c of root.children) {
+      const name = c.localName || c.nodeName;
+      if (name && name === name.toLowerCase() && name !== name.toUpperCase()) {
+        return "short";
+      }
+    }
+    return "reference";
+  }
+
   /**
    * Inspect a parsed XML Document and return:
-   *   { isOnix, dialect: "reference"|"short"|null, version: "3.0"|"2.1"|null }
+   *   { isOnix, dialect: "reference"|"short"|null, version: "3.0"|"2.1"|null,
+   *     messageType: "product"|"acknowledgement"|null }
    */
   function detect(doc) {
     const root = doc && doc.documentElement;
@@ -187,6 +223,15 @@
       isOnix = true;
       dialect = "short";
       version = root.getAttribute("release") || "2.1";
+    } else if (localName.toLowerCase() === "product" && hasOnixProductChild(root)) {
+      // A standalone <Product> record exported without an <ONIXMessage>
+      // envelope and without a namespace (e.g. some single-record feeds).
+      // Version can't be read from a namespace here; use the release
+      // attribute if present, otherwise leave it null.
+      isOnix = true;
+      messageType = "product";
+      dialect = inferProductDialect(root);
+      version = root.getAttribute("release") || null;
     }
 
     return { isOnix, dialect, version, messageType };
