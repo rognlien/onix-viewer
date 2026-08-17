@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.10 — 2026-08-17
 
 ### Fixed
 - **Recognise standalone `<Product>` records that have no `<ONIXMessage>`
