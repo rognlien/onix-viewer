@@ -445,6 +445,22 @@
     return null;
   }
 
+  // A <TitleElement> carries its title in one of two equally conformant forms:
+  // a single <TitleText>, or the split form <TitlePrefix> plus
+  // <TitleWithoutPrefix> (where <NoPrefix/> means "this title has no leading
+  // article"). Both appear in the wild — the split form is common in Nordic
+  // feeds — so read TitleText first and fall back to reassembling the split
+  // form, prefix before remainder.
+  function titleOfElement(titleElementEl) {
+    let title = textOfDirectChild(titleElementEl, "titletext", "b203");
+    if (!title) {
+      const prefix = textOfDirectChild(titleElementEl, "titleprefix", "b030");
+      const rest = textOfDirectChild(titleElementEl, "titlewithoutprefix", "b031");
+      title = [prefix, rest].filter(Boolean).join(" ");
+    }
+    return title;
+  }
+
   // A DescriptiveDetail can contain multiple <TitleDetail> blocks (original-
   // language title, abbreviated, distributor's, …). The "distinctive title"
   // is the one with TitleType=01 — that's the title we want in the summary.
@@ -462,9 +478,9 @@
     }
     if (!chosen) chosen = titleDetails[0];
 
-    // TitleText lives one level down, inside <TitleElement>.
+    // The title itself lives one level down, inside <TitleElement>.
     for (const te of directChildren(chosen, "titleelement")) {
-      const txt = textOfDirectChild(te, "titletext", "b203");
+      const txt = titleOfElement(te);
       if (txt) return txt;
     }
     return "";

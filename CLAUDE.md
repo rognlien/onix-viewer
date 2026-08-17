@@ -115,7 +115,7 @@ Rules:
 
 - **Identifier preference**: `15` (ISBN-13) → `03` (GTIN-13) → `02` (ISBN-10) → omit. Labels follow the picked type: `ISBN` for 15/02, `GTIN` for 03. Anything else (proprietary `01`, DOI `06`, …) is **not** used — the segment is dropped rather than mislabelling a proprietary ID as "ISBN".
 - **Form**: read as a direct child of `<DescriptiveDetail>`, resolved through the bundled `ProductForm` list (e.g. `BB → Hardback`).
-- **Title**: prefers the `<TitleDetail>` with `<TitleType>01</TitleType>` (Distinctive title), falling back to the first `<TitleDetail>`. Truncated to 57 chars + ellipsis.
+- **Title**: prefers the `<TitleDetail>` with `<TitleType>01</TitleType>` (Distinctive title), falling back to the first `<TitleDetail>`. Within the chosen `<TitleElement>`, `titleOfElement` reads `<TitleText>` (`b203`) if present, otherwise reassembles the split form `<TitlePrefix>` + `<TitleWithoutPrefix>` (`b030` / `b031`) — both forms are conformant and the split one is common in Nordic feeds. Truncated to 57 chars + ellipsis.
 
 Lookups intentionally restrict to direct children of the right composite. A free DFS would happily pick the title or ISBN of a `<RelatedProduct>` inside `<RelatedMaterial>`, which is exactly the bug the older implementation had.
 
@@ -224,6 +224,8 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-acknowledgement-short.xml` | Short-tag acknowledgement: `m489`/`a498` resolve via the registered ack short→reference bindings |
 | `onix-standalone-product-no-namespace.xml` | Bare `<Product>` root, no namespace, no XML declaration: detection via corroborating child, version-less meta label, codelist resolution |
 | `non-onix-product.xml` | A non-ONIX `<Product>` root (sku/price/…) is **not** misdetected as ONIX — guards the corroboration heuristic |
+| `onix-3.0-title-without-prefix.xml` | Summary reads split-form titles: `<NoPrefix/>` + `<TitleWithoutPrefix>`, and `<TitlePrefix>` joined to the remainder |
+| `onix-3.0-title-without-prefix-short.xml` | Same in short dialect (`b030` + `b031`) |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 

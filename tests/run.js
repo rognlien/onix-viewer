@@ -236,6 +236,23 @@ describe("ONIX 3.0 reference", () => {
       `summary should NOT contain TitleType=03 title, got: ${summaries[0]}`);
   });
 
+  test("product summary reads the split-form title (TitleWithoutPrefix) when TitleText is absent", () => {
+    const w = render("onix-3.0-title-without-prefix.xml");
+    const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);
+    assert(summaries.length === 2, `expected 2 product summaries, got ${summaries.length}`);
+    assert(summaries[0].includes("Rovfugl"),
+      `expected the NoPrefix title, got: ${summaries[0]}`);
+    assert(summaries[1].includes("Den lange veien hjem"),
+      `expected TitlePrefix joined to TitleWithoutPrefix, got: ${summaries[1]}`);
+  });
+
+  test("split-form title works in short dialect (b030 + b031)", () => {
+    const w = render("onix-3.0-title-without-prefix-short.xml");
+    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    assert(summary.includes("Det hvite kartet"),
+      `expected b030 joined to b031, got: ${summary}`);
+  });
+
   test("renders product summaries with ISBN + form + title", () => {
     const w = render("onix-3.0-reference.xml");
     const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);

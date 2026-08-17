@@ -17,6 +17,12 @@ the main branch.
   `<Product>` documents are still left alone. The dialect is inferred from
   element-name casing; the version is unknown without a namespace, so the
   toolbar reads `ONIX (N products)` with no version number.
+- **Product summaries no longer drop split-form titles.** `productSummary`
+  read only `<TitleText>` (`b203`), so records using the equally conformant
+  `<TitlePrefix>` + `<TitleWithoutPrefix>` (`b030` / `b031`) form — common in
+  Nordic feeds — showed a summary with no title at all. The prefix and
+  remainder are now joined with a space, and `<NoPrefix/>` records yield just
+  the remainder.
 ## 0.9.9 — 2026-06-09
 
 ### Added

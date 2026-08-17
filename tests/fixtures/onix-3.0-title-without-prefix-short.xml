@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Short dialect, split-form title: b030 (TitlePrefix) + b031
+     (TitleWithoutPrefix) with no b203 (TitleText) anywhere. -->
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
+  <header>
+    <sender>
+      <x300>Bokbasen AS</x300>
+    </sender>
+    <m182>20260507T0930</m182>
+  </header>
+  <product>
+    <a001>short-prefix-9788234567885</a001>
+    <a002>03</a002>
+    <productidentifier>
+      <b221>15</b221>
+      <b244>9788234567885</b244>
+    </productidentifier>
+    <descriptivedetail>
+      <b012>BC</b012>
+      <titledetail>
+        <b202>01</b202>
+        <titleelement>
+          <x409>01</x409>
+          <b030>Det</b030>
+          <b031>hvite kartet</b031>
+        </titleelement>
+      </titledetail>
+    </descriptivedetail>
+  </product>
+</ONIXMessage>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Reference dialect, split-form titles: neither product carries a
+     <TitleText>, so the summary has to reassemble the title from
+     <TitlePrefix> + <TitleWithoutPrefix>. Product 1 uses <NoPrefix/>
+     (no leading article), product 2 has a real prefix to join. -->
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/reference" release="3.0">
+  <Header>
+    <Sender><SenderName>Test Sender</SenderName></Sender>
+    <SentDateTime>20260507T0930</SentDateTime>
+  </Header>
+  <Product>
+    <RecordReference>no-prefix-9788248938965</RecordReference>
+    <NotificationType>02</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788248938965</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductForm>BC</ProductForm>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <NoPrefix/>
+          <TitleWithoutPrefix>Rovfugl</TitleWithoutPrefix>
+        </TitleElement>
+      </TitleDetail>
+    </DescriptiveDetail>
+  </Product>
+  <Product>
+    <RecordReference>with-prefix-9788234567892</RecordReference>
+    <NotificationType>02</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788234567892</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductForm>BB</ProductForm>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitlePrefix>Den</TitlePrefix>
+          <TitleWithoutPrefix>lange veien hjem</TitleWithoutPrefix>
+        </TitleElement>
+      </TitleDetail>
+    </DescriptiveDetail>
+  </Product>
+</ONIXMessage>
