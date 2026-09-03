@@ -518,6 +518,20 @@
     return number;
   }
 
+  // <Product> is either the document root itself or a direct child of the
+  // message root, never deeper — so a root-level look suffices and a large
+  // feed isn't scanned element by element.
+  function productElements(doc) {
+    const root = doc.documentElement;
+    let products = [];
+    if (isProductElement(root)) {
+      products = [root];
+    } else if (root) {
+      products = Array.from(root.children).filter(isProductElement);
+    }
+    return products;
+  }
+
   /**
    * Sorted block numbers present in the document's Product — only when the
    * document holds exactly one Product (standalone record or a one-product
@@ -527,7 +541,7 @@
   function singleProductBlocks(doc, ctx) {
     let numbers = null;
     if (ctx.isOnix && ctx.messageType !== "acknowledgement") {
-      const products = Array.from(doc.getElementsByTagName("*")).filter(isProductElement);
+      const products = productElements(doc);
       if (products.length === 1) {
         const found = new Set();
         for (const child of products[0].children) {
