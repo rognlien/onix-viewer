@@ -62,6 +62,7 @@ function render(fixtureName) {
   <div id="oxv-toolbar">
     <button data-action="expand-all"></button>
     <button data-action="collapse-all"></button>
+    <button data-action="collapse-blocks"></button>
     <button data-action="toggle-wrap"></button>
     <button data-action="copy-xml"></button>
     <span class="px-view-group">
@@ -71,6 +72,7 @@ function render(fixtureName) {
     </span>
     <input id="oxv-search">
     <span id="oxv-search-status"></span>
+    <span id="oxv-block-list"></span>
     <span id="oxv-schema"></span>
     <span id="oxv-meta"></span>
   </div>
@@ -518,6 +520,79 @@ describe("Node menu", () => {
     assert(!menu().hidden, "menu should re-open");
     w.document.getElementById("oxv-meta").click();
     assert(menu().hidden, "outside click should close the menu");
+  });
+});
+
+describe("Collapse blocks", () => {
+  function rowsNamed(window, tagName) {
+    return $$(window, "#oxv-root .px-row.px-collapsible").filter((row) => {
+      const name = row.querySelector(".px-tag + .px-tag");
+      return name && name.textContent === tagName;
+    });
+  }
+
+  test("folds the block elements and unfolds the Products that contain them", () => {
+    const w = render("onix-3.0-reference.xml");
+    const products = rowsNamed(w, "Product");
+    assert(products.every((r) => r.classList.contains("px-folded")), "products should start folded");
+    w.document.querySelector('[data-action="collapse-blocks"]').click();
+    assert(products.every((r) => !r.classList.contains("px-folded")), "products should be unfolded");
+    const blocks = [...rowsNamed(w, "DescriptiveDetail"), ...rowsNamed(w, "PublishingDetail")];
+    assert(blocks.length >= 2, "expected block rows in the fixture");
+    assert(blocks.every((r) => r.classList.contains("px-folded")), "block rows should be folded");
+    assert(rowsNamed(w, "Header").every((r) => !r.classList.contains("px-folded")), "Header should be untouched");
+  });
+
+  test("works in short dialect and via the b shortcut", () => {
+    const w = render("onix-3.0-short.xml");
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "b", bubbles: true }));
+    const blocks = rowsNamed(w, "descriptivedetail");
+    assert(blocks.length >= 1, "expected short-tag block rows");
+    assert(blocks.every((r) => r.classList.contains("px-folded")), "short-tag block rows should be folded");
+  });
+});
+
+describe("ONIX blocks", () => {
+  function blockLabelOf(window, tagName) {
+    const row = $$(window, "#oxv-root .px-row.px-collapsible").find((r) => {
+      const name = r.querySelector(".px-tag + .px-tag");
+      return name && name.textContent === tagName;
+    });
+    const label = row && row.querySelector(".px-block-label");
+    return label ? label.textContent : null;
+  }
+  function blockList(window) {
+    return window.document.getElementById("oxv-block-list").textContent;
+  }
+
+  test("block rows carry a Block N badge; other rows do not", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    assert(blockLabelOf(w, "DescriptiveDetail") === "Block 1", "DescriptiveDetail should be Block 1");
+    assert(blockLabelOf(w, "PublishingDetail") === "Block 4", "PublishingDetail should be Block 4");
+    assert(blockLabelOf(w, "ProductSupply") === "Block 6", "ProductSupply should be Block 6");
+    assert(blockLabelOf(w, "Header") === null, "Header should have no block badge");
+    assert(blockLabelOf(w, "Product") === null, "Product should have no block badge");
+  });
+
+  test("short-tag block rows are badged too", () => {
+    const w = render("onix-3.0-short.xml");
+    assert(blockLabelOf(w, "descriptivedetail") === "Block 1", "descriptivedetail should be Block 1");
+  });
+
+  test("toolbar lists the blocks of a single-Product message", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    assert(blockList(w) === "Blocks: 1, 4, 6", `unexpected block list: ${blockList(w)}`);
+  });
+
+  test("toolbar lists the blocks of a standalone Product record", () => {
+    const w = render("onix-3.1-standalone-product.xml");
+    assert(blockList(w) === "Blocks: 1", `unexpected block list: ${blockList(w)}`);
+  });
+
+  test("block list stays empty for multi-Product feeds, acknowledgements and non-ONIX", () => {
+    assert(blockList(render("onix-3.0-reference.xml")) === "", "multi-product should have no block list");
+    assert(blockList(render("onix-3.0-acknowledgement.xml")) === "", "acknowledgement should have no block list");
+    assert(blockList(render("rss.xml")) === "", "non-ONIX should have no block list");
   });
 });
 

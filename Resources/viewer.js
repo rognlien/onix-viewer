@@ -20,6 +20,7 @@
     "publishingdetail",
     "relatedmaterial",
     "productsupply",
+    "promotiondetail", // Block 7, ONIX 3.1
   ]);
 
   // Bidirectional map between a tree row and its right-pane <details>.
@@ -121,6 +122,7 @@
     autoCollapseProducts();
   }
   meta.textContent = metaText;
+  showBlockList();
 
   setupToolbar();
   setupViewMode(onixCtx.isOnix);
@@ -307,6 +309,17 @@
       closeInline.textContent = `</${el.nodeName}>`;
       row.appendChild(closeInline);
 
+      // "Block N" badge on ONIX 3.x block elements, visible folded or not.
+      if (window.OnixViewerOnix) {
+        const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
+        if (block) {
+          const label = document.createElement("span");
+          label.className = "px-block-label";
+          label.textContent = `Block ${block}`;
+          row.appendChild(label);
+        }
+      }
+
       // Inline summary span (visible when folded).
       if (window.OnixViewerOnix) {
         const summary = window.OnixViewerOnix.productSummary(el, onixCtx);
@@ -470,6 +483,9 @@
         case "collapse-all":
           for (const r of root.querySelectorAll(".px-collapsible")) r.classList.add("px-folded");
           break;
+        case "collapse-blocks":
+          collapseBlocks();
+          break;
         case "toggle-attrs": {
           const on = document.body.classList.toggle("px-no-attrs");
           btn.setAttribute("aria-pressed", on ? "false" : "true");
@@ -491,6 +507,52 @@
           break;
       }
     });
+  }
+
+  // ---- block list pill ------------------------------------------------------
+
+  // "Blocks: 1, 4, 6" in the toolbar — only meaningful for a document with
+  // exactly one Product, so it stays empty (and hidden) otherwise.
+  function showBlockList() {
+    const pill = document.getElementById("oxv-block-list");
+    const numbers = window.OnixViewerOnix && pill
+      ? window.OnixViewerOnix.singleProductBlocks(doc, onixCtx)
+      : null;
+    if (numbers && numbers.length) {
+      pill.textContent = `Blocks: ${numbers.join(", ")}`;
+      pill.title = "ONIX blocks present in this Product";
+    }
+  }
+
+  // ---- collapse blocks ------------------------------------------------------
+
+  // Fold every ONIX block element (DescriptiveDetail, CollateralDetail, …)
+  // and make sure each is visible by unfolding its ancestors, so a feed
+  // reads as a list of Products with one row per block.
+  function collapseBlocks() {
+    for (const row of root.querySelectorAll(".px-row.px-collapsible")) {
+      if (isBlockRow(row)) {
+        unfoldAncestors(row);
+        row.classList.add("px-folded");
+      }
+    }
+  }
+
+  function isBlockRow(row) {
+    const element = rowElements.get(row);
+    const name = element ? (element.localName || element.nodeName).toLowerCase() : "";
+    return ONIX_BLOCK_NAMES.has(name);
+  }
+
+  function unfoldAncestors(row) {
+    let parent = row.parentElement;
+    while (parent && parent !== root) {
+      if (parent.classList.contains("px-children")) {
+        const opener = parent.previousElementSibling;
+        if (opener) opener.classList.remove("px-folded");
+      }
+      parent = parent.parentElement;
+    }
   }
 
   // ---- copy raw XML ---------------------------------------------------------
@@ -835,6 +897,9 @@
           break;
         case "c":
           for (const r of root.querySelectorAll(".px-collapsible")) r.classList.add("px-folded");
+          break;
+        case "b":
+          collapseBlocks();
           break;
         case "w":
           document.body.classList.toggle("px-no-wrap");

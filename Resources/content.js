@@ -195,6 +195,7 @@
   <div class="px-left">
     <button type="button" data-action="expand-all" title="Expand all (E)">Expand all</button>
     <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
+    <button type="button" data-action="collapse-blocks" title="Collapse the ONIX blocks inside each Product (B)">Collapse blocks</button>
     <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
     <!--
@@ -222,6 +223,7 @@
     <span id="oxv-search-status" aria-live="polite"></span>
   </div>
   <div class="px-right">
+    <span id="oxv-block-list"></span>
     <span id="oxv-schema"></span>
     <span id="oxv-meta"></span>
   </div>

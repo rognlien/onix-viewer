@@ -3,6 +3,23 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Added
+- **Collapse blocks.** A toolbar button (shortcut `b`) that folds the ONIX
+  block elements inside every `<Product>` — `DescriptiveDetail`,
+  `CollateralDetail`, `ContentDetail`, `PublishingDetail`, `RelatedMaterial`,
+  `ProductSupply`, `PromotionDetail` — and unfolds the Products so each one
+  reads as a short list of blocks. Works in both reference and short-tag
+  dialect.
+- **Block numbers on block rows.** Each ONIX block element directly inside a
+  `<Product>` now carries a `Block N` badge (`<DescriptiveDetail>` → Block 1,
+  … `<PromotionDetail>` → Block 7), in both dialects.
+- **Block list in the toolbar.** When the document holds exactly one Product
+  (a standalone record or a one-product message) the toolbar shows a pill
+  such as `Blocks: 1, 4, 6` listing which blocks the record contains. Hidden
+  for multi-product feeds and acknowledgements, where it would be meaningless.
+
 ## 0.9.11 — 2026-09-03
 
 ### Added

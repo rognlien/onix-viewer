@@ -12,7 +12,8 @@ When the browser loads a page whose `Content-Type` is `application/xml`, `text/x
    - Distinct colour for ONIX element tags.
    - Auto-collapsed `<Product>` blocks with a one-line summary (ISBN · form · title) so you can scan thousands of products without scrolling forever.
    - Resolved code-list labels for every value the bundled EDItEUR lists know about — shown as a small `→ ISBN-13` style badge after the value, with a clickable `List N ↗` chip that opens a popup containing every code in that list (and a link to the canonical EDItEUR page).
-4. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
+4. Labels the ONIX blocks: each block element inside a `<Product>` gets a `Block N` badge, a **Collapse blocks** button folds them all, and for a single-Product document the toolbar shows which blocks are present (`Blocks: 1, 4, 6`).
+5. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
 
 It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAcknowledgement>`) — the optional response format a recipient sends back to confirm or reject a feed. It's labelled `ONIX Acknowledgement 3.0` in the toolbar, and the status codes it's built from (`MessageStatus`, `RecordStatus`, status-detail severity, …) resolve to readable labels just like product code-lists.
 
@@ -74,6 +75,7 @@ Pages worth opening:
 | `Esc` | Clear search |
 | `e` | Expand all |
 | `c` | Collapse all |
+| `b` | Collapse blocks (fold the ONIX blocks inside each Product) |
 | `w` | Toggle line wrap |
 
 ## ONIX code lists

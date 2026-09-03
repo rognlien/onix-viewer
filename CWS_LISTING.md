@@ -38,7 +38,7 @@ lists wired in.
 Features
 
   • Collapsible, syntax-highlighted XML tree
-  • Search, expand-all, collapse-all, soft-wrap toggle
+  • Search, expand-all, collapse-all, collapse-blocks, soft-wrap toggle
   • Auto-collapsed <Product> blocks with a one-line summary
     (ISBN · form · title) so a 10,000-product feed stays scannable
   • Resolved code-list labels (ProductIDType, ProductForm,

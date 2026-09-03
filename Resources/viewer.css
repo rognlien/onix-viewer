@@ -200,7 +200,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-#oxv-schema {
+#oxv-schema,
+#oxv-block-list {
   display: inline-block;
   margin-right: 10px;
   padding: 2px 8px;
@@ -212,7 +213,8 @@ body {
   letter-spacing: 0.1px;
   white-space: nowrap;
 }
-#oxv-schema:empty { display: none; }
+#oxv-schema:empty,
+#oxv-block-list:empty { display: none; }
 
 /* ───────── split layout ───────── */
 
@@ -403,6 +405,20 @@ body.px-no-attrs .px-attr { display: none; }
   vertical-align: 1px;
 }
 .px-row:not(.px-folded) > .px-summary { display: none; }
+
+/* "Block N" badge on ONIX block rows — same chip styling as the summary,
+   but shown whether the row is folded or expanded. */
+.px-block-label {
+  margin-left: 8px;
+  padding: 0 6px;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  border-radius: 4px;
+  font-family: var(--ui);
+  font-size: 11px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
 
 /* ONIX code-list resolution badge */
 .px-codelist {

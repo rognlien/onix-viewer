@@ -46,7 +46,7 @@ onix-viewer/
 │       ├── onix-codelists.json     EDItEUR Issue 73 codelists (input)
 │       └── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 ├── tests/
-│   ├── run.js                      jsdom harness (74 tests, ~1s)
+│   ├── run.js                      jsdom harness (81 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -171,7 +171,7 @@ Two features are bundled and tested but hidden from the UI while the simpler tre
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, productSummary, codelistMeta, externalLinkIcon)
+- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, productSummary, codelistMeta, externalLinkIcon, blockNumber, singleProductBlocks)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
@@ -179,7 +179,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-node-menu`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`)
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-*` — CSS class prefix (kept short; ubiquitous in viewer.js)
 
@@ -202,7 +202,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 74-test jsdom suite (~1s)
+npm test        # runs the 81-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
@@ -251,6 +251,8 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `non-onix-product.xml` | A non-ONIX `<Product>` root (sku/price/…) is **not** misdetected as ONIX — guards the corroboration heuristic |
 | `onix-3.0-title-without-prefix.xml` | Summary reads split-form titles: `<NoPrefix/>` + `<TitleWithoutPrefix>`, and `<TitlePrefix>` joined to the remainder |
 | `onix-3.0-title-without-prefix-short.xml` | Same in short dialect (`b030` + `b031`) |
+| `onix-3.0-single-product-blocks.xml` | One Product with blocks 1, 4, 6: `Block N` badges on block rows, `Blocks: 1, 4, 6` toolbar pill |
+
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 

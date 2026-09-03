@@ -486,6 +486,60 @@
     return "";
   }
 
+  // ---- ONIX 3.x blocks ------------------------------------------------------
+
+  // ONIX 3.x groups the children of <Product> into numbered blocks. Block 7
+  // (PromotionDetail) was added in ONIX 3.1. Element names are compared in
+  // lower case so both dialects match.
+  const BLOCK_NUMBERS = new Map([
+    ["descriptivedetail", 1],
+    ["collateraldetail", 2],
+    ["contentdetail", 3],
+    ["publishingdetail", 4],
+    ["relatedmaterial", 5],
+    ["productsupply", 6],
+    ["promotiondetail", 7],
+  ]);
+
+  function lowerName(node) {
+    return (node.localName || node.nodeName || "").toLowerCase();
+  }
+
+  function isProductElement(node) {
+    return !!node && node.nodeType === Node.ELEMENT_NODE && lowerName(node) === "product";
+  }
+
+  /** Block number (1–7) for a block element that sits directly in <Product>, else null. */
+  function blockNumber(element, ctx) {
+    let number = null;
+    if (ctx.isOnix && isProductElement(element.parentNode)) {
+      number = BLOCK_NUMBERS.get(lowerName(element)) || null;
+    }
+    return number;
+  }
+
+  /**
+   * Sorted block numbers present in the document's Product — only when the
+   * document holds exactly one Product (standalone record or a one-product
+   * message). Returns null otherwise, or for acknowledgements, whose
+   * <Product> elements are record statuses rather than product records.
+   */
+  function singleProductBlocks(doc, ctx) {
+    let numbers = null;
+    if (ctx.isOnix && ctx.messageType !== "acknowledgement") {
+      const products = Array.from(doc.getElementsByTagName("*")).filter(isProductElement);
+      if (products.length === 1) {
+        const found = new Set();
+        for (const child of products[0].children) {
+          const number = blockNumber(child, ctx);
+          if (number) found.add(number);
+        }
+        numbers = Array.from(found).sort((a, b) => a - b);
+      }
+    }
+    return numbers;
+  }
+
   window.OnixViewerOnix = {
     detect,
     tagClass,
@@ -494,5 +548,7 @@
     codelistMeta,
     externalLinkIcon,
     productSummary,
+    blockNumber,
+    singleProductBlocks,
   };
 })();
