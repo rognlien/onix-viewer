@@ -24,6 +24,10 @@ the main branch.
   `sourcetype`, `textscript`) now get a `→ label` chip right after the value,
   e.g. `<Text textformat="05" → XHTML>`. Previously the label was only
   available as a hover tooltip.
+- **Drag-select copies plain XML.** Badges, list chips, product summaries,
+  block labels, fold markers and the gutter button are now excluded from text
+  selection, so selecting a stretch of the tree and copying yields only the
+  tags, attributes and text.
 
 ## 0.9.11 — 2026-09-03
 

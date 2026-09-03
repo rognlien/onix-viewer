@@ -367,6 +367,20 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-row.px-folded + .px-children { display: none; }
 .px-row.px-folded + .px-children + .px-close-row { display: none; }
 
+/* Viewer decorations are excluded from text selection, so a drag-select copy
+   yields only the XML itself: tags, attributes and text — no "→ label"
+   badges, List-N chips, summaries, Block N labels, fold markers or gutter
+   buttons. (The chevron and the popup already opt out further down.) */
+.px-codelist,
+.px-codelist-link,
+.px-summary,
+.px-block-label,
+.px-fold-ellipsis,
+.px-fold-close,
+.px-node-menu-btn {
+  user-select: none;
+}
+
 /* Fold suffix: "…</Tag>" appears inline on the open row when folded so the
    collapsed element reads as <Tag>…</Tag>. Hidden when the row is expanded
    (the children container + dedicated close row are then visible instead). */
