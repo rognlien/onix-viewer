@@ -48,6 +48,7 @@
   --shadow-popup: 0 24px 60px rgba(15, 22, 36, 0.28);
 
   --indent: 1.25rem;
+  --gutter: 18px;          /* column for the per-node "⋮" menu button */
   --row-pad-y: 1px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -274,7 +275,7 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 
 .px-row {
   display: block;
-  padding: var(--row-pad-y) 4px var(--row-pad-y) calc(var(--indent) * var(--depth, 0) + 18px);
+  padding: var(--row-pad-y) 4px var(--row-pad-y) calc(var(--indent) * var(--depth, 0) + var(--gutter) + 18px);
   position: relative;
   /* Soft-wrap by default — long text contents (descriptions, blurbs) would
      otherwise force a horizontal scrollbar across the whole tree. */
@@ -287,7 +288,7 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 
 .px-toggle {
   position: absolute;
-  left: calc(var(--indent) * var(--depth, 0) + 0px);
+  left: calc(var(--indent) * var(--depth, 0) + var(--gutter));
   top: 50%;
   transform: translateY(-50%);
   width: 16px;
@@ -302,6 +303,64 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-row.px-collapsible:hover > .px-toggle { color: var(--accent); }
 .px-toggle::before { content: "▾"; }
 .px-row.px-folded > .px-toggle::before { content: "▸"; }
+
+/* Per-node "⋮" menu button in the gutter left of the chevron. Revealed on
+   row hover / keyboard focus / while its menu is open, so a dense tree
+   doesn't fill up with dots. */
+.px-node-menu-btn {
+  position: absolute;
+  left: calc(var(--indent) * var(--depth, 0));
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--ui);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.px-row:hover > .px-node-menu-btn,
+.px-node-menu-btn:focus-visible,
+.px-node-menu-btn.px-open { opacity: 1; }
+.px-node-menu-btn:hover,
+.px-node-menu-btn.px-open { background: var(--bg-hover); color: var(--accent); }
+
+.px-node-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-popup);
+  font-family: var(--ui);
+  font-size: 12px;
+}
+.px-node-menu[hidden] { display: none; }
+.px-node-menu-item {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.px-node-menu-item:hover,
+.px-node-menu-item:focus-visible { background: var(--bg-hover); outline: none; }
+.px-node-menu-item[disabled] { color: var(--fg-muted); cursor: default; }
 
 .px-row.px-folded + .px-children { display: none; }
 .px-row.px-folded + .px-children + .px-close-row { display: none; }

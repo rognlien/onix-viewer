@@ -3,6 +3,19 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Added
+- **Copy a single node's XML.** Every element row now has a small `⋮` button
+  in the gutter left of the fold chevron (revealed on hover). It opens a
+  dropdown with **Copy node XML**, which puts the element and its whole
+  subtree on the clipboard exactly as it appears in the source — no code-list
+  badges, `List N` chips, fold markers or other viewer decoration. The text is
+  de-indented to the node's own column, and the namespace declaration the
+  serialiser would otherwise add to the subtree root is dropped unless the
+  source element declared it itself, so a copied `<Product>` pastes cleanly
+  back into another ONIX file.
+
 ## 0.9.10 — 2026-08-17
 
 ### Fixed

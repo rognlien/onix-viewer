@@ -46,7 +46,7 @@ onix-viewer/
 │       ├── onix-codelists.json     EDItEUR Issue 73 codelists (input)
 │       └── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 ├── tests/
-│   ├── run.js                      jsdom harness (56 tests, ~1s)
+│   ├── run.js                      jsdom harness (74 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -119,6 +119,31 @@ Rules:
 
 Lookups intentionally restrict to direct children of the right composite. A free DFS would happily pick the title or ISBN of a `<RelatedProduct>` inside `<RelatedMaterial>`, which is exactly the bug the older implementation had.
 
+## Per-node menu ("Copy node XML")
+
+Every element row (open row, leaf row, self-closing row) gets a `⋮` button
+prepended by `attachNodeMenu()` in `viewer.js`; close rows, comments, PIs and
+text rows don't. The button lives in a `--gutter` column left of the fold
+chevron and is revealed on row hover / focus / while its menu is open. A
+single shared dropdown (`#oxv-node-menu`) is moved next to whichever button
+opened it; it closes on outside click, Esc, or any scroll.
+
+`rowElements` (a `WeakMap`, row → source element) is what makes the copy
+undecorated: the action serialises the *original parsed element*, not the
+rendered row. `nodeXml()` runs `XMLSerializer` and then applies two
+source-fidelity fixes:
+
+- `stripSynthesizedNamespace` removes the `xmlns` (or `xmlns:prefix`)
+  declaration the serialiser adds to the subtree root, unless the source
+  element carried that attribute itself. A copied `<Product>` should look
+  like the one in the file, not gain a namespace its siblings don't have.
+- `dedent` strips the element's own leading indentation (taken from the
+  whitespace text node before it) from every subsequent line, so the copy
+  starts at column 0 instead of keeping the file's absolute indentation.
+
+Adding another action is: append a `.px-node-menu-item` with a
+`data-node-action` in `ensureNodeMenu()` and handle it in `runNodeAction()`.
+
 ## Codelists — generated from EDItEUR's published JSON
 
 `Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from two committed inputs:
@@ -154,7 +179,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-node-menu`)
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-*` — CSS class prefix (kept short; ubiquitous in viewer.js)
 
@@ -177,7 +202,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 56-test jsdom suite (~1s)
+npm test        # runs the 74-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

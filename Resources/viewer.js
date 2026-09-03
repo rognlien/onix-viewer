@@ -25,6 +25,9 @@
   // Bidirectional map between a tree row and its right-pane <details>.
   // Populated by setupBlockSync.bindPair(); used by click-to-highlight.
   const pairMap = new WeakMap();
+  // Tree row → the source DOM element it renders. Used by the per-node
+  // menu ("Copy node XML") to serialise the original, undecorated subtree.
+  const rowElements = new WeakMap();
   let activeTreeRow = null;
   let activeBlockEl = null;
 
@@ -126,6 +129,7 @@
   setupDivider();
   setupBlockSync();
   setupClickHandlers();
+  setupNodeMenu();
 
   // ---- rendering helpers ----------------------------------------------------
 
@@ -230,9 +234,10 @@
 
     if (empty) {
       // <Tag attr="val"/> — single row, self-closing.
-      appendRow(parent, depth, false, (row) => {
+      const selfClosingRow = appendRow(parent, depth, false, (row) => {
         writeOpenTag(row, el, /* selfClose */ true);
       });
+      attachNodeMenu(selfClosingRow, el);
       return;
     }
 
@@ -242,7 +247,7 @@
         ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
         : null;
       const textClass = resolved ? "px-text px-codelist-value" : "px-text";
-      appendRow(parent, depth, false, (row) => {
+      const leafRow = appendRow(parent, depth, false, (row) => {
         writeOpenTag(row, el, false);
         for (const c of elementChildren) {
           if (c.nodeType === Node.CDATA_SECTION_NODE) {
@@ -274,6 +279,7 @@
           if (resolved.url) row.appendChild(buildListLink(resolved));
         }
       });
+      attachNodeMenu(leafRow, el);
       return;
     }
 
@@ -312,6 +318,8 @@
         }
       }
     });
+
+    attachNodeMenu(openRow, el);
 
     const childrenContainer = document.createElement("div");
     childrenContainer.className = "px-children";
@@ -415,6 +423,22 @@
     return row;
   }
 
+  // Prepend the small "⋮" gutter button that opens the per-node menu. Only
+  // element rows get one (open rows, leaf rows, self-closing rows) — close
+  // rows, comments, PIs and text rows have nothing meaningful to copy.
+  function attachNodeMenu(row, element) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "px-node-menu-btn";
+    button.title = "Node actions";
+    button.setAttribute("aria-label", `Actions for ${element.nodeName}`);
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-expanded", "false");
+    button.textContent = "⋮";
+    row.prepend(button);
+    rowElements.set(row, element);
+  }
+
   function autoCollapseProducts() {
     // Find every open-row whose first tag span's text is a Product element
     // (in either dialect). With more than one we collapse them so a long
@@ -513,6 +537,163 @@
       btn.textContent = original;
       btn.removeAttribute("disabled");
     }, 1200);
+  }
+
+  // ---- per-node menu --------------------------------------------------------
+
+  // One shared dropdown, moved next to whichever gutter button opened it.
+  // Menu items act on the source element of the row (via rowElements), so
+  // what gets copied is the original XML subtree — no badges, list chips,
+  // fold markers or other viewer decoration.
+  let nodeMenu = null;
+  let nodeMenuButton = null;
+
+  function setupNodeMenu() {
+    root.addEventListener("click", (event) => {
+      const button = event.target.closest(".px-node-menu-btn");
+      if (button) openNodeMenu(button);
+    });
+    document.addEventListener("click", (event) => {
+      const insideMenu = event.target.closest(".px-node-menu, .px-node-menu-btn");
+      if (nodeMenuButton && !insideMenu) closeNodeMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && nodeMenuButton) {
+        const button = nodeMenuButton;
+        closeNodeMenu();
+        button.focus();
+      }
+    });
+    // A fixed-position menu would drift away from its row on scroll.
+    document.addEventListener("scroll", () => { if (nodeMenuButton) closeNodeMenu(); }, true);
+  }
+
+  function ensureNodeMenu() {
+    if (!nodeMenu) {
+      nodeMenu = document.createElement("div");
+      nodeMenu.id = "oxv-node-menu";
+      nodeMenu.className = "px-node-menu";
+      nodeMenu.setAttribute("role", "menu");
+      nodeMenu.hidden = true;
+
+      const copyItem = document.createElement("button");
+      copyItem.type = "button";
+      copyItem.className = "px-node-menu-item";
+      copyItem.setAttribute("role", "menuitem");
+      copyItem.dataset.nodeAction = "copy-xml";
+      copyItem.textContent = "Copy node XML";
+      nodeMenu.appendChild(copyItem);
+
+      nodeMenu.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-node-action]");
+        if (item) runNodeAction(item.dataset.nodeAction, item);
+      });
+      document.body.appendChild(nodeMenu);
+    }
+    return nodeMenu;
+  }
+
+  function openNodeMenu(button) {
+    const menu = ensureNodeMenu();
+    if (nodeMenuButton && nodeMenuButton !== button) closeNodeMenu();
+    nodeMenuButton = button;
+    button.classList.add("px-open");
+    button.setAttribute("aria-expanded", "true");
+    menu.hidden = false;
+    positionNodeMenu(menu, button);
+    const firstItem = menu.querySelector(".px-node-menu-item");
+    if (firstItem) firstItem.focus();
+  }
+
+  function positionNodeMenu(menu, button) {
+    const anchor = button.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    let left = anchor.left;
+    let top = anchor.bottom + 2;
+    if (top + menuRect.height > window.innerHeight) top = anchor.top - menuRect.height - 2;
+    if (left + menuRect.width > window.innerWidth) left = window.innerWidth - menuRect.width - 4;
+    menu.style.left = `${Math.max(0, left)}px`;
+    menu.style.top = `${Math.max(0, top)}px`;
+  }
+
+  function closeNodeMenu() {
+    if (nodeMenu) nodeMenu.hidden = true;
+    if (nodeMenuButton) {
+      nodeMenuButton.classList.remove("px-open");
+      nodeMenuButton.setAttribute("aria-expanded", "false");
+    }
+    nodeMenuButton = null;
+  }
+
+  function runNodeAction(action, item) {
+    const row = nodeMenuButton && nodeMenuButton.closest(".px-row");
+    const element = row && rowElements.get(row);
+    if (!element) {
+      closeNodeMenu();
+    } else if (action === "copy-xml") {
+      copyNodeXml(element, item);
+    }
+  }
+
+  function copyNodeXml(element, item) {
+    const text = nodeXml(element);
+    const finish = (message) => {
+      flashButton(item, message);
+      setTimeout(closeNodeMenu, 900);
+    };
+    const done = () => finish("Copied");
+    const fail = () => finish(execCopyFallback(text) ? "Copied" : "Failed");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fail);
+    } else {
+      fail();
+    }
+  }
+
+  // Serialise an element the way it appears in the source: XMLSerializer
+  // re-declares the element's namespace on the subtree root (correct for a
+  // standalone fragment, but noise when the original element inherited it),
+  // and inner lines keep their absolute indentation from the file, so the
+  // result is de-indented to the element's own column.
+  function nodeXml(element) {
+    let xml = new XMLSerializer().serializeToString(element);
+    xml = stripSynthesizedNamespace(xml, element);
+    return dedent(xml, leadingIndent(element));
+  }
+
+  function stripSynthesizedNamespace(xml, element) {
+    let result = xml;
+    const attributeName = element.prefix ? `xmlns:${element.prefix}` : "xmlns";
+    if (element.namespaceURI && !element.hasAttribute(attributeName)) {
+      const declaration = ` ${attributeName}="${element.namespaceURI}"`;
+      const openTagEnd = xml.indexOf(">");
+      const openTag = xml.slice(0, openTagEnd);
+      result = openTag.replace(declaration, "") + xml.slice(openTagEnd);
+    }
+    return result;
+  }
+
+  // Whitespace between the last newline and the element's start tag.
+  function leadingIndent(element) {
+    let indent = "";
+    const previous = element.previousSibling;
+    if (previous && previous.nodeType === Node.TEXT_NODE) {
+      const text = previous.nodeValue;
+      const candidate = text.slice(text.lastIndexOf("\n") + 1);
+      if (text.includes("\n") && /^[ \t]*$/.test(candidate)) indent = candidate;
+    }
+    return indent;
+  }
+
+  function dedent(xml, indent) {
+    let result = xml;
+    if (indent) {
+      result = xml
+        .split("\n")
+        .map((line, i) => (i > 0 && line.startsWith(indent) ? line.slice(indent.length) : line))
+        .join("\n");
+    }
+    return result;
   }
 
   // ---- view mode (XML / Split / Structure) ---------------------------------
