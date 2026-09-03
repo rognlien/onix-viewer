@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.12 — 2026-09-03
 
 ### Added
 - **Collapse blocks.** A toolbar button (shortcut `b`) that folds the ONIX
