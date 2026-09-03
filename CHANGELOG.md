@@ -3,6 +3,14 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## 0.9.13 — 2026-09-03
+
+### Changed
+- Internal cleanups, no user-visible changes: the toolbar block list finds
+  the document's Products at the root instead of scanning every element,
+  and the ancestor-unfold, clipboard-write and test row-lookup helpers are
+  shared instead of duplicated.
+
 ## 0.9.12 — 2026-09-03
 
 ### Added
