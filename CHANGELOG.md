@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.11 — 2026-09-03
 
 ### Added
 - **Copy a single node's XML.** Every element row now has a small `⋮` button
