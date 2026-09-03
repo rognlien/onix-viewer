@@ -19,6 +19,11 @@ the main branch.
   (a standalone record or a one-product message) the toolbar shows a pill
   such as `Blocks: 1, 4, 6` listing which blocks the record contains. Hidden
   for multi-product feeds and acknowledgements, where it would be meaningless.
+- **Visible labels for code-list attributes.** Attribute values drawn from an
+  ONIX code list (`textformat`, `textcase`, `language`, `dateformat`,
+  `sourcetype`, `textscript`) now get a `→ label` chip right after the value,
+  e.g. `<Text textformat="05" → XHTML>`. Previously the label was only
+  available as a hover tooltip.
 
 ## 0.9.11 — 2026-09-03
 

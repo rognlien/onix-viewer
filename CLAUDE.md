@@ -46,7 +46,7 @@ onix-viewer/
 │       ├── onix-codelists.json     EDItEUR Issue 73 codelists (input)
 │       └── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 ├── tests/
-│   ├── run.js                      jsdom harness (81 tests, ~1s)
+│   ├── run.js                      jsdom harness (83 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -202,7 +202,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 81-test jsdom suite (~1s)
+npm test        # runs the 83-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
@@ -252,7 +252,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-title-without-prefix.xml` | Summary reads split-form titles: `<NoPrefix/>` + `<TitleWithoutPrefix>`, and `<TitlePrefix>` joined to the remainder |
 | `onix-3.0-title-without-prefix-short.xml` | Same in short dialect (`b030` + `b031`) |
 | `onix-3.0-single-product-blocks.xml` | One Product with blocks 1, 4, 6: `Block N` badges on block rows, `Blocks: 1, 4, 6` toolbar pill |
-
+| `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 

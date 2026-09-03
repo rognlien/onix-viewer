@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/reference" release="3.0">
+  <Header>
+    <Sender>
+      <SenderName>Bokbasen AS</SenderName>
+    </Sender>
+    <SentDateTime>20260903T1200</SentDateTime>
+  </Header>
+  <Product>
+    <RecordReference>bokbasen-9788234567893</RecordReference>
+    <NotificationType>03</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788234567893</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductComposition>00</ProductComposition>
+      <ProductForm>BC</ProductForm>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText textcase="01" language="nob">Tekstboken</TitleText>
+        </TitleElement>
+      </TitleDetail>
+    </DescriptiveDetail>
+    <CollateralDetail>
+      <TextContent>
+        <TextType>03</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text textformat="05" language="nob">&lt;p&gt;En kort beskrivelse.&lt;/p&gt;</Text>
+      </TextContent>
+      <TextContent>
+        <TextType>03</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text textformat="06"><p>Beskrivelse med markup.</p></Text>
+      </TextContent>
+    </CollateralDetail>
+  </Product>
+</ONIXMessage>

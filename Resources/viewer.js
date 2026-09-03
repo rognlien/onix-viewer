@@ -377,14 +377,16 @@
       av.className = "px-attr-value";
       // textContent neutralises the inner string; no HTML escaping needed.
       av.textContent = `"${attr.value}"`;
+      let resolvedAttr = null;
       if (window.OnixViewerOnix && onixCtx.isOnix) {
-        const resolvedAttr = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
+        resolvedAttr = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
         if (resolvedAttr) {
           av.classList.add("px-codelist-value");
           av.title = `${attr.name}: ${resolvedAttr.label}`;
         }
       }
       span.append(an, eq, av);
+      if (resolvedAttr) span.appendChild(buildAttributeBadge(attr.name, resolvedAttr));
       row.appendChild(span);
     }
 
@@ -392,6 +394,17 @@
     gt.className = "px-tag";
     gt.textContent = selfClose ? "/>" : ">";
     row.appendChild(gt);
+  }
+
+  // "→ XHTML" chip right after a code-list attribute value, e.g.
+  // <Text textformat="06" → XHTML>. Lives inside the .px-attr span so the
+  // "hide attributes" toggle hides it along with the attribute.
+  function buildAttributeBadge(attributeName, resolved) {
+    const badge = document.createElement("span");
+    badge.className = "px-codelist px-attr-codelist";
+    badge.textContent = `→ ${resolved.label}`;
+    badge.title = `${attributeName}: code resolved via ONIX List ${resolved.listNumber}`;
+    return badge;
   }
 
   function writeCloseTag(row, el) {

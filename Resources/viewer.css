@@ -436,6 +436,7 @@ body.px-no-attrs .px-attr { display: none; }
   vertical-align: 1px;
   cursor: help;
 }
+.px-attr-codelist { margin-left: 4px; }
 
 /* Link to the EDItEUR list page (e.g. "List 5") next to the resolved label. */
 .px-codelist-link {

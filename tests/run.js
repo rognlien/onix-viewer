@@ -407,6 +407,27 @@ describe("Codelist value styling", () => {
       `expected a language tooltip, got [${titles.join(" | ")}]`);
   });
 
+  test("code-list attributes get a visible chip: textformat=\"05\" → XHTML", () => {
+    const w = render("onix-3.0-text-attributes.xml");
+    const chips = $$(w, "#oxv-root .px-attr-codelist");
+    const texts = chips.map((c) => c.textContent);
+    assert(texts.includes("→ XHTML"), `expected an XHTML chip (leaf row), got [${texts.join(" | ")}]`);
+    assert(texts.includes("→ Default text format"),
+      `expected a chip for textformat=06 on an open row, got [${texts.join(" | ")}]`);
+    const xhtml = chips.find((c) => c.textContent === "→ XHTML");
+    assert(xhtml.parentElement.classList.contains("px-attr"), "chip should sit inside the attribute span");
+    assert(xhtml.title.includes("List 34"), `chip tooltip should name List 34, got: ${xhtml.title}`);
+  });
+
+  test("non-codelist attributes get no chip", () => {
+    const w = render("onix-3.0-text-attributes.xml");
+    const plainAttrs = $$(w, "#oxv-root .px-attr").filter(
+      (a) => !a.querySelector(".px-attr-value").classList.contains("px-codelist-value")
+    );
+    assert(plainAttrs.length > 0, "expected plain attributes such as release=");
+    assert(plainAttrs.every((a) => !a.querySelector(".px-attr-codelist")), "plain attribute has a chip");
+  });
+
   test("non-codelist attribute values stay plain", () => {
     const w = render("onix-3.0-reference.xml");
     const allAttrs = $$(w, "#oxv-root .px-attr-value");
