@@ -553,8 +553,10 @@
     return ONIX_BLOCK_NAMES.has(name);
   }
 
-  function unfoldAncestors(row) {
-    let parent = row.parentElement;
+  // Unfold every folded open-row above `node` so it becomes visible. Works
+  // for any node inside the tree, not just rows.
+  function unfoldAncestors(node) {
+    let parent = node.parentElement;
     while (parent && parent !== root) {
       if (parent.classList.contains("px-children")) {
         const opener = parent.previousElementSibling;
@@ -873,16 +875,7 @@
     target.classList.add("px-match-current");
 
     // Unfold any ancestor that's folded so the match is visible.
-    let p = target.parentElement;
-    while (p && p !== root) {
-      if (p.classList.contains("px-children")) {
-        const opener = p.previousElementSibling;
-        if (opener && opener.classList.contains("px-folded")) {
-          opener.classList.remove("px-folded");
-        }
-      }
-      p = p.parentElement;
-    }
+    unfoldAncestors(target);
     target.scrollIntoView({ block: "center", behavior: "smooth" });
     status.textContent = `${matchIndex + 1}/${matches.length}`;
   }
@@ -1157,16 +1150,7 @@
     if (!row) return;
     setActiveTreeRow(row);
     // Unfold any ancestor open-row that's currently collapsed.
-    let p = row.parentElement;
-    while (p && p !== root) {
-      if (p.classList.contains("px-children")) {
-        const opener = p.previousElementSibling;
-        if (opener && opener.classList.contains("px-folded")) {
-          opener.classList.remove("px-folded");
-        }
-      }
-      p = p.parentElement;
-    }
+    unfoldAncestors(row);
     if (row.scrollIntoView) row.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
