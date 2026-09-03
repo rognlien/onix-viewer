@@ -550,5 +550,6 @@
     productSummary,
     blockNumber,
     singleProductBlocks,
+    blockNames: new Set(BLOCK_NUMBERS.keys()),
   };
 })();

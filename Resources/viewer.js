@@ -13,15 +13,11 @@
 (function () {
   "use strict";
 
-  const ONIX_BLOCK_NAMES = new Set([
-    "descriptivedetail",
-    "collateraldetail",
-    "contentdetail",
-    "publishingdetail",
-    "relatedmaterial",
-    "productsupply",
-    "promotiondetail", // Block 7, ONIX 3.1
-  ]);
+  // Lower-cased names of the ONIX 3.x block elements (DescriptiveDetail …
+  // PromotionDetail). The table lives in onix.js next to the block numbers.
+  const ONIX_BLOCK_NAMES = window.OnixViewerOnix
+    ? window.OnixViewerOnix.blockNames
+    : new Set();
 
   // Bidirectional map between a tree row and its right-pane <details>.
   // Populated by setupBlockSync.bindPair(); used by click-to-highlight.
