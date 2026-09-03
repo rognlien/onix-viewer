@@ -553,8 +553,10 @@
     return ONIX_BLOCK_NAMES.has(name);
   }
 
-  function unfoldAncestors(row) {
-    let parent = row.parentElement;
+  // Unfold every folded open-row above `node` so it becomes visible. Works
+  // for any node inside the tree, not just rows.
+  function unfoldAncestors(node) {
+    let parent = node.parentElement;
     while (parent && parent !== root) {
       if (parent.classList.contains("px-children")) {
         const opener = parent.previousElementSibling;
@@ -578,12 +580,17 @@
       flashButton(btn, "Empty");
       return;
     }
-    const done = () => flashButton(btn, "Copied");
-    const fail = () => execCopyFallback(text) ? done() : flashButton(btn, "Failed");
+    writeClipboard(text, () => flashButton(btn, "Copied"), () => flashButton(btn, "Failed"));
+  }
+
+  // Prefer the async clipboard API; fall back to execCommand. Exactly one of
+  // done() / failed() is called.
+  function writeClipboard(text, done, failed) {
+    const fallback = () => (execCopyFallback(text) ? done() : failed());
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fail);
+      navigator.clipboard.writeText(text).then(done, fallback);
     } else {
-      fail();
+      fallback();
     }
   }
 
@@ -707,18 +714,11 @@
   }
 
   function copyNodeXml(element, item) {
-    const text = nodeXml(element);
     const finish = (message) => {
       flashButton(item, message);
       setTimeout(closeNodeMenu, 900);
     };
-    const done = () => finish("Copied");
-    const fail = () => finish(execCopyFallback(text) ? "Copied" : "Failed");
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fail);
-    } else {
-      fail();
-    }
+    writeClipboard(nodeXml(element), () => finish("Copied"), () => finish("Failed"));
   }
 
   // Serialise an element the way it appears in the source: XMLSerializer
@@ -873,16 +873,7 @@
     target.classList.add("px-match-current");
 
     // Unfold any ancestor that's folded so the match is visible.
-    let p = target.parentElement;
-    while (p && p !== root) {
-      if (p.classList.contains("px-children")) {
-        const opener = p.previousElementSibling;
-        if (opener && opener.classList.contains("px-folded")) {
-          opener.classList.remove("px-folded");
-        }
-      }
-      p = p.parentElement;
-    }
+    unfoldAncestors(target);
     target.scrollIntoView({ block: "center", behavior: "smooth" });
     status.textContent = `${matchIndex + 1}/${matches.length}`;
   }
@@ -1157,16 +1148,7 @@
     if (!row) return;
     setActiveTreeRow(row);
     // Unfold any ancestor open-row that's currently collapsed.
-    let p = row.parentElement;
-    while (p && p !== root) {
-      if (p.classList.contains("px-children")) {
-        const opener = p.previousElementSibling;
-        if (opener && opener.classList.contains("px-folded")) {
-          opener.classList.remove("px-folded");
-        }
-      }
-      p = p.parentElement;
-    }
+    unfoldAncestors(row);
     if (row.scrollIntoView) row.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
