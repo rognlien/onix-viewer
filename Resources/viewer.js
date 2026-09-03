@@ -580,12 +580,17 @@
       flashButton(btn, "Empty");
       return;
     }
-    const done = () => flashButton(btn, "Copied");
-    const fail = () => execCopyFallback(text) ? done() : flashButton(btn, "Failed");
+    writeClipboard(text, () => flashButton(btn, "Copied"), () => flashButton(btn, "Failed"));
+  }
+
+  // Prefer the async clipboard API; fall back to execCommand. Exactly one of
+  // done() / failed() is called.
+  function writeClipboard(text, done, failed) {
+    const fallback = () => (execCopyFallback(text) ? done() : failed());
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fail);
+      navigator.clipboard.writeText(text).then(done, fallback);
     } else {
-      fail();
+      fallback();
     }
   }
 
@@ -709,18 +714,11 @@
   }
 
   function copyNodeXml(element, item) {
-    const text = nodeXml(element);
     const finish = (message) => {
       flashButton(item, message);
       setTimeout(closeNodeMenu, 900);
     };
-    const done = () => finish("Copied");
-    const fail = () => finish(execCopyFallback(text) ? "Copied" : "Failed");
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fail);
-    } else {
-      fail();
-    }
+    writeClipboard(nodeXml(element), () => finish("Copied"), () => finish("Failed"));
   }
 
   // Serialise an element the way it appears in the source: XMLSerializer
