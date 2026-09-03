@@ -113,6 +113,13 @@ function $$(window, sel) {
 function meta(window) {
   return window.document.getElementById("oxv-meta").textContent;
 }
+// Open/leaf rows (close rows excluded) whose element is named tagName.
+function rowsNamed(window, tagName) {
+  return $$(window, "#oxv-root .px-row").filter((row) => {
+    const name = row.querySelector(".px-tag + .px-tag");
+    return name && name.textContent === tagName && !row.classList.contains("px-close-row");
+  });
+}
 function badges(window) {
   return $$(window, "#oxv-root .px-codelist").map((b) => b.textContent);
 }
@@ -459,10 +466,7 @@ describe("Folding", () => {
 
 describe("Node menu", () => {
   function menuButtonFor(window, tagName) {
-    return $$(window, "#oxv-root .px-row").find((row) => {
-      const name = row.querySelector(".px-tag + .px-tag");
-      return name && name.textContent === tagName && !row.classList.contains("px-close-row");
-    }).querySelector(".px-node-menu-btn");
+    return rowsNamed(window, tagName)[0].querySelector(".px-node-menu-btn");
   }
   function stubClipboard(window) {
     const copied = { text: null };
@@ -545,13 +549,6 @@ describe("Node menu", () => {
 });
 
 describe("Collapse blocks", () => {
-  function rowsNamed(window, tagName) {
-    return $$(window, "#oxv-root .px-row.px-collapsible").filter((row) => {
-      const name = row.querySelector(".px-tag + .px-tag");
-      return name && name.textContent === tagName;
-    });
-  }
-
   test("folds the block elements and unfolds the Products that contain them", () => {
     const w = render("onix-3.0-reference.xml");
     const products = rowsNamed(w, "Product");
@@ -575,10 +572,7 @@ describe("Collapse blocks", () => {
 
 describe("ONIX blocks", () => {
   function blockLabelOf(window, tagName) {
-    const row = $$(window, "#oxv-root .px-row.px-collapsible").find((r) => {
-      const name = r.querySelector(".px-tag + .px-tag");
-      return name && name.textContent === tagName;
-    });
+    const row = rowsNamed(window, tagName)[0];
     const label = row && row.querySelector(".px-block-label");
     return label ? label.textContent : null;
   }
