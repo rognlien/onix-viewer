@@ -31,7 +31,7 @@ Iteration loop: edit a file in `Resources/` → click the **reload** circular ar
 
 ## Install (for colleagues — before Chrome Web Store approval)
 
-While the Chrome Web Store review is pending you can sideload the extension as an "unpacked" install. Send colleagues the most recent zip from `dist/` (e.g. `dist/onix-viewer-0.9.8.zip`) along with these steps:
+While the Chrome Web Store review is pending you can sideload the extension as an "unpacked" install. Send colleagues the most recent zip from `dist/` (e.g. `dist/onix-viewer-0.9.13.zip`) along with these steps:
 
 1. Download the zip and unzip it somewhere stable — `~/Documents/onix-viewer/` is a good default. The folder must stay there after install; moving or renaming it later breaks the extension.
 2. Open Chrome and go to `chrome://extensions`.

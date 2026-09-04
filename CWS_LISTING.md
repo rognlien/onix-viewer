@@ -7,7 +7,7 @@ number when you regenerate the zip via `tools/package-extension.sh`.
 
 ```bash
 tools/package-extension.sh
-# → dist/onix-viewer-0.9.3.zip
+# → dist/onix-viewer-0.9.13.zip
 ```
 
 Upload that file at https://chrome.google.com/webstore/devconsole.
@@ -23,40 +23,39 @@ ONIX Viewer
 **Summary / short description** (max 132 chars):
 
 ```
-Pretty-print ONIX XML in Chrome, with syntax highlighting, Product summaries and inline EDItEUR code-list resolution.
+Readable ONIX XML in Chrome: collapsible tree, syntax highlighting, product summaries and inline EDItEUR code-list labels.
 ```
 
 **Description** (longer marketing copy — paste into Detailed description):
 
 ```
-ONIX Viewer turns raw ONIX XML pages into a readable view inside Chrome.
-ONIX (the bibliographic-metadata format used across the publishing
-industry) is normally shown as a wall of tags; this extension renders
-it as a syntax-highlighted, collapsible tree with the EDItEUR code
-lists wired in.
+ONIX Viewer turns raw ONIX XML into a readable, collapsible tree inside
+Chrome. Instead of a wall of tags you get syntax highlighting, one-line
+product summaries and every EDItEUR code list resolved in place.
 
 Features
 
   • Collapsible, syntax-highlighted XML tree
-  • Search, expand-all, collapse-all, collapse-blocks, soft-wrap toggle
-  • Auto-collapsed <Product> blocks with a one-line summary
-    (ISBN · form · title) so a 10,000-product feed stays scannable
-  • Resolved code-list labels (ProductIDType, ProductForm,
-    ContributorRole, LanguageCode, CountryCode, …) inline beside
-    every value
-  • One-click popup showing every entry of any list (all 165
-    EDItEUR lists bundled, ~4,750 codes), linked to the canonical
-    EDItEUR definition page
-  • ONIX 3.0 / 3.1 detection, both reference-name and short-tag
-    dialects, plus older 2.1 docs
-  • Leaves non-ONIX XML alone — the browser's native viewer
-    handles RSS, generic XML and SOAP responses
+  • Search, expand/collapse all, collapse blocks, soft-wrap toggle
+  • <Product> blocks auto-collapse to a one-line summary
+    (ISBN · form · title), so a 10,000-product feed stays scannable
+  • Code-list labels (ProductIDType, ProductForm, ContributorRole,
+    LanguageCode, CountryCode, …) shown beside every value
+  • One-click popup listing every entry of a code list, linked to
+    the EDItEUR definition page — all 165 lists bundled
+  • Detects ONIX 2.1, 3.0 and 3.1 in both reference and short-tag
+    dialects
+  • Leaves non-ONIX XML (RSS, SOAP, generic XML) to the browser's
+    native viewer
 
-Works on local .xml files (after enabling the per-extension toggle in
-chrome://extensions → Details → Allow access to file URLs) as well as
-remote URLs.
+Works on remote URLs and on local .xml files (enable "Allow access to
+file URLs" under chrome://extensions → Details).
 
-Built at Bokbasen — useful for anyone reading ONIX.
+ONIX for Books and its code lists are developed and maintained by
+EDItEUR (https://www.editeur.org/8/ONIX/), which holds the copyright
+and makes them freely available. ONIX Viewer bundles the published
+code lists for offline lookup. It is an independent tool, not
+affiliated with or endorsed by EDItEUR.
 ```
 
 **Category**: `Developer Tools` (or `Productivity` — both are reasonable)
@@ -127,7 +126,7 @@ group in the dashboard under "Distribution" once the org is connected.
 | Marquee promo tile | 1400 × 560 | Optional but recommended |
 | Screenshot(s) | 1280 × 800 or 640 × 400 | At least 1 required, up to 5 |
 
-**Screenshot suggestion (re-take for 0.9.3)**: open a real ONIX file in the
+**Screenshot suggestion (re-take for 0.9.13)**: open a real ONIX file in the
 extension and grab a 1280 × 800 (or 2× HiDPI then resize) shot of the
 syntax-highlighted tree. A second shot of the code-list popup makes the
 feature concrete. The old screenshots in `dist/listing/` were taken when
