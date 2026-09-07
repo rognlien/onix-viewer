@@ -3,6 +3,25 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Fixed
+- **Short-tag documents now resolve every code-list label.** The short-tag →
+  reference-name map was a hand-kept subset of about thirty tags, so only 12
+  of the 157 code-list-bound elements got a `→ label` badge in a short-tag
+  feed — `<b253>` (LanguageRole), `<b333>` (ProductFormDetail), `<b089>`
+  (SalesRightsType) and 142 others rendered as bare codes, which is exactly
+  where a label helps most, since the tags themselves are opaque. The map is
+  now generated from EDItEUR's official short-tag schema (505 pairs), so all
+  157 resolve. Five entries in the old map (`b003`, `b005`, `b056`, `b332`,
+  `b390`) turned out to be ONIX 2.1-era codes absent from 3.1, and their 3.1
+  replacements were missing entirely; both sets are now present.
+- The `<price>` summary chip did not appear in short-tag documents: the
+  summary table is keyed on reference names, and `price` was one of the tags
+  missing from the hand-kept map. The generated map fixes it, and summary
+  dispatch no longer depends on that map at all — it matches the lower-cased
+  name, which a short-tag composite already is.
+
 ## 0.9.14 — 2026-09-07
 
 ### Added
