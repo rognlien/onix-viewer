@@ -769,13 +769,45 @@ describe("Validation", () => {
     validate(w);
     const badCode = rowsNamed(w, "NotificationType")[0].querySelector(".px-finding");
     assert(badCode.classList.contains("px-sev-error"), "an out-of-list code is a schema violation");
-    assert(badCode.textContent === "✕", `got: ${badCode.textContent}`);
+    assert(badCode.getAttribute("aria-label").startsWith("Error:"), `got: ${badCode.getAttribute("aria-label")}`);
     const deprecated = rowsNamed(w, "ProductIDType")[0].querySelector(".px-finding");
     assert(deprecated.classList.contains("px-sev-warning"), "a deprecated code is still valid ONIX");
-    assert(deprecated.textContent === "⚠", `got: ${deprecated.textContent}`);
+    assert(deprecated.getAttribute("aria-label").startsWith("Warning:"),
+      `got: ${deprecated.getAttribute("aria-label")}`);
     // The row tint distinguishes them too, so a finding is visible while scanning.
     assert(rowsNamed(w, "NotificationType")[0].classList.contains("px-has-error"), "error row tint");
     assert(!rowsNamed(w, "ProductIDType")[0].classList.contains("px-has-error"), "warning row tint only");
+  });
+
+  test("severity is shown with an inline SVG, not a text glyph", () => {
+    // ⚠ renders as a colour emoji on several platforms, which would sit oddly
+    // inside a coloured chip, and glyph metrics move the chip around.
+    const w = render("onix-3.1-invalid.xml");
+    validate(w);
+    for (const marker of $$(w, "#oxv-root .px-finding")) {
+      const svg = marker.querySelector("svg");
+      assert(svg, `every chip should hold an icon: ${marker.outerHTML}`);
+      assert(svg.namespaceURI === "http://www.w3.org/2000/svg", "in the SVG namespace");
+      assert(svg.getAttribute("viewBox") === "0 0 16 16", "on the shared 16-unit grid");
+      assert(svg.getAttribute("stroke") === "currentColor", "so the chip's colour carries");
+      assert(svg.getAttribute("aria-hidden") === "true", "the chip's aria-label does the talking");
+      assert(!/[⚠✕]/.test(marker.textContent), `no glyphs left: ${marker.textContent}`);
+    }
+    const error = rowsNamed(w, "NotificationType")[0].querySelector(".px-finding svg path");
+    const warning = rowsNamed(w, "ProductIDType")[0].querySelector(".px-finding svg path");
+    assert(error.getAttribute("d") !== warning.getAttribute("d"),
+      "the two severities must be different shapes, not only different colours");
+  });
+
+  test("a row with several findings shows a count beside one icon", () => {
+    const w = render("onix-3.1-invalid.xml");
+    // Two findings on one element: an unknown code that is also deprecated.
+    const source = w.__OXV_SOURCE__.replace("<ProductForm>BC</ProductForm>", "<ProductForm>ZZZ</ProductForm>");
+    const two = renderSource(source, "two-findings.xml");
+    two.document.querySelector('[data-action="validate"]').click();
+    const marker = rowsNamed(two, "ProductForm")[0].querySelector(".px-finding");
+    assert(marker, "the row should be marked");
+    assert(marker.querySelectorAll("svg").length === 1, "one icon, not one per finding");
   });
 
   test("severity chips don't inherit the parse-error box styling", () => {
@@ -802,6 +834,13 @@ describe("Validation", () => {
     assert(items.filter((i) => i.dataset.oxvSeverity === "warning").length === 1, "1 warning");
     assert(items[0].textContent.includes("is not in List 1"), `got: ${items[0].textContent}`);
     assert(items[0].textContent.includes("<NotificationType>"), "each entry names its element");
+    // Every badge is icon-only and so the same size; otherwise a wider label
+    // would shift its row's element name out of line with the others.
+    const badges = items.map((item) => item.querySelector(".px-findings-severity"));
+    assert(badges.every((b) => b.querySelector("svg") && !b.textContent.trim()),
+      "badges should be icon-only");
+    assert(new Set(badges.map((b) => b.getAttribute("aria-label"))).size === 2,
+      "with the severity in the label");
   });
 
   test("clicking an entry closes the list and reveals that row", () => {

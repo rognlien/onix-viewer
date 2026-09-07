@@ -786,17 +786,67 @@
       existing.title += `\n${text}`;
       const seen = Number(existing.dataset.oxvCount || 1) + 1;
       existing.dataset.oxvCount = String(seen);
-      if (isError) existing.classList.add("px-sev-error");
-      existing.classList.toggle("px-sev-warning", !existing.classList.contains("px-sev-error"));
-      existing.textContent = `${existing.classList.contains("px-sev-error") ? "✕" : "⚠"} ${seen}`;
+      if (isError && !existing.classList.contains("px-sev-error")) {
+        existing.classList.remove("px-sev-warning");
+        existing.classList.add("px-sev-error");
+        const previous = existing.querySelector("svg");
+        if (previous) previous.replaceWith(icon("error"));
+      }
+      let counter = existing.querySelector(".px-finding-count");
+      if (!counter) {
+        counter = document.createElement("span");
+        counter.className = "px-finding-count";
+        existing.appendChild(counter);
+      }
+      counter.textContent = String(seen);
+      existing.setAttribute("aria-label", `${seen} problems on this row`);
       return;
     }
     const marker = document.createElement("span");
     marker.className = `px-finding px-sev-${finding.severity}`;
-    marker.textContent = isError ? "✕" : "⚠";
+    marker.appendChild(icon(isError ? "error" : "warning"));
     marker.title = text;
+    marker.setAttribute("role", "img");
+    marker.setAttribute("aria-label", `${isError ? "Error" : "Warning"}: ${text}`);
     marker.dataset.oxvCode = finding.code;
     row.appendChild(marker);
+  }
+
+  // ---- icons ----------------------------------------------------------------
+
+  // Inline SVG rather than characters. ⚠ has an emoji presentation on several
+  // platforms, so it renders as a colour emoji inside a coloured chip, and
+  // glyph metrics vary enough between fonts to shift a 12px chip around.
+  // Everything is stroked in currentColor, so a chip's own colour carries.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const ICONS = Object.assign(Object.create(null), {
+    // A bold cross. Outlined shapes go muddy at 12px; two thick strokes don't.
+    error: [["path", { d: "M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8", "stroke-width": "2.2" }]],
+    // An exclamation rather than the usual triangle: a 12px triangle with a
+    // bang inside it loses both shapes, and the amber chip already reads as a
+    // warning without one.
+    warning: [
+      ["path", { d: "M8 3.6v5.1", "stroke-width": "2.2" }],
+      ["circle", { cx: "8", cy: "12", r: "1.15", fill: "currentColor", stroke: "none" }],
+    ],
+    close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
+  });
+
+  function icon(name) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("class", "px-icon");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    for (const [tag, attributes] of ICONS[name] || []) {
+      const shape = document.createElementNS(SVG_NS, tag);
+      for (const key of Object.keys(attributes)) shape.setAttribute(key, attributes[key]);
+      svg.appendChild(shape);
+    }
+    return svg;
   }
 
   // ---- findings list --------------------------------------------------------
@@ -842,9 +892,16 @@
     item.className = "px-findings-item";
     item.dataset.oxvSeverity = finding.severity;
 
+    // Icon only, so every badge is the same width and the columns line up
+    // down the list. Colour and shape both carry the severity; the word lives
+    // in the label for anyone who can't see either.
+    const label = finding.severity === "error" ? "Error" : "Warning";
     const badge = document.createElement("span");
     badge.className = `px-findings-severity px-sev-${finding.severity}`;
-    badge.textContent = finding.severity === "error" ? "Error" : "Warning";
+    badge.setAttribute("role", "img");
+    badge.setAttribute("aria-label", label);
+    badge.title = label;
+    badge.appendChild(icon(finding.severity === "error" ? "error" : "warning"));
 
     const where = document.createElement("span");
     where.className = "px-findings-where";
@@ -888,7 +945,7 @@
     closeButton.type = "button";
     closeButton.className = "px-popup-close";
     closeButton.setAttribute("aria-label", "Close");
-    closeButton.textContent = "✕";
+    closeButton.appendChild(icon("close"));
     closeButton.addEventListener("click", closeFindings);
     header.append(titleWrap, closeButton);
 

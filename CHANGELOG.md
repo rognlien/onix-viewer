@@ -7,8 +7,9 @@ the main branch.
 
 ### Added
 - **Validate the document.** A toolbar button (shortcut `v`) checks the file
-  and marks each finding on the row it concerns — a red `✕` for a schema
-  error, an amber `⚠` for a warning, message in the tooltip: elements that are
+  and marks each finding on the row it concerns — red with a cross for a
+  schema error, amber with an exclamation for a warning, message in the
+  tooltip: elements that are
   missing, misplaced or unknown; codes that aren't in their EDItEUR list;
   codes EDItEUR has deprecated (the code lists carry a deprecation issue for
   167 of the 4,791 codes, which the viewer now reads); and values that break

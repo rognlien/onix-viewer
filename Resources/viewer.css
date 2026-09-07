@@ -400,18 +400,32 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 /* Validation findings: a ⚠ marker on the row the finding is about, with the
    message in its tooltip. Excluded from selection like the other decorations,
    so a drag-copy still yields plain XML. */
+/* Tiny inline-SVG icons, sized once here so every chip and button that uses
+   one lines up. `flex: none` keeps them from being squashed inside a chip. */
+.px-icon {
+  display: block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
 .px-finding {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   margin-left: 6px;
-  padding: 1px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   font-family: var(--ui);
   font-size: 11px;
-  font-weight: 600;
-  line-height: 1.5;
+  font-weight: 700;
+  line-height: 1;
   color: #fff;
+  vertical-align: middle;
   cursor: help;
   user-select: none;
 }
+.px-finding-count { font-variant-numeric: tabular-nums; }
 /* px-sev-* rather than px-error/px-warning: .px-error is already the
    parse-error box, whose margins and borders these chips would inherit. */
 .px-finding.px-sev-error { background: var(--severity-error); }
@@ -445,7 +459,10 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-findings-list { display: flex; flex-direction: column; gap: 2px; }
 .px-findings-item {
   display: grid;
-  grid-template-columns: 68px minmax(0, 160px) 1fr;
+  /* The badge is icon-only and therefore a constant width, so a fixed first
+     track keeps the element names aligned down the whole list. Each item is
+     its own grid — a content-sized track would shift row by row. */
+  grid-template-columns: 22px minmax(0, 170px) 1fr;
   gap: 10px;
   align-items: baseline;
   width: 100%;
@@ -461,14 +478,13 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-findings-item:hover,
 .px-findings-item:focus-visible { background: var(--bg-hover); outline: none; }
 .px-findings-severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   justify-self: start;
-  padding: 1px 7px;
-  border-radius: 4px;
-  font-family: var(--ui);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
   color: #fff;
 }
 .px-findings-severity.px-sev-error { background: var(--severity-error); }

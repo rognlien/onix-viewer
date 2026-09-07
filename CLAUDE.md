@@ -51,7 +51,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (130 tests, ~1s)
+│   ├── run.js                      jsdom harness (132 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -291,6 +291,30 @@ match. Without that recovery a single typo makes every following sibling "not
 allowed at this position" — nine findings for four defects in the test fixture,
 versus five with it.
 
+### Icons
+
+`icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table —
+`error`, `warning`, `close` — on a shared `0 0 16 16` grid, stroked in
+`currentColor` and sized to 12px by `.px-icon`, so one chip's colour carries
+its icon.
+
+They are SVG rather than characters for two reasons: `⚠` has an emoji
+presentation on several platforms, so it renders as a colour emoji inside a
+coloured chip, and glyph metrics vary enough between fonts to shift a 12px
+chip around. The two severities are deliberately different *shapes* (a cross
+and an exclamation), not just different colours, so they stay distinguishable
+without colour.
+
+`warning` is an exclamation rather than the conventional triangle: at 12px a
+triangle with a bang inside it loses both shapes, and the amber chip already
+reads as a warning. Chips are `aria-hidden` on the icon with the wording on
+the chip's `aria-label`.
+
+Still characters, deliberately: the fold chevrons (`▾`/`▸`, CSS `content`),
+the `⋮` gutter button, the `…` fold ellipsis and the `→` code-list arrow.
+Those are geometric or typographic, have no emoji variant, and work as text.
+`onix-popup.js` still uses a `✕` character for its close button.
+
 ### Severity, markers and the findings list
 
 Every finding carries a severity from `SEVERITIES`, a per-code table
@@ -300,14 +324,20 @@ viewer couldn't check (`model.missing`). Anything unlisted defaults to error,
 so a newly registered rule is conservative until it says otherwise.
 
 Findings are pinned to rows through `elementRows` (source element → row) and
-shown as a chip: a red `✕` for errors, an amber `⚠` for warnings, with the
-message in the tooltip and the row itself tinted to match. A row that collects
+shown as a chip: red with a cross for errors, amber with an exclamation for
+warnings, the message in the tooltip and the row itself tinted to match. A row that collects
 several findings takes the worst severity and lists them all in the tooltip.
 
 The severity modifier classes are **`px-sev-error` / `px-sev-warning`**, not
 `px-error` / `px-warning` — `.px-error` is the parse-error panel, and chips
 that reused the name inherited its margins, padding and border and rendered as
 large blocks. There's a test asserting the chips carry neither of the old names.
+
+In the findings list the severity badge is **icon-only**. Each entry is its
+own CSS grid, so a wider badge would shift that row's element name out of line
+with the others; a constant-width badge over a fixed first track keeps the
+whole list aligned. The severity word lives in the badge's `aria-label` and
+`title`.
 
 The toolbar label reads `3 errors, 2 warnings` rather than a single total,
 since the two counts are acted on differently, and clicking it opens a
@@ -393,6 +423,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`)
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
+- `px-icon` — a tiny inline SVG from `icon(name)`; `px-sev-error` / `px-sev-warning` are the severity modifiers (not `px-error`, which is the parse-error panel)
 - `px-*` — CSS class prefix (kept short; ubiquitous in viewer.js)
 
 The `px-` CSS prefix was retained from the rename because changing it would touch every line of `viewer.js` that builds DOM.
@@ -414,7 +445,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 130-test jsdom suite (~1s)
+npm test        # runs the 132-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
