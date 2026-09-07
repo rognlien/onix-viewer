@@ -54,7 +54,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (142 tests, ~1s)
+│   ├── run.js                      jsdom harness (143 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -153,9 +153,10 @@ state: **View as reference names** over a short-tag file, **View as short
 tags** over a reference file. The label doesn't flip when pressed, so the
 document's own dialect is always the unpressed state and the reader can't lose
 track of what they opened. `aria-pressed` means "you are looking at the
-translation". The toolbar meta pill states the source dialect outright
-(`ONIX 3.1 short tags (1 product)`) and describes the file, so it doesn't
-change when the view does.
+translation". The toolbar meta pill — led by a file icon — names the source dialect only
+when it is the short one (`ONIX 3.1 short tags (1 product)`; reference names
+are the norm and go unsaid). It describes the file, so it doesn't change when
+the view does.
 
 `translatedName(nodeName, targetDialect)` in `onix.js` does the lookup, in both
 directions. Short → reference reads `SHORT_TO_REFERENCE`; reference → short
@@ -361,7 +362,7 @@ versus five with it.
 `icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table,
 declared at the top of the IIFE because the toolbar setup uses it before the
 sections further down have been reached —
-`error`, `warning`, `ok`, `spinner`, `search`, `close` — on a shared `0 0 16 16` grid, stroked in
+`error`, `warning`, `ok`, `spinner`, `search`, `file`, `close` — on a shared `0 0 16 16` grid, stroked in
 `currentColor` and sized to 12px by `.px-icon`, so one chip's colour carries
 its icon.
 
@@ -512,7 +513,7 @@ node tools/generate-codelists.js                                  # default path
 node tools/generate-codelists.js --json=PATH --xsd=PATH --short-xsd=PATH
 ```
 
-The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "EDItEUR ONIX 3.1, Issue 74" as a toolbar pill so users can see at a glance which schema version they're looking at.
+The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "ONIX 3.1, Issue 74" as a toolbar pill so users can see at a glance which code lists they're looking at.
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
@@ -562,7 +563,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 142-test jsdom suite (~1s)
+npm test        # runs the 143-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

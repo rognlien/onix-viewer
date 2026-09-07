@@ -205,7 +205,7 @@ describe("Generic XML", () => {
 describe("ONIX 3.0 reference", () => {
   test("detects dialect and version", () => {
     const w = render("onix-3.0-reference.xml");
-    assert(/^ONIX 3\.0 reference names \(\d+ products?\)/.test(meta(w)), `bad meta: ${meta(w)}`);
+    assert(/^ONIX 3\.0 \(\d+ products?\)/.test(meta(w)), `bad meta: ${meta(w)}`);
   });
 
   test("classifies tag spans with px-onix-ref", () => {
@@ -405,7 +405,7 @@ describe("Standalone Product without namespace", () => {
   test("detects a bare <Product> root as ONIX (no envelope, no namespace)", () => {
     const w = render("onix-standalone-product-no-namespace.xml");
     // Version is unknown without a namespace, so the label omits it.
-    assert(/^ONIX reference names \(1 product\)/.test(meta(w)), `bad meta: ${meta(w)}`);
+    assert(/^ONIX \(1 product\)/.test(meta(w)), `bad meta: ${meta(w)}`);
   });
 
   test("resolves codelists on the un-namespaced Product (ProductForm BB → Hardback)", () => {
@@ -1219,13 +1219,28 @@ describe("Dialect toggle", () => {
       `got: ${switchButton(referenceDoc).textContent}`);
   });
 
-  test("the meta pill states which dialect the document is written in", () => {
+  test("the meta pill names the short dialect, and stays silent about the other", () => {
+    // Reference names are the norm, so only short tags are worth stating.
     assert(meta(render("onix-3.0-short-codelists.xml")).includes("short tags"), "short document");
-    assert(meta(render("onix-3.0-reference.xml")).includes("reference names"), "reference document");
+    const reference = meta(render("onix-3.0-reference.xml"));
+    assert(reference.startsWith("ONIX 3.0 ("), `no dialect for reference names: ${reference}`);
+    assert(!reference.includes("names") && !reference.includes("tags"), `got: ${reference}`);
     const w = render("onix-3.0-short-codelists.xml");
     flip(w);
     assert(meta(w).includes("short tags"),
       "the pill describes the file, so translating must not change it");
+  });
+
+  test("the meta pill is led by a file icon, and the schema pill drops the vendor", () => {
+    const w = render("onix-3.0-reference.xml");
+    const pill = w.document.getElementById("oxv-meta");
+    const glyph = pill.querySelector("svg");
+    assert(glyph, "the meta pill should open with a file icon");
+    assert(glyph.getAttribute("viewBox") === "0 0 16 16", "from the shared icon set");
+    assert(pill.textContent.startsWith("ONIX"), "the icon adds no text");
+    const schema = w.document.getElementById("oxv-schema").textContent;
+    assert(schema === "ONIX 3.1, Issue 74", `got: ${schema}`);
+    assert(!schema.includes("EDItEUR"), "the vendor name is not needed here");
   });
 
   test("switching keeps fold state, code-list badges and summaries intact", () => {

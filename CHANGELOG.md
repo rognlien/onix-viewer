@@ -5,6 +5,11 @@ the main branch.
 
 ## 0.9.15 — 2026-09-07
 
+### Changed
+- Toolbar tidying: the code-list pill drops the vendor name (`ONIX 3.1,
+  Issue 74`), the document pill is led by a file icon, and it names the
+  dialect only when the file uses **short tags** — reference names are the
+  norm, so saying so added nothing.
 ### Added
 - **Validate the document.** Every ONIX file is now checked as it opens,
   without blocking the page. Each finding is marked on the row it concerns —

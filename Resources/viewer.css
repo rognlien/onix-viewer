@@ -246,6 +246,9 @@ body.px-search-open #oxv-search {
 body:not(.px-search-open) #oxv-search-status { display: none; }
 
 #oxv-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }

@@ -58,6 +58,10 @@
     ],
     close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
     ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
+    file: [
+      ["path", { d: "M4.2 2.2h4.9l3 3v8.6H4.2z", "stroke-width": "1.5" }],
+      ["path", { d: "M9.1 2.2v3h3", "stroke-width": "1.5" }],
+    ],
     search: [
       ["circle", { cx: "7", cy: "7", r: "4.3", "stroke-width": "1.8" }],
       ["path", { d: "M10.3 10.3l3.3 3.3", "stroke-width": "1.8" }],
@@ -133,7 +137,7 @@
   if (schemaLabel && window.OnixViewerCodeListSchema) {
     const s = window.OnixViewerCodeListSchema;
     if (s.issue != null) {
-      schemaLabel.textContent = `EDItEUR ONIX ${s.version}, Issue ${s.issue}`;
+      schemaLabel.textContent = `ONIX ${s.version}, Issue ${s.issue}`;
       if (s.releaseDate) schemaLabel.title = `Schema released ${s.releaseDate}`;
     }
   }
@@ -191,14 +195,15 @@
       metaText = `ONIX Acknowledgement${versionPart} (${recordsLabel}) · ` + metaText;
     } else {
       const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
-      const dialectPart = onixCtx.dialect ? ` ${dialectLabel(onixCtx.dialect)}` : "";
+      const dialectPart = onixCtx.dialect === "short" ? " short tags" : "";
       metaText = `ONIX${versionPart}${dialectPart} (${productsLabel}) · ` + metaText;
     }
     // Auto-collapse Product blocks for big ONIX feeds — otherwise scrolling
     // through 50,000 products is hostile.
     autoCollapseProducts();
   }
-  meta.textContent = metaText;
+  meta.textContent = "";
+  meta.append(icon("file"), document.createTextNode(metaText));
   showBlockList();
 
   setupToolbar();
