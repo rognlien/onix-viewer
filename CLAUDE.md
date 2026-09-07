@@ -30,7 +30,7 @@ onix-viewer/
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
-│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists (auto-generated, ~190 KB)
+│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists (auto-generated, ~195 KB)
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
 │   └── icons/                      icon-{16,32,48,96,128,256,512}.png from icons/image.png
@@ -43,7 +43,7 @@ onix-viewer/
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
 │   ├── release.sh                  bumps version, commits, tags
 │   └── data/
-│       ├── onix-codelists.json     EDItEUR Issue 73 codelists (input)
+│       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
 │       └── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 ├── tests/
 │   ├── run.js                      jsdom harness (84 tests, ~1s)
@@ -162,17 +162,17 @@ Adding another action is: append a `.px-node-menu-item` with a
 
 `Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from two committed inputs:
 
-- `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently **Issue 73**, 2026-01-20). Authoritative source of (list number, code, label).
+- `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently **Issue 74**, 2026-07-22). Authoritative source of (list number, code, label).
 - `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, used **only** for element-name → list-number bindings (those rarely change between minor issues).
 
-Both inputs are committed so the generator has no external dependencies. Output contains all 165 lists (~4,770 code/label pairs) and 158 element bindings — about 190 KB unminified, ~50 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
+Both inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs) and 158 element bindings — about 195 KB unminified, ~53 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
 
 ```bash
 node tools/generate-codelists.js                          # default paths
 node tools/generate-codelists.js --json=PATH --xsd=PATH   # override
 ```
 
-The generator also writes `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "EDItEUR ONIX 3.1, Issue 73" as a toolbar pill so users can see at a glance which schema version they're looking at.
+The generator also writes `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "EDItEUR ONIX 3.1, Issue 74" as a toolbar pill so users can see at a glance which schema version they're looking at.
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
