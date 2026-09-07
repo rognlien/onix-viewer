@@ -55,7 +55,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (98 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
+Runs the full jsdom suite (100 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
 
 ### Visual loop — Chrome
 

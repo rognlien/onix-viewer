@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Short dialect, split-form title: b030 (TitlePrefix) + b031
      (TitleWithoutPrefix) with no b203 (TitleText) anywhere. -->
-<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
+<ONIXmessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
   <header>
     <sender>
       <x300>Bokbasen AS</x300>
@@ -27,4 +27,4 @@
       </titledetail>
     </descriptivedetail>
   </product>
-</ONIXMessage>
+</ONIXmessage>

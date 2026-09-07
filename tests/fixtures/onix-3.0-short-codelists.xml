@@ -3,7 +3,7 @@
      b253 (LanguageRole), b252 (LanguageCode), x415 (NameIDType),
      b394 (PublishingStatus), x462 (PriceType). Also covers the <price>
      composite summary in short dialect. -->
-<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
+<ONIXmessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
   <product>
     <a001>short-codelists-1</a001>
     <a002>03</a002>
@@ -39,4 +39,4 @@
       </supplydetail>
     </productsupply>
   </product>
-</ONIXMessage>
+</ONIXmessage>

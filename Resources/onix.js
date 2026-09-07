@@ -22,15 +22,17 @@
   // Older 2.1 docs may have no namespace at all and rely on doctype.
   const ONIX_NS_PREFIX = "http://ns.editeur.org/onix/";
 
-  // Reference-name root candidates (3.0 + 2.1).
-  const REFERENCE_ROOTS = new Set(["ONIXMessage", "ONIXmessage"]);
+  // Message-root candidates. The two spellings are the two dialects, not two
+  // versions: the reference schema declares <ONIXMessage>, the short-tag
+  // schema declares <ONIXmessage> (lower-case "message"), and that holds for
+  // 3.0 and 3.1 alike — it is the one short tag that isn't all lower case.
+  const MESSAGE_ROOTS = new Set(["ONIXMessage", "ONIXmessage"]);
   // Root of an ONIX Acknowledgement message (EDItEUR's optional response
   // format). Its namespace is the canonical signal; this set only catches
   // the rare no-namespace case so the root name alone still identifies it.
   const ACK_ROOTS = new Set(["ONIXMessageAcknowledgement"]);
-  // Short-tag roots. ONIX 3.0 short uses <ONIXMessage> too with a /short
-  // namespace; ONIX 2.1 short uses <ONIXmessage> with lowercase children.
-  // The reliable signal is the namespace URI, which we check first.
+  // The reliable dialect signal is the namespace URI (".../short"), which
+  // detect() checks before it ever looks at the root's spelling.
 
   // Short tag → reference name. Used both for highlighting and for codelist
   // lookups, so <b253> still resolves LanguageRole.
@@ -204,17 +206,22 @@
       messageType = "acknowledgement";
       dialect = "reference";
       version = root.getAttribute("release") || "3.0";
-    } else if (REFERENCE_ROOTS.has(localName)) {
-      // No namespace — likely ONIX 2.1 reference.
+    } else if (MESSAGE_ROOTS.has(localName)) {
+      // No namespace. The root's spelling gives the dialect exactly, since
+      // each schema declares only its own form. Version has to come from the
+      // release attribute; absent that, a namespace-less message is most
+      // likely 2.1, which is where omitting the namespace was common.
       isOnix = true;
       dialect = (localName === "ONIXmessage") ? "short" : "reference";
-      // Best-effort: read release attribute if present.
       version = root.getAttribute("release") || "2.1";
     } else if (localName.toLowerCase() === "onixmessage") {
-      // No-namespace short — ONIX 2.1 short.
+      // Neither schema's spelling, but unmistakably a message root — accept
+      // it and let the release attribute speak for the version. Casing this
+      // far off tells us nothing about the dialect, so infer it from the
+      // children the way a bare <Product> root is handled.
       isOnix = true;
-      dialect = "short";
-      version = root.getAttribute("release") || "2.1";
+      dialect = inferProductDialect(root);
+      version = root.getAttribute("release") || null;
     } else if (localName.toLowerCase() === "product" && hasOnixProductChild(root)) {
       // A standalone <Product> record exported without an <ONIXMessage>
       // envelope and without a namespace (e.g. some single-record feeds).

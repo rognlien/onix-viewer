@@ -47,7 +47,7 @@ onix-viewer/
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── tests/
-│   ├── run.js                      jsdom harness (98 tests, ~1s)
+│   ├── run.js                      jsdom harness (100 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -87,13 +87,13 @@ Lives in `Resources/onix.js`. The detector returns `{ isOnix, dialect, version, 
 
 Signals checked, in order:
 1. **Namespace URI** on the root element (`http://ns.editeur.org/onix/3.0/reference`, `.../3.1/reference`, `.../short`, etc.). Canonical ONIX 3.x signal. The Acknowledgement namespace inserts an extra segment — `http://ns.editeur.org/onix/acknowledgement/3.0/{reference,short}` — which the parser strips before reading version/dialect, setting `messageType` accordingly.
-2. **Root local name** (`ONIXMessage` / `ONIXmessage`) when no namespace is set — typical of ONIX 2.1 docs. `ONIXMessageAcknowledgement` is matched here too for the rare no-namespace Acknowledgement file.
+2. **Root local name** (`ONIXMessage` / `ONIXmessage`) when no namespace is set. The two spellings are the two *dialects*, not two versions: the reference schema declares `<ONIXMessage>` and the short-tag schema declares `<ONIXmessage>` (lower-case "message") — the one short tag that isn't all lower case — in 3.0 and 3.1 alike, so the root's spelling gives the dialect exactly. The version has to come from the `release` attribute; absent that we assume 2.1, which is where omitting the namespace was common. `ONIXMessageAcknowledgement` is matched here too for the rare no-namespace Acknowledgement file.
 3. **Bare `<Product>` root** when no namespace is set — a standalone Product record exported without an `<ONIXMessage>` envelope. `<Product>` alone is too generic to trust, so it's only accepted when it carries a corroborating ONIX-specific child (`RecordReference`, `NotificationType`, `RecordSourceType`, `ProductIdentifier`, `DescriptiveDetail`, or short tags `a001`/`a002`) — see `hasOnixProductChild`. The dialect is inferred from element-name casing (`inferProductDialect`) since there's no `/short` namespace marker, and the version is left `null` (the meta pill then reads `ONIX (N products)` with no version). `content.js`'s `looksLikeOnix` sniff mirrors this with a `<Product>` + corroborating-element check so the takeover fires in the first place.
 4. The **`release` attribute** on the root if version isn't already known.
 
 Reference vs. short tag matters because:
 - Reference dialect uses `<ProductIdentifier>`, `<ProductIDType>`, etc.
-- Short dialect uses `<productidentifier>`, `<b221>`, etc.
+- Short dialect uses `<ONIXmessage>`, `<productidentifier>`, `<b221>`, etc. Composites are the lower-cased reference name; data elements are opaque codes.
 - The codelist resolver handles both via `SHORT_TO_REFERENCE` in `onix.js`, which is **generated** from EDItEUR's short-tag schema (see below) — all 505 pairs, so every code-list-bound element resolves a label in short dialect. It was previously a hand-kept subset of ~30 tags, which left 145 of the 157 bound elements showing bare codes.
 
 ## Acknowledgement message support
@@ -221,7 +221,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 98-test jsdom suite (~1s)
+npm test        # runs the 100-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
@@ -259,6 +259,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `rss.xml` | Non-ONIX XML doesn't get misidentified as ONIX |
 | `onix-3.0-reference.xml` | Reference dialect: codelist resolution, tag classes, Product auto-collapse, summaries |
 | `onix-3.0-short.xml` | Short-tag dialect: detection, styling, `SHORT_TO_REFERENCE` map |
+| `onix-short-no-namespace.xml` | `<ONIXmessage>` root with no namespace: dialect from the root spelling, version from `release` |
 | `onix-3.0-short-codelists.xml` | Short-tag code lists that the old hand-kept map missed (`b253`, `b252`, `x415`, `b394`, `x462`), and the `<price>` chip in short dialect |
 | `onix-3.1-standalone-product.xml` | Document root is `<Product>` (no `<ONIXMessage>` envelope) |
 | `onix-3.0-multi-title.xml` | Multiple `<TitleDetail>` blocks → summary picks `<TitleType>01</TitleType>` |

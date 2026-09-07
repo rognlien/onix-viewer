@@ -1,0 +1,21 @@
+<!-- Short-tag message with no namespace. <ONIXmessage> (lower-case "message")
+     is the root the short-tag schema declares, so the root spelling alone
+     gives the dialect; the version comes from the release attribute. -->
+<ONIXmessage release="3.1">
+  <header>
+    <sender>
+      <x300>Bokbasen AS</x300>
+    </sender>
+  </header>
+  <product>
+    <a001>no-namespace-short-1</a001>
+    <a002>03</a002>
+    <productidentifier>
+      <b221>15</b221>
+      <b244>9788234567892</b244>
+    </productidentifier>
+    <descriptivedetail>
+      <b012>BC</b012>
+    </descriptivedetail>
+  </product>
+</ONIXmessage>

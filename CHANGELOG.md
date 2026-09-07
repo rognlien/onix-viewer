@@ -16,6 +16,14 @@ the main branch.
   157 resolve. Five entries in the old map (`b003`, `b005`, `b056`, `b332`,
   `b390`) turned out to be ONIX 2.1-era codes absent from 3.1, and their 3.1
   replacements were missing entirely; both sets are now present.
+- **`<ONIXmessage>` is the short-tag message root**, not an ONIX 2.1 quirk —
+  the short schema declares that spelling (lower-case "message") for 3.0 and
+  3.1 alike, and it's the one short tag that isn't all lower case. The
+  detector already handled it via the namespace, but the code comments and
+  the short-tag test fixtures had it as `<ONIXMessage>`, which no short-tag
+  schema accepts. Fixtures corrected, and a namespace-less `<ONIXmessage>`
+  now takes its version from the `release` attribute instead of assuming 2.1
+  regardless.
 - The `<price>` summary chip did not appear in short-tag documents: the
   summary table is keyed on reference names, and `price` was one of the tags
   missing from the hand-kept map. The generated map fixes it, and summary
