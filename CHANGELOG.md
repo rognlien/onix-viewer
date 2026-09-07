@@ -31,11 +31,25 @@ the main branch.
   into a 49 KB content model that a small interpreter walks in a single pass:
   ~920 ms for an 11.4 MB feed with 319,000 elements, and only when asked.
 
-  ONIX **3.1** is checked in full. Other releases have their code lists
-  checked and are told plainly that the structure wasn't, rather than being
-  judged against the wrong schema; adding 3.0 is one more generator run.
-  Validation is dialect-blind: the two dialects of one record produce
-  identical findings.
+  **Both ONIX releases since 3.0 are checked in full** — 3.0 (revision 8) and
+  3.1 (revision 3), each against its own compiled schema, chosen by the
+  message's `release`. There is nothing finer to cover: a message can only
+  declare `3.0` or `3.1`, and the revisions within a release aren't declarable
+  at all, so the newest revision of each is both the only option and a safe
+  one — ONIX adds and deprecates but doesn't remove, so the newest schema is a
+  superset of every earlier revision.
+
+  Anything older (ONIX 2.1) has its code lists checked and is told plainly
+  that the structure wasn't, rather than being judged against the wrong
+  schema. **Acknowledgement messages** are exempt for the same reason: their
+  elements live in a separate schema, so they'd otherwise report every element
+  as unknown.
+
+  The short-tag map now merges both releases' schemas (529 pairs), because 3.0
+  keeps about twenty tags 3.1 dropped — `Conference`, `Reissue`, `Gender`,
+  `EpubLicense` among them — without which a short-tag 3.0 file resolves
+  almost nothing. Validation is dialect-blind either way: the two dialects of
+  one record produce identical findings.
 
   Messages live in a template catalogue that can be reworded or translated
   without touching validation logic, and rules live in a registry the runner

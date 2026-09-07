@@ -33,7 +33,8 @@
     "datatype.range": "\"{value}\" is out of range for {type}",
     "codelist.unknown": "\"{value}\" is not in List {list} ({title})",
     "codelist.deprecated": "\"{value}\" ({label}) was deprecated in List {list} at issue {issue}",
-    "model.missing": "No content model bundled for ONIX {version}; structure was not checked",
+    "model.missing": "No content model bundled for ONIX {version} (bundled: {available}); structure was not checked",
+    "model.acknowledgement": "Acknowledgement messages have their own schema, which isn't bundled; structure was not checked",
   });
 
   // Severity per code, overridable like MESSAGES. An error is a schema
@@ -43,6 +44,7 @@
   const SEVERITIES = Object.assign(Object.create(null), {
     "codelist.deprecated": "warning",
     "model.missing": "warning",
+    "model.acknowledgement": "warning",
   });
 
   function severity(finding) {
@@ -123,7 +125,12 @@
   function createPass(doc, onixCtx, options) {
     const settings = options || {};
     const limit = settings.maxFindings == null ? 500 : settings.maxFindings;
-    const model = modelFor(onixCtx.version);
+    // An Acknowledgement message is a different schema — <MessageStatus>,
+    // <RecordStatus> and friends aren't in the Book Product model at all — so
+    // judging one against it would report every element as unknown. Its code
+    // lists are still checked, which is the point of Acknowledgement support.
+    const isAcknowledgement = onixCtx.messageType === "acknowledgement";
+    const model = isAcknowledgement ? null : modelFor(onixCtx.version);
     const findings = [];
     const counts = { error: 0, warning: 0 };
 
@@ -144,10 +151,11 @@
     };
 
     if (!model) {
-      api.report("model.missing", doc.documentElement, {
-        version: onixCtx.version || "(unknown release)",
-        available: availableVersions().join(", "),
-      });
+      api.report(isAcknowledgement ? "model.acknowledgement" : "model.missing",
+        doc.documentElement, {
+          version: onixCtx.version || "(unknown release)",
+          available: availableVersions().join(", "),
+        });
     }
 
     for (const rule of RULES) {

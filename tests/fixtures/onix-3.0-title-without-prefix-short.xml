@@ -4,9 +4,9 @@
 <ONIXmessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
   <header>
     <sender>
-      <x300>Bokbasen AS</x300>
+      <x298>Bokbasen AS</x298>
     </sender>
-    <m182>20260507T0930</m182>
+    <x307>20260507T0930</x307>
   </header>
   <product>
     <a001>short-prefix-9788234567885</a001>

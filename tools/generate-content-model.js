@@ -23,11 +23,14 @@
 // halves the model and keeps one source of truth for the aliases.
 //
 // Usage:
-//   node tools/generate-content-model.js
-//   node tools/generate-content-model.js --xsd=PATH --version=3.0 --out=PATH
+//   node tools/generate-content-model.js                  # ONIX 3.1
+//   node tools/generate-content-model.js --version=3.0    # ONIX 3.0
+//   node tools/generate-content-model.js --xsd=PATH --version=X --out=PATH
 //
-// Emitting a second ONIX release is a matter of pointing --xsd/--version at
-// it; the runtime keeps models in a registry keyed by version.
+// --version picks the input (tools/data/ONIX_BookProduct_<version>_reference.xsd)
+// and names the output (Resources/onix-content-model-<version>.js). The runtime
+// keeps models in a registry keyed by version and loads one file per release,
+// so adding a release is a generator run plus a script tag.
 
 "use strict";
 
@@ -36,9 +39,12 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 
 const XS = "http://www.w3.org/2001/XMLSchema";
-const XSD_PATH = arg("--xsd=") || path.join(__dirname, "data", "ONIX_BookProduct_3.1_reference.xsd");
 const VERSION = arg("--version=") || "3.1";
-const OUT_FILE = arg("--out=") || path.join(__dirname, "..", "Resources", "onix-content-model.js");
+const XSD_PATH = arg("--xsd=") ||
+  path.join(__dirname, "data", `ONIX_BookProduct_${VERSION}_reference.xsd`);
+// One file per release, so the runtime registry composes them by loading both.
+const OUT_FILE = arg("--out=") ||
+  path.join(__dirname, "..", "Resources", `onix-content-model-${VERSION}.js`);
 
 main();
 

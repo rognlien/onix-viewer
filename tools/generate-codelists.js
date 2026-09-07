@@ -20,7 +20,7 @@
 //   node tools/generate-codelists.js
 //   node tools/generate-codelists.js --json=<path>       # override JSON source
 //   node tools/generate-codelists.js --xsd=<path>        # override reference XSD
-//   node tools/generate-codelists.js --short-xsd=<path>  # override short XSD
+//   node tools/generate-codelists.js --short-xsd=<a>,<b>  # override short XSDs
 //
 // The short XSD supplies the short-tag → reference-name map. Short tags are
 // opaque codes (b253, x415), so without that map a short-tag document
@@ -43,8 +43,15 @@ const JSON_PATH = parseArg("--json=") ||
   path.join(__dirname, "data", "onix-codelists.json");
 const XSD_PATH = parseArg("--xsd=") ||
   path.join(__dirname, "data", "ONIX_BookProduct_3.1_reference.xsd");
-const SHORT_XSD_PATH = parseArg("--short-xsd=") ||
-  path.join(__dirname, "data", "ONIX_BookProduct_3.1_short.xsd");
+// Both releases' short-tag schemas, merged. Their maps agree wherever they
+// overlap (checked: no short tag means different things in 3.0 and 3.1), and
+// each carries about twenty tags the other doesn't — 3.0 still has Conference,
+// Reissue and Gender; 3.1 adds TextSource and the rest. A short-tag 3.0
+// document needs its own tags to resolve anything at all.
+const SHORT_XSD_PATHS = (parseArg("--short-xsd=") || [
+  path.join(__dirname, "data", "ONIX_BookProduct_3.1_short.xsd"),
+  path.join(__dirname, "data", "ONIX_BookProduct_3.0_short.xsd"),
+].join(",")).split(",");
 const OUT_FILE = path.join(__dirname, "..", "Resources", "onix-codelists.js");
 
 main();
@@ -52,11 +59,18 @@ main();
 function main() {
   const codelistsJson = JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
   const referenceXsd = fs.readFileSync(XSD_PATH, "utf8");
-  const shortXsd = fs.readFileSync(SHORT_XSD_PATH, "utf8");
+  const shortXsds = SHORT_XSD_PATHS.map((file) => fs.readFileSync(file.trim(), "utf8"));
 
   const { lists, schemaInfo } = parseLists(codelistsJson);
   const elementToList = parseElementMappings(referenceXsd);
-  const shortToReference = parseShortTags(shortXsd);
+  // Earlier files win, so the newer release's spelling is authoritative.
+  const shortToReference = Object.create(null);
+  for (const xml of shortXsds) {
+    const pairs = parseShortTags(xml);
+    for (const tag of Object.keys(pairs)) {
+      if (shortToReference[tag] == null) shortToReference[tag] = pairs[tag];
+    }
+  }
 
   const output = render(lists, elementToList, shortToReference, schemaInfo);
   fs.writeFileSync(OUT_FILE, output);

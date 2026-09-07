@@ -14,7 +14,7 @@ When the browser loads a page whose `Content-Type` is `application/xml`, `text/x
    - Resolved code-list labels for every value the bundled EDItEUR lists know about — shown as a small `→ ISBN-13` style badge after the value, with a clickable `List N ↗` chip that opens a popup containing every code in that list (and a link to the canonical EDItEUR page).
 4. Labels the ONIX blocks: each block element inside a `<Product>` gets a `Block N` badge, a **Collapse blocks** button folds every composite inside each `<Product>` — the seven blocks plus `ProductIdentifier`, `RecordSourceIdentifier` and `Barcode` — so a record reads as one row per child, and for a single-Product document the toolbar shows which blocks are present (`Blocks: 1, 4, 6`).
 5. Lets you read — and copy — the other dialect. ONIX comes in two: **reference names** (`<LanguageRole>`) and **short tags** (`<b253>`). One switch (shortcut `t`) shows the document as the other one — labelled **View as reference names** over a short-tag file and **View as short tags** over a reference file, so it's always obvious which one you actually opened; the toolbar names the source dialect too. Copying follows the view, so while translated, **Copy XML** and **Copy node XML** hand you the converted ONIX, namespace included. Back at the document's own dialect, the copy is the file byte for byte.
-6. Validates the document automatically, in the background: missing or misplaced elements, codes that aren't in their EDItEUR list, codes EDItEUR has deprecated, and values that break their datatype. Each finding gets a chip on the row it concerns — red with a cross for a schema error, amber with an exclamation for a warning — with the message in the tooltip. The toolbar shows a spinner while it works, a green tick and **Valid** when the document is clean, or e.g. `4 errors, 1 warning`; click that (or press `v`) for the full list, and click any entry to jump to that row. ONIX 3.1 is checked in full; other releases get their code lists checked and are told the structure wasn't.
+6. Validates the document automatically, in the background: missing or misplaced elements, codes that aren't in their EDItEUR list, codes EDItEUR has deprecated, and values that break their datatype. Each finding gets a chip on the row it concerns — red with a cross for a schema error, amber with an exclamation for a warning — with the message in the tooltip. The toolbar shows a spinner while it works, a green tick and **Valid** when the document is clean, or e.g. `4 errors, 1 warning`; click that (or press `v`) for the full list, and click any entry to jump to that row. Both ONIX releases since 3.0 are checked in full — 3.0 and 3.1, each against its own schema. Anything older (2.1) gets its code lists checked and is told the structure wasn't, as do Acknowledgement messages, whose schema isn't bundled.
 7. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
 
 It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAcknowledgement>`) — the optional response format a recipient sends back to confirm or reject a feed. It's labelled `ONIX Acknowledgement 3.0` in the toolbar, and the status codes it's built from (`MessageStatus`, `RecordStatus`, status-detail severity, …) resolve to readable labels just like product code-lists.
@@ -57,7 +57,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (138 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
+Runs the full jsdom suite (142 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
 
 ### Visual loop — Chrome
 
@@ -84,15 +84,15 @@ Pages worth opening:
 
 ## ONIX code lists
 
-`Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from three committed inputs:
+`Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from four committed inputs:
 
 - `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently Issue 74). The authoritative source of (list number, code, label).
 - `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema (release 3.1 revision 3, i.e. ONIX 3.1.3). Used for the element-name → list-number bindings and for the validation content model.
-- `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, same revision, used only for the short-tag → reference-name map that lets short-tag documents resolve code-list labels.
+- `tools/data/ONIX_BookProduct_3.1_short.xsd` and `ONIX_BookProduct_3.0_short.xsd` — the official short-tag schemas, merged into the short-tag → reference-name map that lets short-tag documents resolve code-list labels. Both are needed: 3.0 keeps about twenty tags 3.1 dropped.
 
 Both files are committed so the generator has no external dependencies and re-runs are reproducible offline.
 
-It contains 165 lists with 4,791 code/label pairs, 158 element bindings and 509 short-tag pairs — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
+It contains 165 lists with 4,791 code/label pairs, 158 element bindings and 529 short-tag pairs — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
 
 To regenerate (e.g. after EDItEUR publishes a new Issue):
 

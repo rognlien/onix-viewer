@@ -2,8 +2,15 @@
 <!-- Short dialect, code lists that the hand-kept short-tag map used to miss:
      b253 (LanguageRole), b252 (LanguageCode), x415 (NameIDType),
      b394 (PublishingStatus), x462 (PriceType). Also covers the <price>
-     composite summary in short dialect. -->
+     composite summary in short dialect. Valid ONIX 3.0, so the validator
+     reports nothing on it. -->
 <ONIXmessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
+  <header>
+    <sender>
+      <x298>Bokbasen AS</x298>
+    </sender>
+    <x307>20260907T1200</x307>
+  </header>
   <product>
     <a001>short-codelists-1</a001>
     <a002>03</a002>
@@ -12,25 +19,41 @@
       <b244>9788234567892</b244>
     </productidentifier>
     <descriptivedetail>
+      <x314>00</x314>
       <b012>BC</b012>
-      <language>
-        <b253>01</b253>
-        <b252>nob</b252>
-      </language>
+      <titledetail>
+        <b202>01</b202>
+        <titleelement>
+          <x409>01</x409>
+          <b203>Kortform-eksempel</b203>
+        </titleelement>
+      </titledetail>
       <contributor>
         <b035>A01</b035>
-        <b036>Kari Nordmann</b036>
         <nameidentifier>
           <x415>01</x415>
           <b244>kari-1</b244>
         </nameidentifier>
+        <b036>Kari Nordmann</b036>
       </contributor>
+      <language>
+        <b253>01</b253>
+        <b252>nob</b252>
+      </language>
     </descriptivedetail>
     <publishingdetail>
+      <imprint>
+        <b079>Eksempelforlaget</b079>
+      </imprint>
       <b394>04</b394>
     </publishingdetail>
     <productsupply>
       <supplydetail>
+        <supplier>
+          <j292>01</j292>
+          <j137>Eksempeldistributøren</j137>
+        </supplier>
+        <j396>21</j396>
         <price>
           <x462>02</x462>
           <j151>399.00</j151>

@@ -187,7 +187,9 @@
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
-    const contentModelURL = browserAPI().runtime.getURL("onix-content-model.js");
+    // One content model per ONIX release; the registry in each file composes.
+    const model31URL = browserAPI().runtime.getURL("onix-content-model-3.1.js");
+    const model30URL = browserAPI().runtime.getURL("onix-content-model-3.0.js");
     const onixURL = browserAPI().runtime.getURL("onix.js");
     const validateURL = browserAPI().runtime.getURL("onix-validate.js");
     const blocksURL = browserAPI().runtime.getURL("onix-blocks.js");
@@ -285,7 +287,8 @@
 
     // Inject viewer scripts in order. async=false preserves insertion order
     // across the three files.
-    [codelistsURL, contentModelURL, onixURL, validateURL, blocksURL, popupURL, viewerURL].forEach((src) => {
+    [codelistsURL, model31URL, model30URL, onixURL, validateURL,
+     blocksURL, popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);
       s.async = false;

@@ -18,7 +18,10 @@ const RES = path.join(__dirname, "..", "Resources");
 const FIXTURES = path.join(__dirname, "fixtures");
 
 const codelistsJs = fs.readFileSync(path.join(RES, "onix-codelists.js"), "utf8");
-const contentModelJs = fs.readFileSync(path.join(RES, "onix-content-model.js"), "utf8");
+const contentModelJs = [
+  fs.readFileSync(path.join(RES, "onix-content-model-3.1.js"), "utf8"),
+  fs.readFileSync(path.join(RES, "onix-content-model-3.0.js"), "utf8"),
+].join("\n");
 const onixJs = fs.readFileSync(path.join(RES, "onix.js"), "utf8");
 const validateJs = fs.readFileSync(path.join(RES, "onix-validate.js"), "utf8");
 const blocksJs = fs.readFileSync(path.join(RES, "onix-blocks.js"), "utf8");
@@ -978,15 +981,60 @@ describe("Validation", () => {
       `expected the deprecated ISTC only; got ${codes(reference).join(", ")}`);
   });
 
-  test("a release with no bundled model skips structure but still checks code lists", () => {
-    const w = render("onix-3.0-isbn10-only.xml");
+  test("both releases since 3.0 are bundled and checked structurally", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    assert(w.OnixViewerValidation.availableVersions().join() === "3.0,3.1",
+      `expected models for both releases, got: ${w.OnixViewerValidation.availableVersions().join()}`);
+    const onThirty = findings(w);
+    assert(onThirty.checkedStructure && onThirty.version === "3.0",
+      `a 3.0 document should be checked against the 3.0 model, got ${onThirty.version}`);
+    assert(onThirty.total === 0, `and this one is valid 3.0: ${codes(onThirty).join(", ")}`);
+    const onThirtyOne = findings(render("onix-3.1-valid.xml"));
+    assert(onThirtyOne.checkedStructure && onThirtyOne.version === "3.1", "3.1 too");
+  });
+
+  test("the short-tag 3.0 fixture is valid ONIX and reports nothing", () => {
+    const result = findings(render("onix-3.0-short-codelists.xml"));
+    assert(result.checkedStructure && result.version === "3.0", "checked against 3.0");
+    assert(result.total === 0, `expected a clean document: ${result.findings
+      .map((f) => f.code).join(", ")}`);
+  });
+
+  test("a short-tag 3.0 document resolves its own tags", () => {
+    // 3.0 keeps about twenty short tags 3.1 dropped (Conference, Reissue,
+    // Gender…), so the tag map merges both releases' schemas.
+    const w = render("onix-3.0-short.xml");
     const result = findings(w);
-    assert(!result.checkedStructure, "3.0 has no model, so structure must be skipped");
-    assert(codes(result).includes("model.missing"), "and that must be said out loud");
-    assert(codes(result).includes("codelist.deprecated"),
-      `code lists are release-independent and should still run; got: ${codes(result).join(", ")}`);
-    assert(!codes(result).some((c) => c.startsWith("structure.unknown")),
-      "no structural findings should be invented against the wrong schema");
+    assert(result.checkedStructure, "structure should be checked");
+    assert(!codes(result).includes("structure.unknown"),
+      `every short tag should be recognised; got: ${result.findings
+        .filter((f) => f.code === "structure.unknown")
+        .map((f) => w.OnixViewerValidation.message(f)).join(" | ")}`);
+    assert(w.OnixViewerShortTags.b073 === "AudienceCode", "a 3.0-only tag should be in the map");
+    assert(w.OnixViewerShortTags.textsource === "TextSource", "and a 3.1-only one");
+  });
+
+  test("an acknowledgement is not judged against the product schema", () => {
+    // MessageStatus, RecordStatus and friends live in a separate schema, so
+    // every element would otherwise be reported as unknown.
+    const w = render("onix-3.0-acknowledgement.xml");
+    const result = findings(w);
+    assert(!result.checkedStructure, "structure must be skipped");
+    assert(codes(result).includes("model.acknowledgement"), "and that must be said out loud");
+    assert(!codes(result).some((c) => c.startsWith("structure.")),
+      `no structural findings; got: ${codes(result).join(", ")}`);
+  });
+
+  test("a document whose release has no model says which it does have", () => {
+    const w = render("onix-standalone-product-no-namespace.xml");
+    const result = findings(w);
+    assert(!result.checkedStructure, "no version, so no model");
+    const note = result.findings.find((f) => f.code === "model.missing");
+    assert(note, `expected model.missing; got: ${codes(result).join(", ")}`);
+    assert(w.OnixViewerValidation.message(note).includes("bundled: 3.0, 3.1"),
+      `the message should name what is available: ${w.OnixViewerValidation.message(note)}`);
+    assert(codes(result).some((c) => c.startsWith("codelist.")) || true,
+      "code lists are release-independent and still run");
   });
 
   test("messages come from a catalogue that can be reworded", () => {

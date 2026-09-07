@@ -5855,6 +5855,11 @@
   window.OnixViewerShortTags["b047"] = "CorporateName";
   window.OnixViewerShortTags["b048"] = "ContributorDescription";
   window.OnixViewerShortTags["b049"] = "ContributorStatement";
+  window.OnixViewerShortTags["b051"] = "ConferenceRole";
+  window.OnixViewerShortTags["b052"] = "ConferenceName";
+  window.OnixViewerShortTags["b053"] = "ConferenceNumber";
+  window.OnixViewerShortTags["b054"] = "ConferenceDate";
+  window.OnixViewerShortTags["b055"] = "ConferencePlace";
   window.OnixViewerShortTags["b057"] = "EditionNumber";
   window.OnixViewerShortTags["b058"] = "EditionStatement";
   window.OnixViewerShortTags["b061"] = "NumberOfPages";
@@ -5864,6 +5869,7 @@
   window.OnixViewerShortTags["b068"] = "SubjectSchemeVersion";
   window.OnixViewerShortTags["b069"] = "SubjectCode";
   window.OnixViewerShortTags["b070"] = "SubjectHeadingText";
+  window.OnixViewerShortTags["b073"] = "AudienceCode";
   window.OnixViewerShortTags["b074"] = "AudienceRangeQualifier";
   window.OnixViewerShortTags["b075"] = "AudienceRangePrecision";
   window.OnixViewerShortTags["b076"] = "AudienceRangeValue";
@@ -5919,6 +5925,8 @@
   window.OnixViewerShortTags["b335"] = "ProductFormFeatureValue";
   window.OnixViewerShortTags["b336"] = "ProductFormFeatureDescription";
   window.OnixViewerShortTags["b337"] = "Percent";
+  window.OnixViewerShortTags["b341"] = "ConferenceAcronym";
+  window.OnixViewerShortTags["b342"] = "ConferenceTheme";
   window.OnixViewerShortTags["b352"] = "BibleContents";
   window.OnixViewerShortTags["b353"] = "BibleVersion";
   window.OnixViewerShortTags["b354"] = "BiblePurpose";
@@ -5939,6 +5947,7 @@
   window.OnixViewerShortTags["b384"] = "TradeCategory";
   window.OnixViewerShortTags["b385"] = "ProductContentType";
   window.OnixViewerShortTags["b389"] = "StudyBibleType";
+  window.OnixViewerShortTags["b391"] = "ConferenceSponsorIDType";
   window.OnixViewerShortTags["b392"] = "CopyrightOwnerIDType";
   window.OnixViewerShortTags["b393"] = "SalesOutletIDType";
   window.OnixViewerShortTags["b394"] = "PublishingStatus";
@@ -5958,6 +5967,9 @@
   window.OnixViewerShortTags["collectionsequence"] = "CollectionSequence";
   window.OnixViewerShortTags["comparisonproductprice"] = "ComparisonProductPrice";
   window.OnixViewerShortTags["complexity"] = "Complexity";
+  window.OnixViewerShortTags["conference"] = "Conference";
+  window.OnixViewerShortTags["conferencesponsor"] = "ConferenceSponsor";
+  window.OnixViewerShortTags["conferencesponsoridentifier"] = "ConferenceSponsorIdentifier";
   window.OnixViewerShortTags["contentdate"] = "ContentDate";
   window.OnixViewerShortTags["contentdetail"] = "ContentDetail";
   window.OnixViewerShortTags["contentitem"] = "ContentItem";
@@ -5975,6 +5987,7 @@
   window.OnixViewerShortTags["descriptivedetail"] = "DescriptiveDetail";
   window.OnixViewerShortTags["discount"] = "Discount";
   window.OnixViewerShortTags["discountcoded"] = "DiscountCoded";
+  window.OnixViewerShortTags["epublicense"] = "EpubLicense";
   window.OnixViewerShortTags["epublicensedate"] = "EpubLicenseDate";
   window.OnixViewerShortTags["epublicenseexpression"] = "EpubLicenseExpression";
   window.OnixViewerShortTags["epubusageconstraint"] = "EpubUsageConstraint";
@@ -6005,6 +6018,7 @@
   window.OnixViewerShortTags["j152"] = "CurrencyCode";
   window.OnixViewerShortTags["j192"] = "UnpricedItemType";
   window.OnixViewerShortTags["j239"] = "PricePer";
+  window.OnixViewerShortTags["j260"] = "DateFormat";
   window.OnixViewerShortTags["j261"] = "PriceQualifier";
   window.OnixViewerShortTags["j262"] = "PriceTypeDescription";
   window.OnixViewerShortTags["j263"] = "MinimumOrderQuantity";
@@ -6028,6 +6042,8 @@
   window.OnixViewerShortTags["j351"] = "OnOrder";
   window.OnixViewerShortTags["j363"] = "DiscountCodeType";
   window.OnixViewerShortTags["j364"] = "DiscountCode";
+  window.OnixViewerShortTags["j365"] = "ReissueDate";
+  window.OnixViewerShortTags["j366"] = "ReissueDescription";
   window.OnixViewerShortTags["j375"] = "CBO";
   window.OnixViewerShortTags["j377"] = "LocationIDType";
   window.OnixViewerShortTags["j378"] = "DiscountCodeTypeName";
@@ -6038,6 +6054,7 @@
   window.OnixViewerShortTags["j407"] = "MarketPublishingStatus";
   window.OnixViewerShortTags["j408"] = "MarketDateRole";
   window.OnixViewerShortTags["k165"] = "PromotionCampaign";
+  window.OnixViewerShortTags["k166"] = "PromotionContact";
   window.OnixViewerShortTags["k167"] = "InitialPrintRun";
   window.OnixViewerShortTags["k168"] = "CopiesSold";
   window.OnixViewerShortTags["k169"] = "BookClubAdoption";
@@ -6093,6 +6110,7 @@
   window.OnixViewerShortTags["publishingdate"] = "PublishingDate";
   window.OnixViewerShortTags["publishingdetail"] = "PublishingDetail";
   window.OnixViewerShortTags["recordsourceidentifier"] = "RecordSourceIdentifier";
+  window.OnixViewerShortTags["reissue"] = "Reissue";
   window.OnixViewerShortTags["relatedmaterial"] = "RelatedMaterial";
   window.OnixViewerShortTags["relatedproduct"] = "RelatedProduct";
   window.OnixViewerShortTags["relatedwork"] = "RelatedWork";
@@ -6227,6 +6245,7 @@
   window.OnixViewerShortTags["x472"] = "TaxRatePercent";
   window.OnixViewerShortTags["x473"] = "TaxableAmount";
   window.OnixViewerShortTags["x474"] = "TaxAmount";
+  window.OnixViewerShortTags["x475"] = "CurrencyZone";
   window.OnixViewerShortTags["x476"] = "PriceDateRole";
   window.OnixViewerShortTags["x477"] = "PriceCodeTypeName";
   window.OnixViewerShortTags["x478"] = "TitleStatement";
@@ -6258,6 +6277,7 @@
   window.OnixViewerShortTags["x521"] = "EventPlace";
   window.OnixViewerShortTags["x522"] = "EventSponsorIDType";
   window.OnixViewerShortTags["x523"] = "FundingIDType";
+  window.OnixViewerShortTags["x524"] = "Gender";
   window.OnixViewerShortTags["x525"] = "Rating";
   window.OnixViewerShortTags["x526"] = "RatingLimit";
   window.OnixViewerShortTags["x527"] = "RatingUnits";

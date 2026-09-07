@@ -31,7 +31,8 @@ onix-viewer/
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
 │   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~228 KB)
-│   ├── onix-content-model.js       ONIX 3.1.3 content model for validation (auto-generated, ~51 KB)
+│   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~51 KB)
+│   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~50 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
@@ -47,11 +48,13 @@ onix-viewer/
 │   ├── release.sh                  bumps version, commits, tags
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
-│       ├── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
+│       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
+│       ├── ONIX_BookProduct_3.0_reference.xsd  (input, 3.0 content model)
+│       ├── ONIX_BookProduct_3.0_short.xsd      (input, 3.0 short tags)
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (138 tests, ~1s)
+│   ├── run.js                      jsdom harness (142 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -236,13 +239,51 @@ a choice disjoint, so one-token lookahead is exact. The generator throws if a
 future schema breaks the no-repeating-compounds assumption rather than emit a
 model the matcher would quietly mis-match.
 
+### Which releases are covered
+
+There are exactly two ONIX releases since 3.0 — **3.0** and **3.1** — and both
+are bundled. There is nothing finer to support: a message declares
+`release="3.0"` or `release="3.1"` and nothing else, because each schema
+restricts that attribute to its own single value. The revisions (3.0.1 … 3.0.8,
+3.1.1 … 3.1.3) are **not declarable in a document**, so a file cannot say which
+revision it targets.
+
+That makes validating against the newest revision of each release the only
+option, and a safe one, because ONIX evolves additively: the 3.0 schema still
+carries all 129 elements introduced across revisions 3.0.1–3.0.8, and elements
+that fall out of favour are marked deprecated rather than removed (20 such in
+3.0, 11 in 3.1). The newest revision is therefore a superset of every earlier
+one — a document written for 3.0.2 validates against revision 8, which merely
+permits more than 3.0.2 did.
+
+**Acknowledgement messages are exempt.** `<MessageStatus>`, `<RecordStatus>`
+and the rest live in a separate schema that isn't bundled, so a
+`messageType === "acknowledgement"` document skips the structural rules and
+reports `model.acknowledgement`. Its code lists are still checked, which is the
+point of Acknowledgement support. Without this it reported every element as
+unknown.
+
+The **short-tag map merges both releases' short schemas** (529 pairs). It has
+to: 3.0 keeps about twenty tags 3.1 dropped — `Conference*`, `Reissue*`,
+`Gender`, `EpubLicense`, `AudienceCode`, `CurrencyZone` — and 3.1 adds its own.
+No short tag means different things in the two releases, so the union is
+unambiguous; where they overlap the newer file wins.
+
 ### Which schema, and how to bump it
 
-The structure XSDs come from EDItEUR's per-issue bundle:
-`https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.1_XSDs+codes_Issue_<N>.zip`.
-Take `ONIX_BookProduct_3.1_{reference,short}.xsd` from it into `tools/data/`,
-then re-run both generators — `generate-codelists.js` for the short-tag map and
-`generate-content-model.js` for the model. The bundle's other two files
+The structure XSDs come from EDItEUR's per-issue bundles, one per release:
+`https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.{0,1}_XSDs+codes_Issue_<N>.zip`.
+Take `ONIX_BookProduct_3.x_{reference,short}.xsd` from each into
+`tools/data/`, then re-run the generators:
+
+```bash
+node tools/generate-codelists.js                     # code lists + merged short-tag map
+node tools/generate-content-model.js --version=3.1
+node tools/generate-content-model.js --version=3.0
+```
+
+`--version` picks the input (`ONIX_BookProduct_<version>_reference.xsd`) and
+names the output (`onix-content-model-<version>.js`). The bundle's other two files
 (`ONIX_BookProduct_CodeLists.xsd`, `ONIX_XHTML_Subset.xsd`) are deliberately
 not committed: code lists come from the JSON instead, and XHTML content is
 opaque to the validator.
@@ -287,9 +328,11 @@ for exactly that, over the `Onix/` sample pair.
    and offers every element to every rule (`start` / `element` / `finish`), so
    a new rule costs no extra traversal. `structure`, `codelist` and `datatype`
    ship today.
-3. **`OnixViewerContentModels`** — keyed by ONIX release. 3.1 ships; a 3.0
-   model is `node tools/generate-content-model.js --xsd=… --version=3.0`.
-   A document whose release has no model reports `model.missing` and skips the
+3. **`OnixViewerContentModels`** — keyed by ONIX release. **Both releases
+   since 3.0 ship**: `onix-content-model-3.0.js` and
+   `onix-content-model-3.1.js`, one generator run each, composed at load into
+   one registry. A document whose release has no model (ONIX 2.1, or a future
+   release) reports `model.missing` naming what *is* bundled, and skips the
    structural rules rather than being judged against the wrong schema — its
    code lists are still checked, since those are release-independent.
 
@@ -460,7 +503,7 @@ Adding another action is: append a `.px-node-menu-item` with a
 - `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, **release 3.1 revision 3 (ONIX 3.1.3, revised 2026-03-10)**. Used for element-name → list-number bindings, and by `generate-content-model.js` for the validation content model.
 - `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, same revision, used **only** for short-tag → reference-name pairs. Each element there is declared under its short tag and names its reference form as the sole `refname` enumeration, e.g. `<xs:element name="b253">` → `LanguageRole`.
 
-All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 509 short-tag pairs — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
+All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 529 short-tag pairs (both releases merged) — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
 
 Short-tag keys are emitted **lower-cased**, because every consumer looks a tag up as `name.toLowerCase()` — the schema's one mixed-case tag, `ONIXmessage`, would otherwise be unreachable. `onix.js` layers two things on top of the generated map: `EXTRA_SHORT_TAGS` (ONIX 2.1-era codes such as `b005`/`b332` that the 3.1 schema doesn't contain, kept because the detector still recognises 2.1 documents, plus tolerance for feeds that lower-case a data element's reference name) and the Acknowledgement tags from `registerAcknowledgementBindings()`.
 
@@ -490,7 +533,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
 - `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
-- `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.1"`)
+- `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.0"`, `"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
 - `window.OnixViewerValidation` — `run`, `start` (sliced session), `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
@@ -519,7 +562,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 138-test jsdom suite (~1s)
+npm test        # runs the 142-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
