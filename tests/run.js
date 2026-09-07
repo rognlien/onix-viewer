@@ -55,7 +55,13 @@ function assert(cond, msg) {
 // ---- harness: render a fixture and return the jsdom window -----------------
 
 function render(fixtureName) {
-  const xml = fs.readFileSync(path.join(FIXTURES, fixtureName), "utf8");
+  return renderSource(fs.readFileSync(path.join(FIXTURES, fixtureName), "utf8"), fixtureName);
+}
+
+// Render arbitrary XML — used by the fixtures above and by the conversion
+// tests, which read their input from Onix/ rather than tests/fixtures/.
+function renderSource(xml, label) {
+  const fixtureName = label || "inline.xml";
 
   const html = `<!doctype html><html><head><style>${viewerCss}</style></head>
 <body class="oxv-view-xml">
@@ -126,6 +132,15 @@ function rowsNamed(window, tagName) {
 }
 function badges(window) {
   return $$(window, "#oxv-root .px-codelist").map((b) => b.textContent);
+}
+// Capture what the viewer writes to the clipboard.
+function stubClipboard(window) {
+  const copied = { text: null };
+  Object.defineProperty(window.navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: (text) => { copied.text = text; return Promise.resolve(); } },
+  });
+  return copied;
 }
 // Text of the collapsed-row summary chips on rows named tagName.
 function summariesOf(window, tagName) {
@@ -479,15 +494,6 @@ describe("Node menu", () => {
   function menuButtonFor(window, tagName) {
     return rowsNamed(window, tagName)[0].querySelector(".px-node-menu-btn");
   }
-  function stubClipboard(window) {
-    const copied = { text: null };
-    Object.defineProperty(window.navigator, "clipboard", {
-      configurable: true,
-      value: { writeText: (text) => { copied.text = text; return Promise.resolve(); } },
-    });
-    return copied;
-  }
-
   test("every element row gets a menu button; close rows, comments and PIs do not", () => {
     const w = render("with-comments.xml");
     const elementRows = $$(w, "#oxv-root .px-row").filter(
@@ -694,6 +700,98 @@ describe("Short-tag code lists", () => {
     assert(w.OnixViewerShortTags.b253 === "LanguageRole", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b394 === "PublishingStatus", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b005 === undefined, "2.1 tags are not in the generated map");
+  });
+});
+
+describe("Copying the displayed dialect", () => {
+  const fs2 = require("fs");
+  function press(window, dialect) {
+    window.document.querySelector(`[data-action="dialect-${dialect}"]`).click();
+  }
+  function copyAll(window) {
+    const copied = stubClipboard(window);
+    window.document.querySelector('[data-action="copy-xml"]').click();
+    return copied;
+  }
+  function elementNames(xml) {
+    return new Set([...xml.matchAll(/<([A-Za-z][A-Za-z0-9]*)[\s>\/]/g)].map((m) => m[1]));
+  }
+
+  test("untranslated, Copy XML still hands over the source byte for byte", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const source = fs2.readFileSync(path.join(FIXTURES, "onix-3.0-short-codelists.xml"), "utf8");
+    assert(copyAll(w).text === source, "an untouched view must copy the file unchanged");
+  });
+
+  test("translated, Copy XML hands over the converted document", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    press(w, "reference");
+    const xml = copyAll(w).text;
+    assert(xml.includes("<ProductIdentifier>"), `expected reference names, got: ${xml.slice(0, 200)}`);
+    assert(xml.includes("<LanguageRole>01</LanguageRole>"), "data elements should translate too");
+    assert(!/<b221>|<b253>|<productidentifier>/.test(xml), "no short tags should remain");
+    assert(xml.includes('xmlns="http://ns.editeur.org/onix/3.0/reference"'),
+      "the namespace must follow the dialect, or the copy isn't valid ONIX");
+    assert(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'),
+      "the XML declaration should be carried across");
+    assert(xml.includes("<!-- Short dialect"), "comments should survive");
+  });
+
+  test("translated, Copy node XML hands over the converted subtree", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    press(w, "reference");
+    const row = rowsNamed(w, "ProductIdentifier")[0];
+    const copied = stubClipboard(w);
+    row.querySelector(".px-node-menu-btn").click();
+    w.document.querySelector('[data-node-action="copy-xml"]').click();
+    assert(copied.text.startsWith("<ProductIdentifier>"), `got: ${copied.text}`);
+    assert(copied.text.includes("<ProductIDType>15</ProductIDType>"), `got: ${copied.text}`);
+    // A subtree that inherited the namespace still shouldn't gain one.
+    assert(!copied.text.includes("xmlns="), `subtree should not declare a namespace: ${copied.text}`);
+  });
+
+  test("converting the real sample reproduces the reference-dialect file", () => {
+    // Onix/ holds one record supplied in both dialects — an exact oracle.
+    const shortFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-shorttags.xml"), "utf8");
+    const referenceFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-refnames.xml"), "utf8");
+    const w = renderSource(shortFile);
+    press(w, "reference");
+    const converted = copyAll(w).text;
+    const produced = elementNames(converted);
+    const expected = elementNames(referenceFile);
+    const missing = [...expected].filter((n) => !produced.has(n));
+    const extra = [...produced].filter((n) => !expected.has(n));
+    assert(missing.length === 0, `names missing from the conversion: ${missing.join(", ")}`);
+    assert(extra.length === 0, `names the conversion invented: ${extra.join(", ")}`);
+    assert(converted.includes('xmlns="http://ns.editeur.org/onix/3.1/reference"'),
+      "converted document should carry the reference namespace");
+    // XHTML inside textformat="05" content is not ONIX and must be left alone.
+    assert(converted.includes("<p><strong>Maj Sjöwall</strong>"), "inline XHTML should be untouched");
+  });
+
+  test("the reverse conversion reproduces the short-tag file", () => {
+    const shortFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-shorttags.xml"), "utf8");
+    const referenceFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-refnames.xml"), "utf8");
+    const w = renderSource(referenceFile);
+    press(w, "short");
+    const converted = copyAll(w).text;
+    const produced = elementNames(converted);
+    const expected = elementNames(shortFile);
+    const missing = [...expected].filter((n) => !produced.has(n));
+    const extra = [...produced].filter((n) => !expected.has(n));
+    assert(missing.length === 0, `names missing from the conversion: ${missing.join(", ")}`);
+    assert(extra.length === 0, `names the conversion invented: ${extra.join(", ")}`);
+    assert(converted.includes('xmlns="http://ns.editeur.org/onix/3.1/short"'),
+      "converted document should carry the short namespace");
+    assert(converted.includes("<ONIXmessage "), "the root should use the short spelling");
+  });
+
+  test("returning to the source dialect hands back the untouched source", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const source = fs2.readFileSync(path.join(FIXTURES, "onix-3.0-short-codelists.xml"), "utf8");
+    press(w, "reference");
+    press(w, "short");
+    assert(copyAll(w).text === source, "back at the source dialect, the copy is the file itself");
   });
 });
 

@@ -678,12 +678,35 @@
   // environments where the modern API isn't available (some file:// pages,
   // older browsers).
   function copyRawXml(btn) {
-    const text = SOURCE || "";
+    const text = displayedXml();
     if (!text) {
       flashButton(btn, "Empty");
       return;
     }
     writeClipboard(text, () => flashButton(btn, "Copied"), () => flashButton(btn, "Failed"));
+  }
+
+  // What the reader is actually looking at. Untranslated, that's the source
+  // byte for byte. Translated, it's rebuilt from the parsed document — which
+  // still holds every whitespace node, so the indentation, comments and CDATA
+  // of the original survive; only the element names and the EDItEUR namespace
+  // change. The XML declaration isn't a DOM node, so it's carried across from
+  // the source text.
+  function displayedXml() {
+    let xml = SOURCE || "";
+    if (translating() && xml) {
+      const translated = window.OnixViewerOnix.translateNode(doc, displayDialect);
+      const serializer = new XMLSerializer();
+      let body = "";
+      for (const child of translated.childNodes) body += serializer.serializeToString(child);
+      const declaration = SOURCE.match(/^\s*<\?xml[^?]*\?>\s*/i);
+      xml = (declaration ? declaration[0] : "") + body;
+    }
+    return xml;
+  }
+
+  function translating() {
+    return !!(window.OnixViewerOnix && sourceDialect && displayDialect !== sourceDialect);
   }
 
   // Prefer the async clipboard API; fall back to execCommand. Exactly one of
@@ -830,16 +853,22 @@
   // and inner lines keep their absolute indentation from the file, so the
   // result is de-indented to the element's own column.
   function nodeXml(element) {
-    let xml = new XMLSerializer().serializeToString(element);
-    xml = stripSynthesizedNamespace(xml, element);
+    const copied = translating()
+      ? window.OnixViewerOnix.translateNode(element, displayDialect)
+      : element;
+    let xml = new XMLSerializer().serializeToString(copied);
+    // The "did the source declare it?" question is asked of the original; the
+    // declaration to strip is the one the serialiser wrote for the copy.
+    xml = stripSynthesizedNamespace(xml, element, copied.namespaceURI);
     return dedent(xml, leadingIndent(element));
   }
 
-  function stripSynthesizedNamespace(xml, element) {
+  function stripSynthesizedNamespace(xml, element, namespaceURI) {
     let result = xml;
+    const namespace = namespaceURI || element.namespaceURI;
     const attributeName = element.prefix ? `xmlns:${element.prefix}` : "xmlns";
-    if (element.namespaceURI && !element.hasAttribute(attributeName)) {
-      const declaration = ` ${attributeName}="${element.namespaceURI}"`;
+    if (namespace && !element.hasAttribute(attributeName)) {
+      const declaration = ` ${attributeName}="${namespace}"`;
       const openTagEnd = xml.indexOf(">");
       const openTag = xml.slice(0, openTagEnd);
       result = openTag.replace(declaration, "") + xml.slice(openTagEnd);

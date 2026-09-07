@@ -46,8 +46,9 @@ onix-viewer/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
+├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (107 tests, ~1s)
+│   ├── run.js                      jsdom harness (113 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -165,6 +166,35 @@ The choice persists in `localStorage` under `oxv-dialect`; the toggle is
 hidden (`body.px-no-dialect-toggle`) for non-ONIX documents and for ONIX with
 no detected dialect, where there is nothing to translate between.
 
+### Copying follows the display
+
+Both copy paths hand over what's on screen, so the viewer is WYSIWYG: while
+translated, **Copy XML** yields the converted document and **Copy node XML**
+the converted subtree. At the source dialect, `displayedXml()` returns
+`SOURCE` byte for byte — the copy is the file itself, unchanged.
+
+Conversion is `translateNode(node, targetDialect)` in `onix.js`, a detached
+deep clone in which every element in the document's ONIX namespace is renamed
+and moved to the target dialect's namespace. The namespace matters: element
+names alone would leave `<ProductIdentifier>` sitting in a `/short`
+namespace, which is not valid ONIX. Whitespace, comments, CDATA and PIs are
+cloned verbatim, so the converted copy keeps the source's own indentation;
+the XML declaration isn't a DOM node, so `displayedXml()` carries it over
+from the source text.
+
+Two things deliberately don't move: elements in a foreign namespace, and
+elements with no known translation. That's what leaves the inline XHTML in
+`textformat="05"` content (`<p>`, `<em>`) alone — it inherits the ONIX
+default namespace but isn't ONIX. `xmlns` attributes are never copied from the
+source (they would declare the dialect just translated away from); the
+serialiser re-emits one from the clone's own namespace, and
+`stripSynthesizedNamespace` still removes it unless the *source* element
+declared it, so a copied `<Product>` gains no declaration its siblings lack.
+
+The conversion is verified against `Onix/onix-3.1-{refnames,shorttags}.xml` —
+the same record supplied in both dialects, so converting either one must
+reproduce the other's element names exactly, in both directions.
+
 ## Per-node menu ("Copy node XML")
 
 Every element row (open row, leaf row, self-closing row) gets a `⋮` button
@@ -220,7 +250,7 @@ Two features are bundled and tested but hidden from the UI while the simpler tre
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, codelistMeta, externalLinkIcon, blockNumber, isProductElement, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, singleProductBlocks, blockNames)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
@@ -253,7 +283,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 107-test jsdom suite (~1s)
+npm test        # runs the 113-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

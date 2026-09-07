@@ -15,12 +15,19 @@ the main branch.
   dialects, where translating the short-tag file reproduces every one of the
   160 element names in the reference file.
 
-  It's a display switch, not a conversion: the parsed document is untouched,
-  so code-list labels, summaries and **Copy node XML** keep reporting the file
-  as it actually is. Switching swaps the rendered names in place rather than
-  re-rendering, so fold state and search results survive. Elements with no
-  translation — including the XHTML inside `textformat="05"` content — keep
-  their names. The choice is remembered between documents.
+  Switching swaps the rendered names in place rather than re-rendering, so
+  fold state and search results survive. Elements with no translation —
+  including the XHTML inside `textformat="05"` content — keep their names, and
+  code-list labels, summaries and block numbers are unaffected because they
+  are read from the parsed document. The choice is remembered between
+  documents.
+- **Copying follows the display.** While translated, **Copy XML** hands over
+  the converted document and **Copy node XML** the converted subtree — with
+  the EDItEUR namespace switched to match, since element names alone would
+  leave `<ProductIdentifier>` in a `/short` namespace and that isn't valid
+  ONIX. Indentation, comments, CDATA and the XML declaration are preserved.
+  At the document's own dialect the copy is the source byte for byte, exactly
+  as before.
 
 ### Fixed
 - **Short-tag documents now resolve every code-list label.** The short-tag →

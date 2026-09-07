@@ -21,6 +21,7 @@
   //   http://ns.editeur.org/onix/3.0/short
   // Older 2.1 docs may have no namespace at all and rely on doctype.
   const ONIX_NS_PREFIX = "http://ns.editeur.org/onix/";
+  const XMLNS_NS = "http://www.w3.org/2000/xmlns/";
 
   // Message-root candidates. The two spellings are the two dialects, not two
   // versions: the reference schema declares <ONIXMessage>, the short-tag
@@ -281,6 +282,91 @@
       translated = shortTag ? SHORT_SPELLINGS[shortTag] || shortTag : null;
     }
     return translated === name ? null : translated;
+  }
+
+  /**
+   * The EDItEUR namespace for the other dialect: the URI's last segment is
+   * "reference" or "short", so only that changes. Non-ONIX namespaces (and
+   * un-namespaced documents) are returned untouched.
+   */
+  function translatedNamespace(namespaceURI, targetDialect) {
+    let translated = namespaceURI;
+    if (namespaceURI && namespaceURI.startsWith(ONIX_NS_PREFIX)) {
+      const segments = namespaceURI.split("/");
+      const last = segments[segments.length - 1];
+      if (last === "reference" || last === "short") {
+        segments[segments.length - 1] = targetDialect === "short" ? "short" : "reference";
+        translated = segments.join("/");
+      }
+    }
+    return translated;
+  }
+
+  /**
+   * Deep copy of `node` rewritten into the target dialect: every element in
+   * the EDItEUR namespace is renamed and moved to that dialect's namespace,
+   * so the result is valid ONIX in one dialect rather than a mixture. The
+   * copy is detached — callers serialise it, they don't insert it.
+   *
+   * Elements outside the ONIX namespace keep their name and namespace, as do
+   * elements with no known translation. Whitespace, comments, CDATA and
+   * processing instructions are carried over verbatim, so a serialised copy
+   * keeps the source's own indentation.
+   */
+  function translateNode(node, targetDialect) {
+    const sourceNamespace = documentNamespace(node);
+    return cloneTranslated(node, targetDialect, sourceNamespace);
+  }
+
+  function documentNamespace(node) {
+    const doc = node.ownerDocument || node;
+    const root = doc.documentElement;
+    return (root && root.namespaceURI) || null;
+  }
+
+  function cloneTranslated(node, targetDialect, sourceNamespace) {
+    let clone = null;
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      clone = cloneTranslatedElement(node, targetDialect, sourceNamespace);
+    } else if (node.nodeType === Node.DOCUMENT_NODE) {
+      clone = node.cloneNode(false);
+      for (const child of node.childNodes) {
+        clone.appendChild(cloneTranslated(child, targetDialect, sourceNamespace));
+      }
+    } else {
+      clone = node.cloneNode(true);
+    }
+    return clone;
+  }
+
+  function cloneTranslatedElement(element, targetDialect, sourceNamespace) {
+    const doc = element.ownerDocument;
+    const name = translatedName(element.nodeName, targetDialect) || element.nodeName;
+    // Only elements that live in the document's ONIX namespace move; anything
+    // in a foreign namespace stays where it is.
+    const inOnixNamespace = element.namespaceURI && element.namespaceURI === sourceNamespace;
+    const namespace = inOnixNamespace
+      ? translatedNamespace(element.namespaceURI, targetDialect)
+      : element.namespaceURI;
+    const clone = doc.createElementNS(namespace, name);
+
+    for (const attribute of element.attributes) {
+      // Namespace declarations are re-emitted by the serialiser from the
+      // element's own namespace; copying the source's would declare the
+      // dialect we just translated away from.
+      if (attribute.name === "xmlns" || attribute.name.startsWith("xmlns:")) continue;
+      clone.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
+    }
+    // A source element that declared the namespace itself should still declare
+    // it after translation — with the translated URI.
+    if (namespace && element.hasAttribute("xmlns")) {
+      clone.setAttributeNS(XMLNS_NS, "xmlns", namespace);
+    }
+
+    for (const child of element.childNodes) {
+      clone.appendChild(cloneTranslated(child, targetDialect, sourceNamespace));
+    }
+    return clone;
   }
 
   /**
@@ -719,6 +805,7 @@
     externalLinkIcon,
     nodeSummary,
     translatedName,
+    translateNode,
     blockNumber,
     isProductElement,
     singleProductBlocks,
