@@ -6132,6 +6132,7 @@
   window.OnixViewerShortTags["textcontent"] = "TextContent";
   window.OnixViewerShortTags["textitem"] = "TextItem";
   window.OnixViewerShortTags["textitemidentifier"] = "TextItemIdentifier";
+  window.OnixViewerShortTags["textsource"] = "TextSource";
   window.OnixViewerShortTags["timerun"] = "TimeRun";
   window.OnixViewerShortTags["titledetail"] = "TitleDetail";
   window.OnixViewerShortTags["titleelement"] = "TitleElement";
@@ -6323,6 +6324,9 @@
   window.OnixViewerShortTags["x588"] = "CopyrightStatementText";
   window.OnixViewerShortTags["x589"] = "PrizeIDType";
   window.OnixViewerShortTags["x590"] = "PostalCode";
+  window.OnixViewerShortTags["x591"] = "SubjectDescription";
+  window.OnixViewerShortTags["x592"] = "PublisherNameInverted";
+  window.OnixViewerShortTags["x593"] = "ImprintNameInverted";
 
   window.OnixViewerCodeListSchema = {"version":"3.1","issue":74,"releaseDate":null};
 })();

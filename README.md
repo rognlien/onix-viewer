@@ -87,12 +87,12 @@ Pages worth opening:
 `Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from three committed inputs:
 
 - `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently Issue 74). The authoritative source of (list number, code, label).
-- `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, used only for the element-name → list-number bindings (those rarely change between minor issues).
-- `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, used only for the short-tag → reference-name map that lets short-tag documents resolve code-list labels.
+- `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema (release 3.1 revision 3, i.e. ONIX 3.1.3). Used for the element-name → list-number bindings and for the validation content model.
+- `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, same revision, used only for the short-tag → reference-name map that lets short-tag documents resolve code-list labels.
 
 Both files are committed so the generator has no external dependencies and re-runs are reproducible offline.
 
-It contains 165 lists with 4,791 code/label pairs, 158 element bindings and 505 short-tag pairs — about 226 KB unminified, ~57 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
+It contains 165 lists with 4,791 code/label pairs, 158 element bindings and 509 short-tag pairs — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance.
 
 To regenerate (e.g. after EDItEUR publishes a new Issue):
 

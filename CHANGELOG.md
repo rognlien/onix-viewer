@@ -126,6 +126,28 @@ the main branch.
   `RecordSourceIdentifier` and `Barcode` fold to one line each and a record
   reads as one row per child rather than a mix of folded blocks and sprawling
   identifiers.
+- **Upgraded to ONIX 3.1.3** — EDItEUR's release 3.1 revision 3, revised
+  2026-03-10 (was revision 2). EDItEUR asks all ONIX 3.1 users to move to the
+  new schema files whether or not they adopt the new features. The bundled
+  reference and short-tag schemas were replaced and both generators re-run,
+  which brings in four new elements and six revised content models:
+
+  - `<TextSource>` inside `<TextContent>` — a structured source for reviews
+    and endorsements, patterned after `<Contributor>`, superseding
+    `<TextAuthor>`, `<TextSourceCorporate>` and `<TextSourceDescription>`
+    (which are deprecated but still accepted).
+  - `<SequenceNumber>` and `<SubjectDescription>` inside `<NameAsSubject>`.
+  - `<PublisherNameInverted>` and `<ImprintNameInverted>`, mirroring
+    `<CorporateNameInverted>` — for names like *Éditions Albin Michel* that
+    sort better inverted. These also appear in `<SalesRights>`.
+  - Repeatable `<Affiliation>` and a wider `textscript` attribute, for
+    transliterated metadata (Hindi in Devanagari alongside a romanisation).
+    `textscript` values already resolved to List 121 labels.
+
+  Nothing changed for existing files: the namespace is still `…/onix/3.1/…`
+  and the schema still restricts `release` to `"3.1"`, so detection, the
+  content-model registry key and every existing document's findings are
+  untouched — verified against both dialects of the reference sample.
 - Codelists upgraded to **EDItEUR Issue 74** (was 73). 22 new codes,
   including two AI-disclosure links (List 196), three EUDR raw-material
   location codes plus "Map projection" (List 163), Bookshop.org, Hoopla and

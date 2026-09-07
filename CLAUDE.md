@@ -31,7 +31,7 @@ onix-viewer/
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
 │   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~228 KB)
-│   ├── onix-content-model.js       ONIX 3.1 content model for validation (auto-generated, ~49 KB)
+│   ├── onix-content-model.js       ONIX 3.1.3 content model for validation (auto-generated, ~51 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
@@ -224,8 +224,8 @@ Validation runs **automatically on load**, and checks the document against a
 browser has none, and libxml2-via-WASM would add ~4 MB and needs
 `'wasm-unsafe-eval'`, which the viewer can't count on — its scripts run in the
 page's world under the page's CSP. Instead `tools/generate-content-model.js`
-compiles the structure XSD into `Resources/onix-content-model.js` (506
-elements, ~49 KB) and `Resources/onix-validate.js` interprets it.
+compiles the structure XSD into `Resources/onix-content-model.js` (510
+elements, ~51 KB) and `Resources/onix-validate.js` interprets it.
 
 That works because the ONIX schema is unusually regular: occurrence is only
 `minOccurs="0"` / `maxOccurs="unbounded"`, there is no `xs:any`, no
@@ -235,6 +235,28 @@ backtracking. XSD's Unique Particle Attribution rule makes the alternatives of
 a choice disjoint, so one-token lookahead is exact. The generator throws if a
 future schema breaks the no-repeating-compounds assumption rather than emit a
 model the matcher would quietly mis-match.
+
+### Which schema, and how to bump it
+
+The structure XSDs come from EDItEUR's per-issue bundle:
+`https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.1_XSDs+codes_Issue_<N>.zip`.
+Take `ONIX_BookProduct_3.1_{reference,short}.xsd` from it into `tools/data/`,
+then re-run both generators — `generate-codelists.js` for the short-tag map and
+`generate-content-model.js` for the model. The bundle's other two files
+(`ONIX_BookProduct_CodeLists.xsd`, `ONIX_XHTML_Subset.xsd`) are deliberately
+not committed: code lists come from the JSON instead, and XHTML content is
+opaque to the validator.
+
+A revision bump does **not** change the model registry key. The namespace stays
+`…/onix/3.1/reference` and the schema still restricts `release` to exactly
+`"3.1"`, so 3.1.1, 3.1.2 and 3.1.3 are all "3.1" as far as detection and the
+registry are concerned — a document cannot declare `release="3.1.3"`.
+
+We compile the **classic** XSD, not the `strict` variant. EDItEUR notes that
+the Specification's multilingual rules (each repeat of a field needing a unique
+`language` + `textscript` combination) are only enforced in the strict schema,
+so the same laxity applies here: duplicate `language` attributes on repeated
+`<Text>` will not be reported.
 
 ### Model encoding
 
@@ -435,10 +457,10 @@ Adding another action is: append a `.px-node-menu-item` with a
 `Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from three committed inputs:
 
 - `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently **Issue 74**, 2026-07-22). Authoritative source of (list number, code, label).
-- `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, used **only** for element-name → list-number bindings (those rarely change between minor issues).
-- `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, used **only** for short-tag → reference-name pairs. Each element there is declared under its short tag and names its reference form as the sole `refname` enumeration, e.g. `<xs:element name="b253">` → `LanguageRole`.
+- `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, **release 3.1 revision 3 (ONIX 3.1.3, revised 2026-03-10)**. Used for element-name → list-number bindings, and by `generate-content-model.js` for the validation content model.
+- `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, same revision, used **only** for short-tag → reference-name pairs. Each element there is declared under its short tag and names its reference form as the sole `refname` enumeration, e.g. `<xs:element name="b253">` → `LanguageRole`.
 
-All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 505 short-tag pairs — about 226 KB unminified, ~57 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
+All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 509 short-tag pairs — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
 
 Short-tag keys are emitted **lower-cased**, because every consumer looks a tag up as `name.toLowerCase()` — the schema's one mixed-case tag, `ONIXmessage`, would otherwise be unreachable. `onix.js` layers two things on top of the generated map: `EXTRA_SHORT_TAGS` (ONIX 2.1-era codes such as `b005`/`b332` that the 3.1 schema doesn't contain, kept because the detector still recognises 2.1 documents, plus tolerance for feeds that lower-case a data element's reference name) and the Acknowledgement tags from `registerAcknowledgementBindings()`.
 
