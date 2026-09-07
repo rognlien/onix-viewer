@@ -383,9 +383,30 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-block-label,
 .px-fold-ellipsis,
 .px-fold-close,
-.px-node-menu-btn {
+.px-node-menu-btn,
+.px-finding {
   user-select: none;
 }
+
+/* Validation findings: a ⚠ marker on the row the finding is about, with the
+   message in its tooltip. Excluded from selection like the other decorations,
+   so a drag-copy still yields plain XML. */
+.px-finding {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  color: var(--tag-onix-ref);
+  font-family: var(--ui);
+  font-size: 11px;
+  cursor: help;
+  user-select: none;
+}
+.px-row.px-has-finding { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+#oxv-validation { font-family: var(--ui); font-size: 12px; margin-right: 8px; }
+#oxv-validation.px-valid { color: var(--fg-muted); }
+#oxv-validation.px-invalid { color: var(--accent); font-weight: 600; }
 
 /* Fold suffix: "…</Tag>" appears inline on the open row when folded so the
    collapsed element reads as <Tag>…</Tag>. Hidden when the row is expanded

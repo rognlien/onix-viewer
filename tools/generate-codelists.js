@@ -86,13 +86,18 @@ function parseLists(doc) {
     if (!Number.isFinite(listNumber)) continue;
     const title = (list.CodeListDescription || "").trim();
     const entries = [];
+    // EDItEUR marks a withdrawn code with the issue it was deprecated at, so
+    // the viewer can warn about codes that are still valid XML but shouldn't
+    // be sent any more.
+    const deprecated = [];
     for (const c of list.Code || []) {
       const code = c.CodeValue;
       const label = (c.CodeDescription || "").trim();
       if (code == null || code === "" || !label) continue;
       entries.push([String(code), label]);
+      if (Number(c.DeprecatedNumber)) deprecated.push([String(code), Number(c.DeprecatedNumber)]);
     }
-    if (entries.length) lists[listNumber] = { title, entries };
+    if (entries.length) lists[listNumber] = { title, entries, deprecated };
   }
   return {
     lists,
@@ -203,6 +208,17 @@ function render(lists, elementToList, shortToReference, schemaInfo) {
   out.push("  // lists that are bound to attributes (textcase, dateformat) rather than");
   out.push("  // element names.");
   out.push("  window.OnixViewerCodeListsByNumber = _lists;");
+
+  out.push("");
+  out.push("  // Codes EDItEUR has withdrawn, by list number → code → the issue at");
+  out.push("  // which each was deprecated. Still valid XML, but not to be sent.");
+  out.push("  window.OnixViewerDeprecatedCodes = Object.create(null);");
+  for (const n of listNumbers) {
+    const deprecated = lists[n].deprecated || [];
+    if (!deprecated.length) continue;
+    const pairs = deprecated.map(([code, issue]) => `${jsString(code)}: ${issue}`).join(", ");
+    out.push(`  window.OnixViewerDeprecatedCodes[${n}] = { ${pairs} };`);
+  }
 
   out.push("");
   out.push("  // Short tag → reference name, from the short-tag schema. onix.js layers");

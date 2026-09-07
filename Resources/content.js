@@ -187,7 +187,9 @@
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
+    const contentModelURL = browserAPI().runtime.getURL("onix-content-model.js");
     const onixURL = browserAPI().runtime.getURL("onix.js");
+    const validateURL = browserAPI().runtime.getURL("onix-validate.js");
     const blocksURL = browserAPI().runtime.getURL("onix-blocks.js");
     const popupURL = browserAPI().runtime.getURL("onix-popup.js");
     const viewerURL = browserAPI().runtime.getURL("viewer.js");
@@ -212,6 +214,7 @@
       <button type="button" data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
+    <button type="button" data-action="validate" title="Check this document against the ONIX schema (V)">Validate</button>
     <!--
       View-mode toggle (XML / Split / Structure) is currently DISABLED.
       The blocks-pane code (onix-blocks.js, the right pane, sync logic) is
@@ -237,6 +240,7 @@
     <span id="oxv-search-status" aria-live="polite"></span>
   </div>
   <div class="px-right">
+    <span id="oxv-validation"></span>
     <span id="oxv-block-list"></span>
     <span id="oxv-schema"></span>
     <span id="oxv-meta"></span>
@@ -278,7 +282,7 @@
 
     // Inject viewer scripts in order. async=false preserves insertion order
     // across the three files.
-    [codelistsURL, onixURL, blocksURL, popupURL, viewerURL].forEach((src) => {
+    [codelistsURL, contentModelURL, onixURL, validateURL, blocksURL, popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);
       s.async = false;

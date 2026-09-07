@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One clear instance of each finding kind the validator reports:
+     an unknown element, an out-of-list code, a deprecated code, a missing
+     required element and a datatype violation. Deliberately no reordering —
+     a misplaced element cascades into several findings, which would make the
+     assertions here brittle. -->
+<ONIXMessage release="3.1" xmlns="http://ns.editeur.org/onix/3.1/reference">
+  <Header>
+    <Sender>
+      <SenderName>Bokbasen AS</SenderName>
+    </Sender>
+    <SentDateTime>20260907T1200</SentDateTime>
+  </Header>
+  <Product>
+    <RecordReference>invalid-1</RecordReference>
+    <NotificationType>99</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>02</ProductIDType>
+      <IDValue>8234567892</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductComposition>00</ProductComposition>
+      <ProductForm>BC</ProductForm>
+      <ProductFrom>typo</ProductFrom>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText>Den ugyldige boken</TitleText>
+        </TitleElement>
+      </TitleDetail>
+      <Extent>
+        <ExtentType>00</ExtentType>
+        <ExtentValue>-5</ExtentValue>
+        <ExtentUnit>03</ExtentUnit>
+      </Extent>
+    </DescriptiveDetail>
+    <PublishingDetail>
+      <PublishingStatus>04</PublishingStatus>
+    </PublishingDetail>
+  </Product>
+</ONIXMessage>

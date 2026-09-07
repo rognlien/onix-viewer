@@ -6,6 +6,29 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **Validate the document.** A toolbar button (shortcut `v`) checks the file
+  and marks each finding with a `⚠` on the row it concerns, message in the
+  tooltip: elements that are missing, misplaced or unknown; codes that aren't
+  in their EDItEUR list; codes EDItEUR has deprecated (the code lists carry a
+  deprecation issue for 167 of the 4,791 codes, which the viewer now reads);
+  and values that break their declared datatype.
+
+  There's no XML Schema processor involved — the browser has none, and
+  libxml2-via-WASM would add roughly 4 MB and needs a CSP privilege the viewer
+  can't rely on. Instead the ONIX structure schema is compiled at build time
+  into a 49 KB content model that a small interpreter walks in a single pass:
+  ~920 ms for an 11.4 MB feed with 319,000 elements, and only when asked.
+
+  ONIX **3.1** is checked in full. Other releases have their code lists
+  checked and are told plainly that the structure wasn't, rather than being
+  judged against the wrong schema; adding 3.0 is one more generator run.
+  Validation is dialect-blind: the two dialects of one record produce
+  identical findings.
+
+  Messages live in a template catalogue that can be reworded or translated
+  without touching validation logic, and rules live in a registry the runner
+  walks once — so ONIX's 125 `xs:unique` identity constraints and GTIN-13
+  check digits can be added later without another traversal.
 - **Read either dialect.** ONIX comes in two: reference names
   (`<LanguageRole>`) and short tags (`<b253>`). A toolbar switch (shortcut
   `t`) shows the document as the other one, in either direction. It's

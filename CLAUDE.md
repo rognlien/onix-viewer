@@ -30,7 +30,9 @@ onix-viewer/
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
-│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~226 KB)
+│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~228 KB)
+│   ├── onix-content-model.js       ONIX 3.1 content model for validation (auto-generated, ~49 KB)
+│   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
 │   └── icons/                      icon-{16,32,48,96,128,256,512}.png from icons/image.png
@@ -41,6 +43,7 @@ onix-viewer/
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload
 │   ├── render-icons.sh             renders icons/image.png into Resources/icons/icon-*.png
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
+│   ├── generate-content-model.js   generates Resources/onix-content-model.js
 │   ├── release.sh                  bumps version, commits, tags
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
@@ -48,7 +51,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (117 tests, ~1s)
+│   ├── run.js                      jsdom harness (125 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -214,6 +217,86 @@ The conversion is verified against `Onix/onix-3.1-{refnames,shorttags}.xml` —
 the same record supplied in both dialects, so converting either one must
 reproduce the other's element names exactly, in both directions.
 
+## Validation
+
+`Validate` in the toolbar (shortcut `v`) checks the document against a
+**compiled content model**. There is no XML Schema processor involved: the
+browser has none, and libxml2-via-WASM would add ~4 MB and needs
+`'wasm-unsafe-eval'`, which the viewer can't count on — its scripts run in the
+page's world under the page's CSP. Instead `tools/generate-content-model.js`
+compiles the structure XSD into `Resources/onix-content-model.js` (506
+elements, ~49 KB) and `Resources/onix-validate.js` interprets it.
+
+That works because the ONIX schema is unusually regular: occurrence is only
+`minOccurs="0"` / `maxOccurs="unbounded"`, there is no `xs:any`, no
+substitution group, no `xs:all`, and **no compound particle repeats** — so
+every sequence and choice is matched at most once and the matcher needs no
+backtracking. XSD's Unique Particle Attribution rule makes the alternatives of
+a choice disjoint, so one-token lookahead is exact. The generator throws if a
+future schema breaks the no-repeating-compounds assumption rather than emit a
+model the matcher would quietly mis-match.
+
+### Model encoding
+
+```
+["e", name, min, max]   element; max 0 means unbounded
+["s", min, ...parts]    sequence, matched at most once
+["c", min, ...parts]    choice, matched at most once
+```
+
+Leaves are `{list: N}` (code-list bound), `{text: "Type"}` (datatype),
+`{empty: 1}` or `{flow: 1}`. `flow` is the 27 `mixed="true"` elements that
+extend `Flow` from the XHTML subset schema — `<Text>`, `<BiographicalNote>`,
+… — whose content is markup rather than ONIX; the validator never looks
+inside them.
+
+Names in the model are **reference names only**. Short-tag documents are
+validated by translating each name through the generated short-tag map first,
+which halves the model and keeps one source of truth for the aliases. The two
+dialects of one record therefore produce identical findings — there's a test
+for exactly that, over the `Onix/` sample pair.
+
+### The three extension points
+
+1. **`MESSAGES`** — one template per finding code, with `{placeholder}`s
+   filled from the finding's `data`. Reword or translate any entry without
+   touching validation logic; the codes are the stable contract, not the prose.
+2. **`RULES`** — an ordered registry. The runner walks the document **once**
+   and offers every element to every rule (`start` / `element` / `finish`), so
+   a new rule costs no extra traversal. `structure`, `codelist` and `datatype`
+   ship today.
+3. **`OnixViewerContentModels`** — keyed by ONIX release. 3.1 ships; a 3.0
+   model is `node tools/generate-content-model.js --xsd=… --version=3.0`.
+   A document whose release has no model reports `model.missing` and skips the
+   structural rules rather than being judged against the wrong schema — its
+   code lists are still checked, since those are release-independent.
+
+Two rules the shape is designed for but that aren't written: **xs:unique**
+(the schema carries 125 identity constraints, e.g. "no two `<Price>` with the
+same type, currency and territory" — collect keys in `element()`, report in
+`finish()`) and **GTIN-13 check digits** (an `element()`-only rule; there's a
+test that registers exactly this to prove the seam works).
+
+### Two subtleties worth keeping
+
+**A choice can be satisfied by nothing.** `gp.authorship` is a *required*
+choice whose second branch is `<xs:element minOccurs="0" ref="NoContributor"/>`
+— an optional alternative, so supplying neither a contributor nor
+`<NoContributor>` is legal. `nullable()` models this. Without it, EDItEUR's own
+sample reports a false error.
+
+**Unknown elements are skipped, not matched.** An element the model has never
+heard of is reported once as `structure.unknown` and left out of its parent's
+match. Without that recovery a single typo makes every following sibling "not
+allowed at this position" — nine findings for four defects in the test fixture,
+versus five with it.
+
+Findings are pinned to rows through `elementRows` (source element → row) and
+shown as a `⚠` marker whose tooltip carries the message. Validation is on
+demand only: ~920 ms for an 11.4 MB feed with 319k elements, which is fine for
+a button press and not fine on every page load. `options.maxFindings`
+(default 500) caps the array while `total` keeps counting.
+
 ## Per-node menu ("Copy node XML")
 
 Every element row (open row, leaf row, self-closing row) gets a `⋮` button
@@ -277,6 +360,9 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
 - `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
+- `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.1"`)
+- `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
+- `window.OnixViewerValidation` — `run`, `message`, `messages`, `rules`, `registerRule`, `modelFor`, `availableVersions`
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`)
 - `data-oxv` — data attribute on the replaced `<html>`
@@ -302,7 +388,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 117-test jsdom suite (~1s)
+npm test        # runs the 125-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
@@ -354,6 +440,8 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-title-without-prefix.xml` | Summary reads split-form titles: `<NoPrefix/>` + `<TitleWithoutPrefix>`, and `<TitlePrefix>` joined to the remainder |
 | `onix-3.0-title-without-prefix-short.xml` | Same in short dialect (`b030` + `b031`) |
 | `onix-3.0-single-product-blocks.xml` | One Product with blocks 1, 4, 6: `Block N` badges on block rows, `Blocks: 1, 4, 6` toolbar pill; also `RecordSourceIdentifier` and `Price` chips |
+| `onix-3.1-valid.xml` | A schema-valid ONIX 3.1 message: the validator's clean baseline |
+| `onix-3.1-invalid.xml` | One instance of each finding kind: unknown element, bad code, deprecated code, missing required element, out-of-range value |
 | `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.

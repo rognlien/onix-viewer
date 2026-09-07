@@ -5786,6 +5786,35 @@
   // element names.
   window.OnixViewerCodeListsByNumber = _lists;
 
+  // Codes EDItEUR has withdrawn, by list number → code → the issue at
+  // which each was deprecated. Still valid XML, but not to be sent.
+  window.OnixViewerDeprecatedCodes = Object.create(null);
+  window.OnixViewerDeprecatedCodes[3] = { "10": 71 };
+  window.OnixViewerDeprecatedCodes[5] = { "02": 11, "05": 12 };
+  window.OnixViewerDeprecatedCodes[16] = { "02": 11, "11": 70 };
+  window.OnixViewerDeprecatedCodes[21] = { "ALT": 1 };
+  window.OnixViewerDeprecatedCodes[27] = { "12": 69, "13": 69, "14": 69, "15": 69, "16": 69, "17": 69, "27": 18, "33": 60, "39": 28, "59": 59, "64": 58, "65": 58, "67": 58, "68": 58, "69": 58, "70": 58, "75": 61 };
+  window.OnixViewerDeprecatedCodes[29] = { "12": 59, "13": 59, "14": 59, "19": 24, "20": 24, "25": 24 };
+  window.OnixViewerDeprecatedCodes[30] = { "23": 8, "24": 8, "25": 8 };
+  window.OnixViewerDeprecatedCodes[32] = { "01": 12, "02": 12 };
+  window.OnixViewerDeprecatedCodes[43] = { "09": 70, "10": 70, "11": 70 };
+  window.OnixViewerDeprecatedCodes[44] = { "02": 10, "17": 18, "20": 18, "37": 60 };
+  window.OnixViewerDeprecatedCodes[46] = { "07": 24, "08": 24 };
+  window.OnixViewerDeprecatedCodes[49] = { "CN-11": 44, "CN-12": 44, "CN-13": 44, "CN-14": 44, "CN-15": 44, "CN-21": 44, "CN-22": 44, "CN-23": 44, "CN-31": 44, "CN-32": 44, "CN-33": 44, "CN-34": 44, "CN-35": 44, "CN-36": 44, "CN-37": 44, "CN-41": 44, "CN-42": 44, "CN-43": 44, "CN-44": 44, "CN-45": 44, "CN-46": 44, "CN-50": 44, "CN-51": 44, "CN-52": 44, "CN-53": 44, "CN-54": 44, "CN-61": 44, "CN-62": 44, "CN-63": 44, "CN-64": 44, "CN-65": 44, "CN-71": 44, "CN-91": 44, "CN-92": 44, "GB-CHA": 13, "GB-EWS": 40, "GB-IOM": 13, "ECZ": 35 };
+  window.OnixViewerDeprecatedCodes[64] = { "12": 15 };
+  window.OnixViewerDeprecatedCodes[70] = { "02": 48 };
+  window.OnixViewerDeprecatedCodes[74] = { "scr": 10, "mol": 10, "scc": 10 };
+  window.OnixViewerDeprecatedCodes[91] = { "AN": 13, "CS": 7, "YU": 4 };
+  window.OnixViewerDeprecatedCodes[92] = { "02": 11 };
+  window.OnixViewerDeprecatedCodes[93] = { "05": 5 };
+  window.OnixViewerDeprecatedCodes[96] = { "AFA": 4, "ANG": 69, "ATS": 42, "BEF": 42, "BGL": 4, "BGN": 72, "BYR": 44, "CSD": 17, "CUC": 69, "CYP": 42, "DEM": 42, "EEK": 42, "ESP": 42, "FIM": 42, "FRF": 42, "GHC": 17, "GRD": 42, "HRK": 60, "IEP": 42, "ITL": 42, "LTL": 42, "LUF": 42, "LVL": 42, "MRO": 42, "MTL": 42, "NLG": 42, "PTE": 42, "ROL": 17, "RUR": 4, "SIT": 42, "SKK": 42, "SLL": 58, "SRG": 4, "STD": 42, "TMM": 17, "TPE": 7, "TRL": 17, "VEB": 17, "VEF": 43, "YUM": 4, "ZMK": 27, "ZWD": 17, "ZWL": 66 };
+  window.OnixViewerDeprecatedCodes[139] = { "BDL": 47, "BIL": 47, "GOS": 47, "BRB": 47, "BRD": 47, "BRT": 47, "COP": 47, "ECH": 47, "ELS": 67, "ELK": 67, "HST": 47, "JAM": 64, "KNO": 47, "LEG": 72, "MYB": 47, "OYS": 47, "PST": 47, "POK": 58, "RDB": 47, "RMB": 47, "SPL": 64, "SUP": 64, "TXR": 47, "VRG": 47 };
+  window.OnixViewerDeprecatedCodes[158] = { "53": 68, "99": 24 };
+  window.OnixViewerDeprecatedCodes[167] = { "10": 34 };
+  window.OnixViewerDeprecatedCodes[172] = { "EUR": 12 };
+  window.OnixViewerDeprecatedCodes[175] = { "A201": 13, "A207": 13, "D317": 51 };
+  window.OnixViewerDeprecatedCodes[176] = { "05": 11, "06": 11 };
+
   // Short tag → reference name, from the short-tag schema. onix.js layers
   // its own additions (Acknowledgement tags, ONIX 2.1 legacy tags) on top.
   window.OnixViewerShortTags = Object.create(null);

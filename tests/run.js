@@ -18,7 +18,9 @@ const RES = path.join(__dirname, "..", "Resources");
 const FIXTURES = path.join(__dirname, "fixtures");
 
 const codelistsJs = fs.readFileSync(path.join(RES, "onix-codelists.js"), "utf8");
+const contentModelJs = fs.readFileSync(path.join(RES, "onix-content-model.js"), "utf8");
 const onixJs = fs.readFileSync(path.join(RES, "onix.js"), "utf8");
+const validateJs = fs.readFileSync(path.join(RES, "onix-validate.js"), "utf8");
 const blocksJs = fs.readFileSync(path.join(RES, "onix-blocks.js"), "utf8");
 const popupJs = fs.readFileSync(path.join(RES, "onix-popup.js"), "utf8");
 const viewerJs = fs.readFileSync(path.join(RES, "viewer.js"), "utf8");
@@ -74,6 +76,7 @@ function renderSource(xml, label, beforeScripts) {
     <button data-action="collapse-blocks"></button>
     <button data-action="toggle-wrap"></button>
     <button data-action="copy-xml"></button>
+    <button data-action="validate"></button>
     <span class="px-dialect-group">
       <button data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
@@ -84,6 +87,7 @@ function renderSource(xml, label, beforeScripts) {
     </span>
     <input id="oxv-search">
     <span id="oxv-search-status"></span>
+    <span id="oxv-validation"></span>
     <span id="oxv-block-list"></span>
     <span id="oxv-schema"></span>
     <span id="oxv-meta"></span>
@@ -111,7 +115,9 @@ function renderSource(xml, label, beforeScripts) {
   if (beforeScripts) beforeScripts(window);
 
   window.eval(codelistsJs);
+  window.eval(contentModelJs);
   window.eval(onixJs);
+  window.eval(validateJs);
   window.eval(blocksJs);
   window.eval(popupJs);
   window.eval(viewerJs);
@@ -703,6 +709,127 @@ describe("Short-tag code lists", () => {
     assert(w.OnixViewerShortTags.b253 === "LanguageRole", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b394 === "PublishingStatus", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b005 === undefined, "2.1 tags are not in the generated map");
+  });
+});
+
+describe("Validation", () => {
+  const fsv = require("fs");
+  function validate(window) {
+    window.document.querySelector('[data-action="validate"]').click();
+    return window.document.getElementById("oxv-validation");
+  }
+  // Validate arbitrary XML inside a given window, so a test can register a
+  // rule and then exercise it against several documents in one context.
+  function findingsFor(window, xml) {
+    const doc = new window.DOMParser().parseFromString(xml, "application/xml");
+    return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
+  }
+  function findings(window) {
+    return findingsFor(window, window.__OXV_SOURCE__);
+  }
+  function codes(result) {
+    return result.findings.map((f) => f.code);
+  }
+
+  test("a schema-valid ONIX 3.1 message reports nothing", () => {
+    const w = render("onix-3.1-valid.xml");
+    const result = findings(w);
+    assert(result.total === 0, `expected a clean document, got: ${codes(result).join(", ")}`);
+    assert(result.checkedStructure, "structure should have been checked");
+    assert(validate(w).textContent === "No problems found", `got: ${validate(w).textContent}`);
+  });
+
+  test("each kind of defect is reported once, with no cascade", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const result = findings(w);
+    for (const code of ["codelist.unknown", "codelist.deprecated", "structure.unknown",
+                        "datatype.range", "structure.expected-one-of"]) {
+      assert(codes(result).includes(code), `missing ${code}; got: ${codes(result).join(", ")}`);
+    }
+    // An unknown element must not make its siblings "not allowed here" too.
+    assert(!codes(result).includes("structure.unexpected"),
+      `a typo should not cascade; got: ${codes(result).join(", ")}`);
+    assert(result.total === 5, `expected 5 findings, got ${result.total}: ${codes(result).join(", ")}`);
+  });
+
+  test("findings are pinned to the rows they are about", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w);
+    const marked = $$(w, "#oxv-root .px-has-finding");
+    assert(marked.length >= 3, `expected several marked rows, got ${marked.length}`);
+    const notification = rowsNamed(w, "NotificationType")[0];
+    const marker = notification.querySelector(".px-finding");
+    assert(marker, "the bad code's row should carry a marker");
+    assert(marker.title.includes("not in List 1"), `got: ${marker.title}`);
+    assert(validate(w).textContent === "5 problems", `got: ${validate(w).textContent}`);
+  });
+
+  test("re-validating replaces the markers instead of stacking them", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w);
+    const first = $$(w, "#oxv-root .px-finding").length;
+    validate(w);
+    assert($$(w, "#oxv-root .px-finding").length === first, "markers should not accumulate");
+  });
+
+  test("both dialects of the same record produce the same findings", () => {
+    const read = (n) => fsv.readFileSync(path.join(__dirname, "..", "Onix", n), "utf8");
+    const reference = findings(renderSource(read("onix-3.1-refnames.xml")));
+    const short = findings(renderSource(read("onix-3.1-shorttags.xml")));
+    assert(codes(reference).join() === codes(short).join(),
+      `reference: ${codes(reference).join()} vs short: ${codes(short).join()}`);
+    assert(reference.total === 1 && codes(reference)[0] === "codelist.deprecated",
+      `expected the deprecated ISTC only; got ${codes(reference).join(", ")}`);
+  });
+
+  test("a release with no bundled model skips structure but still checks code lists", () => {
+    const w = render("onix-3.0-isbn10-only.xml");
+    const result = findings(w);
+    assert(!result.checkedStructure, "3.0 has no model, so structure must be skipped");
+    assert(codes(result).includes("model.missing"), "and that must be said out loud");
+    assert(codes(result).includes("codelist.deprecated"),
+      `code lists are release-independent and should still run; got: ${codes(result).join(", ")}`);
+    assert(!codes(result).some((c) => c.startsWith("structure.unknown")),
+      "no structural findings should be invented against the wrong schema");
+  });
+
+  test("messages come from a catalogue that can be reworded", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const validation = w.OnixViewerValidation;
+    const finding = findings(w).findings.find((f) => f.code === "codelist.unknown");
+    assert(validation.message(finding).includes("is not in List 1"), "default wording");
+    validation.messages["codelist.unknown"] = "Ugyldig kode {value} (liste {list})";
+    assert(validation.message(finding) === "Ugyldig kode 99 (liste 1)",
+      `got: ${validation.message(finding)}`);
+  });
+
+  test("a new rule can be registered without touching the walk", () => {
+    // The shape an xs:unique or GTIN-13 check-digit rule would take.
+    const w = render("onix-3.1-valid.xml");
+    const good = "9788234567896";
+    const validation = w.OnixViewerValidation;
+    validation.messages["gtin.checkdigit"] = "{value} has a bad check digit";
+    validation.registerRule({
+      name: "gtin",
+      element(node, api) {
+        if (api.referenceName(node) !== "IDValue") return true;
+        const value = api.textOf(node);
+        if (value.length !== 13) return true;
+        const sum = [...value].reduce((t, d, i) => t + Number(d) * (i % 2 ? 3 : 1), 0);
+        if (sum % 10 !== 0) api.report("gtin.checkdigit", node, { value });
+        return true;
+      },
+    });
+    const valid = fsv.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+    const clean = findingsFor(w, valid);
+    assert(clean.total === 0, `${good} should pass the check digit; got: ${codes(clean).join(", ")}`);
+    // Target the element: <RecordReference> embeds the same digits, and a
+    // string replace would rewrite that instead.
+    const after = findingsFor(w, valid.replace(`<IDValue>${good}`, "<IDValue>9788234567895"));
+    assert(codes(after).includes("gtin.checkdigit"),
+      `the registered rule should fire; got: ${codes(after).join(", ")}`);
+    assert(w.OnixViewerValidation.message(after.findings[0]) === "9788234567895 has a bad check digit",
+      "and use its own message template");
   });
 });
 

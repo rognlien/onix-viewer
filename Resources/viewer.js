@@ -31,6 +31,9 @@
   // Tree row → the source DOM element it renders. Used by the per-node
   // menu ("Copy node XML") to serialise the original, undecorated subtree.
   const rowElements = new WeakMap();
+  // The reverse, so a validation finding can be pinned to the row that shows
+  // the element it is about.
+  const elementRows = new WeakMap();
   let activeTreeRow = null;
   let activeBlockEl = null;
 
@@ -584,6 +587,7 @@
     button.textContent = "⋮";
     row.prepend(button);
     rowElements.set(row, element);
+    if (!elementRows.has(element)) elementRows.set(element, row);
   }
 
   function autoCollapseProducts() {
@@ -619,6 +623,9 @@
           break;
         case "collapse-blocks":
           collapseBlocks();
+          break;
+        case "validate":
+          runValidation();
           break;
         case "dialect-toggle":
           applyDialect(otherDialect(displayDialect));
@@ -698,6 +705,66 @@
       }
       parent = parent.parentElement;
     }
+  }
+
+  // ---- validation -----------------------------------------------------------
+
+  // On demand only: a 12 MB feed is a couple of seconds' work, which is fine
+  // for a button press and not fine on every page load.
+  function runValidation() {
+    const status = document.getElementById("oxv-validation");
+    if (!window.OnixViewerValidation || !onixCtx.isOnix) {
+      if (status) status.textContent = "";
+      return;
+    }
+    clearFindings();
+    const result = window.OnixViewerValidation.run(doc, onixCtx);
+    for (const finding of result.findings) pinFinding(finding);
+    if (status) {
+      status.textContent = summariseValidation(result);
+      status.title = result.checkedStructure
+        ? `Checked against the bundled ONIX ${result.version} content model`
+        : `No content model bundled for ONIX ${onixCtx.version || "?"} — code lists were still checked`;
+      status.className = result.total ? "px-invalid" : "px-valid";
+    }
+    const firstRow = root.querySelector(".px-has-finding");
+    if (firstRow) {
+      unfoldAncestors(firstRow);
+      if (firstRow.scrollIntoView) firstRow.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  function summariseValidation(result) {
+    if (!result.total) return "No problems found";
+    const shown = result.truncated ? `first ${result.findings.length} of ${result.total}` : result.total;
+    return result.total === 1 ? "1 problem" : `${shown} problems`;
+  }
+
+  function clearFindings() {
+    for (const marker of root.querySelectorAll(".px-finding")) marker.remove();
+    for (const row of root.querySelectorAll(".px-has-finding")) row.classList.remove("px-has-finding");
+  }
+
+  // Findings carry the element they are about; the marker lands on that
+  // element's row, or on the root row when the element isn't rendered.
+  function pinFinding(finding) {
+    const row = (finding.node && elementRows.get(finding.node)) || root.querySelector(".px-row");
+    if (!row) return;
+    row.classList.add("px-has-finding");
+    const existing = row.querySelector(".px-finding");
+    const text = window.OnixViewerValidation.message(finding);
+    if (existing) {
+      existing.title += `\n${text}`;
+      existing.dataset.oxvCount = String(Number(existing.dataset.oxvCount || 1) + 1);
+      existing.textContent = `⚠ ${existing.dataset.oxvCount}`;
+      return;
+    }
+    const marker = document.createElement("span");
+    marker.className = "px-finding";
+    marker.textContent = "⚠";
+    marker.title = text;
+    marker.dataset.oxvCode = finding.code;
+    row.appendChild(marker);
   }
 
   // ---- copy raw XML ---------------------------------------------------------
@@ -1069,6 +1136,9 @@
           break;
         case "t":
           applyDialect(otherDialect(displayDialect));
+          break;
+        case "v":
+          runValidation();
           break;
       }
     });

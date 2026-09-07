@@ -33,6 +33,8 @@
         "viewer.js",
         "onix.js",
         "onix-codelists.js",
+        "onix-content-model.js",
+        "onix-validate.js",
         "onix-blocks.js",
         "onix-popup.js"
       ],
