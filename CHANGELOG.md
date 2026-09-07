@@ -3,17 +3,17 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.15 — 2026-09-07
 
 ### Added
 - **Validate the document.** Every ONIX file is now checked as it opens,
-  without blocking the page, and each finding is marked on the row it concerns — red with a cross for a
-  schema error, amber with an exclamation for a warning, message in the
-  tooltip: elements that are
-  missing, misplaced or unknown; codes that aren't in their EDItEUR list;
-  codes EDItEUR has deprecated (the code lists carry a deprecation issue for
-  167 of the 4,791 codes, which the viewer now reads); and values that break
-  their declared datatype.
+  without blocking the page. Each finding is marked on the row it concerns —
+  red with a cross for a schema error, amber with an exclamation for a
+  warning, message in the tooltip: elements that are missing, misplaced or
+  unknown; codes that aren't in their EDItEUR list; codes EDItEUR has
+  deprecated (the code lists carry a deprecation issue for 167 of the 4,791
+  codes, which the viewer now reads); and values that break their declared
+  datatype.
 
   The toolbar shows a spinner and **Validating…** while it works, a green tick
   and **Valid** when the document is clean, or `4 errors, 1 warning` — two
@@ -27,9 +27,9 @@ the main branch.
 
   There's no XML Schema processor involved — the browser has none, and
   libxml2-via-WASM would add roughly 4 MB and needs a CSP privilege the viewer
-  can't rely on. Instead the ONIX structure schema is compiled at build time
-  into a 49 KB content model that a small interpreter walks in a single pass:
-  ~920 ms for an 11.4 MB feed with 319,000 elements, and only when asked.
+  can't rely on. Instead each ONIX structure schema is compiled at build time
+  into a ~50 KB content model that a small interpreter walks in one pass:
+  about 100 ms for a 4.8 MB feed with 135,000 elements, measured in Chrome.
 
   **Both ONIX releases since 3.0 are checked in full** — 3.0 (revision 8) and
   3.1 (revision 3), each against its own compiled schema, chosen by the
