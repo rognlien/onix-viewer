@@ -214,7 +214,6 @@
       <button type="button" data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
-    <button type="button" data-action="validate" title="Check this document against the ONIX schema (V)">Validate</button>
     <!--
       View-mode toggle (XML / Split / Structure) is currently DISABLED.
       The blocks-pane code (onix-blocks.js, the right pane, sync logic) is

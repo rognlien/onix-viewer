@@ -76,7 +76,6 @@ function renderSource(xml, label, beforeScripts) {
     <button data-action="collapse-blocks"></button>
     <button data-action="toggle-wrap"></button>
     <button data-action="copy-xml"></button>
-    <button data-action="validate"></button>
     <span class="px-dialect-group">
       <button data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
@@ -714,8 +713,9 @@ describe("Short-tag code lists", () => {
 
 describe("Validation", () => {
   const fsv = require("fs");
+  // Validation runs itself on load, so this only reads the result. A fixture
+  // is small enough to finish inside the first slice, hence synchronously.
   function validate(window) {
-    window.document.querySelector('[data-action="validate"]').click();
     return window.document.getElementById("oxv-validation");
   }
   // Validate arbitrary XML inside a given window, so a test can register a
@@ -736,7 +736,9 @@ describe("Validation", () => {
     const result = findings(w);
     assert(result.total === 0, `expected a clean document, got: ${codes(result).join(", ")}`);
     assert(result.checkedStructure, "structure should have been checked");
-    assert(validate(w).textContent === "No problems found", `got: ${validate(w).textContent}`);
+    assert(validate(w).textContent === "Valid", `got: ${validate(w).textContent}`);
+    assert(validate(w).className === "px-valid", "and be marked as such");
+    assert(validate(w).querySelector("svg"), "with a tick beside it");
   });
 
   test("each kind of defect is reported once, with no cascade", () => {
@@ -804,7 +806,6 @@ describe("Validation", () => {
     // Two findings on one element: an unknown code that is also deprecated.
     const source = w.__OXV_SOURCE__.replace("<ProductForm>BC</ProductForm>", "<ProductForm>ZZZ</ProductForm>");
     const two = renderSource(source, "two-findings.xml");
-    two.document.querySelector('[data-action="validate"]').click();
     const marker = rowsNamed(two, "ProductForm")[0].querySelector(".px-finding");
     assert(marker, "the row should be marked");
     assert(marker.querySelectorAll("svg").length === 1, "one icon, not one per finding");
@@ -858,19 +859,42 @@ describe("Validation", () => {
   test("a clean document leaves the label inert", () => {
     const w = render("onix-3.1-valid.xml");
     const status = validate(w);
-    assert(status.textContent === "No problems found", `got: ${status.textContent}`);
+    assert(status.textContent === "Valid", `got: ${status.textContent}`);
     assert(status.getAttribute("role") === "status", "nothing to open");
     status.click();
     const modal = w.document.getElementById("oxv-findings");
     assert(!modal || modal.hidden, "no modal for a clean document");
   });
 
-  test("re-validating replaces the markers instead of stacking them", () => {
+  test("all three label states are icon-led", () => {
+    const clean = validate(render("onix-3.1-valid.xml"));
+    assert(clean.querySelector("svg") && clean.textContent === "Valid", "a tick and the word");
+    const dirty = validate(render("onix-3.1-invalid.xml"));
+    assert(dirty.querySelector("svg"), "problems get an icon too");
+    assert(dirty.textContent === "4 errors, 1 warning", `got: ${dirty.textContent}`);
+  });
+
+  test("validation starts on its own and never scrolls the page", () => {
     const w = render("onix-3.1-invalid.xml");
-    validate(w);
-    const first = $$(w, "#oxv-root .px-finding").length;
-    validate(w);
-    assert($$(w, "#oxv-root .px-finding").length === first, "markers should not accumulate");
+    // Nothing was clicked: the label is already filled in.
+    assert(validate(w).textContent === "4 errors, 1 warning", `got: ${validate(w).textContent}`);
+    assert($$(w, "#oxv-root .px-finding").length > 0, "and the rows are already marked");
+    // A pass that runs on load must not yank the view or steal the active row.
+    assert($$(w, "#oxv-root .px-active").length === 0, "no row should be made active on load");
+  });
+
+  test("a document too large for one slice reports progress and finishes", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const doc = new w.DOMParser().parseFromString(w.__OXV_SOURCE__, "application/xml");
+    const session = w.OnixViewerValidation.start(doc, w.OnixViewerOnix.detect(doc));
+    // A zero budget still makes progress — one batch of nodes per step — so a
+    // caller can never spin without advancing.
+    let steps = 0;
+    while (!session.done && steps < 1000) { session.step(0); steps++; }
+    assert(session.done, `should finish; stopped after ${steps} steps`);
+    assert(session.processed === session.total,
+      `every element should be visited: ${session.processed} of ${session.total}`);
+    assert(session.result().total === 5, `same findings as a single pass: ${session.result().total}`);
   });
 
   test("both dialects of the same record produce the same findings", () => {

@@ -51,7 +51,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (132 tests, ~1s)
+│   ├── run.js                      jsdom harness (134 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -219,7 +219,7 @@ reproduce the other's element names exactly, in both directions.
 
 ## Validation
 
-`Validate` in the toolbar (shortcut `v`) checks the document against a
+Validation runs **automatically on load**, and checks the document against a
 **compiled content model**. There is no XML Schema processor involved: the
 browser has none, and libxml2-via-WASM would add ~4 MB and needs
 `'wasm-unsafe-eval'`, which the viewer can't count on — its scripts run in the
@@ -294,7 +294,7 @@ versus five with it.
 ### Icons
 
 `icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table —
-`error`, `warning`, `close` — on a shared `0 0 16 16` grid, stroked in
+`error`, `warning`, `ok`, `spinner`, `close` — on a shared `0 0 16 16` grid, stroked in
 `currentColor` and sized to 12px by `.px-icon`, so one chip's colour carries
 its icon.
 
@@ -339,9 +339,12 @@ with the others; a constant-width badge over a fixed first track keeps the
 whole list aligned. The severity word lives in the badge's `aria-label` and
 `title`.
 
-The toolbar label reads `3 errors, 2 warnings` rather than a single total,
-since the two counts are acted on differently, and clicking it opens a
-findings list (`#oxv-findings`). That modal reuses the code-list popup's
+The toolbar label carries all three states, each icon-led: a spinning arc and
+**Validating…** while working, a green tick and **Valid** when clean, and
+`3 errors, 2 warnings` when not — two counts rather than one total, since they
+are acted on differently. Clicking it (or `v`) opens the findings list
+(`#oxv-findings`). There is no Validate button: the pass is automatic and the
+document never changes, so re-running it could only produce the same answer. That modal reuses the code-list popup's
 `.px-popup*` shell styling but is built in `viewer.js`, because its entries
 link back into the tree: clicking one closes the list, unfolds the ancestors
 of the row it concerns, makes it the active row and scrolls it into view.
@@ -349,9 +352,37 @@ of the row it concerns, makes it the active row and scrolls it into view.
 accent rather than its severity tint — the chip still carries the severity,
 which isn't worth an `!important` of its own.
 
-Validation is on demand only: ~920 ms for an 11.4 MB feed with 319k elements, which is fine for
-a button press and not fine on every page load. `options.maxFindings`
-(default 500) caps the array while `total` keeps counting.
+`options.maxFindings` (default 500) caps the findings array while `total`
+keeps counting.
+
+### Scheduling: sliced, never blocking
+
+`start(doc, ctx)` returns a session that works in slices — `step(budgetMs)`
+walks until its budget runs out and reports whether it finished — and `run()`
+is just `step(Infinity)` in a loop, which is what the tests and any
+non-interactive caller use.
+
+`viewer.js` gives the first slice a generous 12 ms. A normal document finishes
+inside it, so the reader never sees a spinner flash and the answer is there
+before the page settles. A large feed spends its 12 ms, shows **Validating…**
+with a spinning arc, and continues in 8 ms slices.
+
+Those slices are pumped through a **MessageChannel**, not a timer or an idle
+callback, and that choice is load-bearing: in a hidden tab Chrome clamps
+`setTimeout` to about a second and suspends `requestIdleCallback` outright —
+its `timeout` argument does not rescue it. Both were tried, and both left a
+4.8 MB feed stuck at "Validating…" indefinitely while the tab was in the
+background. A channel message is an ordinary task: neither clamped nor
+suspended. Measured in a hidden tab afterwards, the same feed finished in a
+few hundred milliseconds.
+
+The pass deliberately **never scrolls the page or sets the active row** — it
+starts on its own, and yanking the view on load would be hostile. Jumping to a
+row happens only when the reader clicks an entry in the findings list.
+
+Cost, measured in Chrome: the walk is ~100 ms for a 4.8 MB feed with 135k
+elements, and the finding chips are free by comparison — 380 SVG chips built
+and laid out in **2 ms**, about 4 µs each.
 
 ## Per-node menu ("Copy node XML")
 
@@ -418,7 +449,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
-- `window.OnixViewerValidation` — `run`, `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
+- `window.OnixViewerValidation` — `run`, `start` (sliced session), `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`)
 - `data-oxv` — data attribute on the replaced `<html>`
@@ -445,7 +476,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 132-test jsdom suite (~1s)
+npm test        # runs the 134-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

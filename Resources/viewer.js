@@ -34,6 +34,10 @@
   // The reverse, so a validation finding can be pinned to the row that shows
   // the element it is about.
   const elementRows = new WeakMap();
+  // The last completed validation run, so the summary label can list it.
+  // Declared up here because validation starts during setup, before the
+  // validation section further down has been reached.
+  let lastValidation = null;
   let activeTreeRow = null;
   let activeBlockEl = null;
 
@@ -625,9 +629,6 @@
         case "collapse-blocks":
           collapseBlocks();
           break;
-        case "validate":
-          runValidation();
-          break;
         case "dialect-toggle":
           applyDialect(otherDialect(displayDialect));
           break;
@@ -712,28 +713,98 @@
 
   // On demand only: a 12 MB feed is a couple of seconds' work, which is fine
   // for a button press and not fine on every page load.
-  // The last run, so the summary label can open a list of it.
-  let lastValidation = null;
-
-  function runValidation() {
+  // Runs on load, in slices. The first slice is generous, so a normal document
+  // is finished before the reader sees anything and there's no spinner flash;
+  // a large feed spends its first 12ms, then continues during idle time, which
+  // keeps scrolling and folding responsive while it works.
+  function startValidation() {
     const status = document.getElementById("oxv-validation");
     if (!window.OnixViewerValidation || !onixCtx.isOnix) {
       if (status) status.textContent = "";
       return;
     }
     clearFindings();
-    lastValidation = window.OnixViewerValidation.run(doc, onixCtx);
-    for (const finding of lastValidation.findings) pinFinding(finding);
-    if (status) {
-      status.textContent = summariseValidation(lastValidation);
-      status.title = lastValidation.total ? "Click for the full list" : validationScopeNote(lastValidation);
-      status.className = lastValidation.total ? "px-invalid" : "px-valid";
-      status.setAttribute("role", lastValidation.total ? "button" : "status");
-      if (lastValidation.total) status.setAttribute("tabindex", "0");
-      else status.removeAttribute("tabindex");
+    const session = window.OnixViewerValidation.start(doc, onixCtx);
+    session.step(12);
+    if (session.done) {
+      finishValidation(session);
+      return;
     }
-    const firstRow = root.querySelector(".px-has-finding");
-    if (firstRow) revealRow(firstRow);
+    renderValidationStatus("validating");
+    pumpValidation(session);
+  }
+
+  function pumpValidation(session) {
+    afterYield(() => {
+      session.step(SLICE_MS);
+      if (session.done) finishValidation(session);
+      else pumpValidation(session);
+    });
+  }
+
+  // Slices are pumped through a MessageChannel, not a timer or an idle
+  // callback. In a hidden tab Chrome clamps setTimeout to about a second and
+  // suspends requestIdleCallback outright — its `timeout` argument does not
+  // rescue it — so either one leaves a large feed stuck at "Validating…"
+  // until someone looks at the tab. A channel message is an ordinary task:
+  // neither clamped nor suspended, and yielding between slices still lets
+  // input, scrolling and rendering through.
+  const SLICE_MS = 8;
+  const pumpChannel = window.MessageChannel ? new window.MessageChannel() : null;
+  let pendingSlice = null;
+
+  if (pumpChannel) {
+    pumpChannel.port1.onmessage = () => {
+      const slice = pendingSlice;
+      pendingSlice = null;
+      if (slice) slice();
+    };
+  }
+
+  function afterYield(callback) {
+    if (pumpChannel) {
+      pendingSlice = callback;
+      pumpChannel.port2.postMessage(0);
+      return;
+    }
+    setTimeout(callback, 0);
+  }
+
+  function finishValidation(session) {
+    lastValidation = session.result();
+    for (const finding of lastValidation.findings) pinFinding(finding);
+    renderValidationStatus(lastValidation.total ? "invalid" : "valid", lastValidation);
+  }
+
+  // The label is icon-led: a spinner while working, a green tick when clean,
+  // the counts when not. It deliberately never scrolls the page — validation
+  // starts on its own, and yanking the view on load would be hostile.
+  function renderValidationStatus(state, result) {
+    const status = document.getElementById("oxv-validation");
+    if (!status) return;
+    status.textContent = "";
+    status.className = `px-${state}`;
+
+    if (state === "validating") {
+      const spinner = icon("spinner");
+      spinner.classList.add("px-icon-spin");
+      status.append(spinner, document.createTextNode("Validating…"));
+      status.title = "Checking this document against the ONIX schema";
+      status.setAttribute("role", "status");
+      status.removeAttribute("tabindex");
+      return;
+    }
+    if (state === "valid") {
+      status.append(icon("ok"), document.createTextNode("Valid"));
+      status.title = validationScopeNote(result);
+      status.setAttribute("role", "status");
+      status.removeAttribute("tabindex");
+      return;
+    }
+    status.append(icon("error"), document.createTextNode(summariseValidation(result)));
+    status.title = "Click for the full list";
+    status.setAttribute("role", "button");
+    status.setAttribute("tabindex", "0");
   }
 
   function validationScopeNote(result) {
@@ -830,6 +901,12 @@
       ["circle", { cx: "8", cy: "12", r: "1.15", fill: "currentColor", stroke: "none" }],
     ],
     close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
+    ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
+    // An open arc: three quarters of the circle, spun by CSS.
+    spinner: [["circle", {
+      cx: "8", cy: "8", r: "5.6", "stroke-width": "2",
+      "stroke-dasharray": "26 9", "stroke-linecap": "round",
+    }]],
   });
 
   function icon(name) {
@@ -1343,7 +1420,7 @@
           applyDialect(otherDialect(displayDialect));
           break;
         case "v":
-          runValidation();
+          showFindings();
           break;
       }
     });
@@ -1649,4 +1726,8 @@
     root.appendChild(box);
     meta.textContent = "parse error";
   }
+
+  // Last, once every declaration above is initialised: check the document.
+  // Automatic rather than on demand, sliced rather than blocking.
+  startValidation();
 })();

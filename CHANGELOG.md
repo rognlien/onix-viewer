@@ -6,8 +6,8 @@ the main branch.
 ## Unreleased
 
 ### Added
-- **Validate the document.** A toolbar button (shortcut `v`) checks the file
-  and marks each finding on the row it concerns — red with a cross for a
+- **Validate the document.** Every ONIX file is now checked as it opens,
+  without blocking the page, and each finding is marked on the row it concerns — red with a cross for a
   schema error, amber with an exclamation for a warning, message in the
   tooltip: elements that are
   missing, misplaced or unknown; codes that aren't in their EDItEUR list;
@@ -15,9 +15,15 @@ the main branch.
   167 of the 4,791 codes, which the viewer now reads); and values that break
   their declared datatype.
 
-  The toolbar reads `4 errors, 1 warning` rather than a single total, since
-  the two are acted on differently. Clicking it opens the full list, and
-  clicking an entry there jumps to the row it concerns.
+  The toolbar shows a spinner and **Validating…** while it works, a green tick
+  and **Valid** when the document is clean, or `4 errors, 1 warning` — two
+  counts rather than one total, since they are acted on differently. Clicking
+  that (or pressing `v`) opens the full list, and clicking an entry there
+  jumps to the row it concerns.
+
+  The work is done in slices so nothing freezes: a normal document finishes
+  before the page settles, and an 11 MB feed keeps scrolling and folding
+  responsive while it is checked. The pass never scrolls the view on its own.
 
   There's no XML Schema processor involved — the browser has none, and
   libxml2-via-WASM would add roughly 4 MB and needs a CSP privilege the viewer

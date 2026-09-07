@@ -14,7 +14,7 @@ When the browser loads a page whose `Content-Type` is `application/xml`, `text/x
    - Resolved code-list labels for every value the bundled EDItEUR lists know about — shown as a small `→ ISBN-13` style badge after the value, with a clickable `List N ↗` chip that opens a popup containing every code in that list (and a link to the canonical EDItEUR page).
 4. Labels the ONIX blocks: each block element inside a `<Product>` gets a `Block N` badge, a **Collapse blocks** button folds every composite inside each `<Product>` — the seven blocks plus `ProductIdentifier`, `RecordSourceIdentifier` and `Barcode` — so a record reads as one row per child, and for a single-Product document the toolbar shows which blocks are present (`Blocks: 1, 4, 6`).
 5. Lets you read — and copy — the other dialect. ONIX comes in two: **reference names** (`<LanguageRole>`) and **short tags** (`<b253>`). One switch (shortcut `t`) shows the document as the other one — labelled **View as reference names** over a short-tag file and **View as short tags** over a reference file, so it's always obvious which one you actually opened; the toolbar names the source dialect too. Copying follows the view, so while translated, **Copy XML** and **Copy node XML** hand you the converted ONIX, namespace included. Back at the document's own dialect, the copy is the file byte for byte.
-6. Validates the document (**Validate**, shortcut `v`): missing or misplaced elements, codes that aren't in their EDItEUR list, codes EDItEUR has deprecated, and values that break their datatype. Each finding gets a chip on the row it concerns — red with a cross for a schema error, amber with an exclamation for a warning — with the message in the tooltip. The toolbar reads e.g. `4 errors, 1 warning`; click it for the full list, and click any entry to jump to that row. ONIX 3.1 is checked in full; other releases get their code lists checked and are told the structure wasn't.
+6. Validates the document automatically, in the background: missing or misplaced elements, codes that aren't in their EDItEUR list, codes EDItEUR has deprecated, and values that break their datatype. Each finding gets a chip on the row it concerns — red with a cross for a schema error, amber with an exclamation for a warning — with the message in the tooltip. The toolbar shows a spinner while it works, a green tick and **Valid** when the document is clean, or e.g. `4 errors, 1 warning`; click that (or press `v`) for the full list, and click any entry to jump to that row. ONIX 3.1 is checked in full; other releases get their code lists checked and are told the structure wasn't.
 7. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
 
 It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAcknowledgement>`) — the optional response format a recipient sends back to confirm or reject a feed. It's labelled `ONIX Acknowledgement 3.0` in the toolbar, and the status codes it's built from (`MessageStatus`, `RecordStatus`, status-detail severity, …) resolve to readable labels just like product code-lists.
@@ -57,7 +57,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (132 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
+Runs the full jsdom suite (134 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
 
 ### Visual loop — Chrome
 
@@ -79,7 +79,7 @@ Pages worth opening:
 | `c` | Collapse all |
 | `b` | Collapse blocks (fold every composite inside each Product) |
 | `t` | Switch between reference names and short tags |
-| `v` | Validate the document |
+| `v` | Open the list of validation findings |
 | `w` | Toggle line wrap |
 
 ## ONIX code lists

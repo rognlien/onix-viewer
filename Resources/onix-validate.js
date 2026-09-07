@@ -86,24 +86,54 @@
   // ---- runner ---------------------------------------------------------------
 
   /**
-   * Validate `doc`. Returns { findings, version, checkedStructure, truncated }.
+   * Begin a validation pass that does its work in slices, so a caller can
+   * spread it across idle time instead of blocking the page:
+   *
+   *   const session = start(doc, ctx);
+   *   session.step(12);               // work for up to 12ms
+   *   if (!session.done) …            // schedule the rest
+   *   const result = session.result();
+   *
+   * A small document finishes inside the first slice, so the caller gets a
+   * synchronous answer without a special case.
+   */
+  function start(doc, onixCtx, options) {
+    const pass = createPass(doc, onixCtx, options);
+    return {
+      get done() { return pass.done; },
+      get processed() { return pass.processed; },
+      total: pass.total,
+      step: (budgetMs) => stepPass(pass, budgetMs),
+      result: () => passResult(pass),
+    };
+  }
+
+  /**
+   * Validate `doc` in one go. Returns
+   * { findings, total, errors, warnings, version, checkedStructure, truncated }.
    * `options.maxFindings` caps the array (default 500) so a badly broken feed
    * can't build an unbounded list; counting continues past the cap.
    */
   function run(doc, onixCtx, options) {
+    const session = start(doc, onixCtx, options);
+    while (!session.done) session.step(Infinity);
+    return session.result();
+  }
+
+  function createPass(doc, onixCtx, options) {
     const settings = options || {};
     const limit = settings.maxFindings == null ? 500 : settings.maxFindings;
     const model = modelFor(onixCtx.version);
     const findings = [];
     const counts = { error: 0, warning: 0 };
-    let total = 0;
 
     const api = {
       onixCtx,
       model,
       findings,
+      reported: 0,
       report(code, node, data) {
-        total++;
+        api.reported++;
         const finding = { code, node, data: data || {}, severity: SEVERITIES[code] || "error" };
         counts[finding.severity]++;
         if (findings.length < limit) findings.push(finding);
@@ -123,32 +153,71 @@
     for (const rule of RULES) {
       if (rule.start) rule.start(api);
     }
-    if (doc.documentElement) walk(doc.documentElement, api);
-    for (const rule of RULES) {
-      if (rule.finish) rule.finish(api);
-    }
 
+    // An explicit stack rather than recursion, so the traversal can be paused
+    // between nodes and resumed in the next slice. Children are pushed in
+    // reverse so they come off the stack in document order, which keeps the
+    // findings list in the order a reader scans the file.
+    const stack = doc.documentElement ? [doc.documentElement] : [];
     return {
-      findings,
-      total,
-      errors: counts.error,
-      warnings: counts.warning,
-      truncated: total > findings.length,
-      version: model ? model.version : null,
-      checkedStructure: !!model,
+      api, stack, findings, counts, model,
+      processed: 0,
+      done: false,
+      // Only used to report progress; the traversal itself doesn't need it.
+      total: doc.documentElement ? doc.getElementsByTagName("*").length : 0,
     };
   }
 
-  // One traversal, every rule. A rule that returns false prunes the subtree —
-  // used for XHTML content and for elements the model doesn't know, where
+  function stepPass(pass, budgetMs) {
+    const started = now();
+    const budget = budgetMs == null ? 8 : budgetMs;
+    // Check the clock every so often rather than per node: for small
+    // documents the whole pass costs less than one now() call would suggest.
+    let untilClockCheck = 256;
+
+    while (pass.stack.length) {
+      visit(pass.stack.pop(), pass);
+      pass.processed++;
+      if (--untilClockCheck > 0) continue;
+      untilClockCheck = 256;
+      if (budget !== Infinity && now() - started >= budget) return false;
+    }
+
+    for (const rule of RULES) {
+      if (rule.finish) rule.finish(pass.api);
+    }
+    pass.done = true;
+    return true;
+  }
+
+  // One visit, every rule. A rule that returns false prunes the subtree — used
+  // for XHTML content and for elements the model doesn't know, where
   // descending would only produce noise.
-  function walk(node, api) {
+  function visit(node, pass) {
     let descend = true;
     for (const rule of RULES) {
-      if (rule.element && rule.element(node, api) === false) descend = false;
+      if (rule.element && rule.element(node, pass.api) === false) descend = false;
     }
     if (!descend) return;
-    for (const child of node.children) walk(child, api);
+    const children = node.children;
+    for (let i = children.length - 1; i >= 0; i--) pass.stack.push(children[i]);
+  }
+
+  function passResult(pass) {
+    return {
+      findings: pass.findings,
+      total: pass.api.reported,
+      errors: pass.counts.error,
+      warnings: pass.counts.warning,
+      truncated: pass.api.reported > pass.findings.length,
+      version: pass.model ? pass.model.version : null,
+      checkedStructure: !!pass.model,
+      done: pass.done,
+    };
+  }
+
+  function now() {
+    return (window.performance && window.performance.now) ? window.performance.now() : Date.now();
   }
 
   // Reference-dialect name, so rules and the model speak one language.
@@ -413,6 +482,7 @@
 
   window.OnixViewerValidation = {
     run,
+    start,
     message,
     severity,
     messages: MESSAGES,

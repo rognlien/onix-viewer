@@ -49,6 +49,7 @@
      takes dark text. */
   --severity-error: #c8322b;
   --severity-warning: #e0a109;
+  --severity-ok: #1c7c47;
 
   /* Subtle drop shadow for cards/popup. */
   --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.05);
@@ -95,6 +96,7 @@
     --accent-soft: rgba(88, 166, 255, 0.18);
   --severity-error: #f2645c;
   --severity-warning: #e8b53a;
+  --severity-ok: #4fbb7e;
 
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-popup: 0 24px 60px rgba(0, 0, 0, 0.6);
@@ -445,14 +447,39 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   background: color-mix(in srgb, var(--severity-error) 12%, transparent);
 }
 
-#oxv-validation { font-family: var(--ui); font-size: 12px; margin-right: 8px; }
-#oxv-validation.px-valid { color: var(--fg-muted); }
+/* Validation status: a spinner while working, a green tick when clean, the
+   counts when not. Icon-led, so the state reads before the words do. */
+#oxv-validation {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 8px;
+  font-family: var(--ui);
+  font-size: 12px;
+  white-space: nowrap;
+}
+#oxv-validation:empty { display: none; }
+#oxv-validation.px-validating { color: var(--fg-muted); }
+#oxv-validation.px-valid { color: var(--severity-ok); font-weight: 600; }
 #oxv-validation.px-invalid {
   color: var(--severity-error);
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline dotted;
   text-underline-offset: 3px;
+}
+#oxv-validation.px-invalid:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.px-icon-spin { animation: oxv-spin 0.75s linear infinite; transform-origin: 50% 50%; }
+@keyframes oxv-spin { to { transform: rotate(360deg); } }
+/* Someone who has asked for less motion still needs to see that work is in
+   progress, so the arc stays — it just stops turning. */
+@media (prefers-reduced-motion: reduce) {
+  .px-icon-spin { animation: none; }
 }
 
 /* Findings list — the shell classes are shared with the code-list popup. */
