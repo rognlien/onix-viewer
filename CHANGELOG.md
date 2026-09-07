@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.14 — 2026-09-07
 
 ### Added
 - **Summaries on collapsed composites.** The one-line chip that collapsed
