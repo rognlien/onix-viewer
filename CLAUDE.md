@@ -103,9 +103,23 @@ Rather than feed a second schema to the generator, `onix.js` declares those bind
 
 The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the toolbar meta pill — "records" rather than "products", since the `<Product>` blocks here are record statuses, not product descriptions.
 
-## Product summary
+## Collapsed-row summaries
 
-`productSummary(productEl, ctx)` in `onix.js` builds the one-line chip shown on collapsed `<Product>` rows. Format:
+`nodeSummary(element, ctx)` in `onix.js` builds the one-line chip shown on a collapsed row. `viewer.js` calls it for every open row and renders whatever comes back, so which composites get a chip is decided entirely in `onix.js`.
+
+Three kinds of answer:
+
+1. **Identifier composites** — `ProductIdentifier`, `RecordSourceIdentifier`, `NameIdentifier`, `SupplierIdentifier`, … all share one shape (a `<*IDType>` naming a code list plus an `<IDValue>`), so `identifierSummary` handles the whole family by rule rather than by table: resolve the type through its own list, then append the value. A new identifier composite needs no code. Proprietary schemes (`01`) prefer `<IDTypeName>` over the list label, since "Proprietary product ID scheme 1234" says nothing.
+2. **A short table** (`SUMMARIZERS`) for composites whose essence is one value: `Product` (below), `TitleDetail` / `TitleElement` (the quoted title), `Contributor` (role + name), `Price` (amount + currency).
+3. **Nothing**, for everything else — including the seven ONIX blocks, deliberately: their contents are too heterogeneous to sample in one line, and the `<Product>` row above already carries the identifier, form and title. They have the `Block N` badge instead.
+
+Rules are written against **reference** names; `referenceName()` maps short tags through `SHORT_TO_REFERENCE` first, so each rule is written once and works in both dialects. A short tag missing from that map simply gets no chip.
+
+Chips are capped at `SUMMARY_MAX` (60 chars) by `clampSummary`. The `<Product>` chip is the exception — it caps its title instead, because capping that whole chip at 60 would truncate summaries that render fine today.
+
+### The `<Product>` chip
+
+`productSummary(productEl)` builds:
 
 ```
 [IDLabel] [IDValue] · [ProductForm label] · "[Distinctive title]"
@@ -171,7 +185,7 @@ Two features are bundled and tested but hidden from the UI while the simpler tre
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, productSummary, codelistMeta, externalLinkIcon, blockNumber, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, codelistMeta, externalLinkIcon, blockNumber, isProductElement, singleProductBlocks, blockNames)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
@@ -251,7 +265,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `non-onix-product.xml` | A non-ONIX `<Product>` root (sku/price/…) is **not** misdetected as ONIX — guards the corroboration heuristic |
 | `onix-3.0-title-without-prefix.xml` | Summary reads split-form titles: `<NoPrefix/>` + `<TitleWithoutPrefix>`, and `<TitlePrefix>` joined to the remainder |
 | `onix-3.0-title-without-prefix-short.xml` | Same in short dialect (`b030` + `b031`) |
-| `onix-3.0-single-product-blocks.xml` | One Product with blocks 1, 4, 6: `Block N` badges on block rows, `Blocks: 1, 4, 6` toolbar pill |
+| `onix-3.0-single-product-blocks.xml` | One Product with blocks 1, 4, 6: `Block N` badges on block rows, `Blocks: 1, 4, 6` toolbar pill; also `RecordSourceIdentifier` and `Price` chips |
 | `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.

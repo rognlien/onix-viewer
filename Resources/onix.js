@@ -334,15 +334,125 @@
   }
 
   /**
-   * For collapsed <Product> blocks, build a one-line summary like:
-   *   ISBN 9780123456789 · Hardback · "Title goes here"
-   * shown as a faint badge so you can scan thousands of products quickly.
+   * One-line summary for a collapsed composite, shown as a faint chip beside
+   * the folded row so a folded tree stays scannable.
+   *
+   * Identifier composites are covered by a single shape rule; a short table
+   * handles the few others whose essence is one value. The seven ONIX blocks
+   * deliberately get nothing — their contents are too heterogeneous to sample
+   * in one line, and the <Product> row above already carries the identifier,
+   * form and title.
    */
-  function productSummary(element, ctx) {
-    if (!ctx.isOnix) return null;
-    const name = (element.localName || element.nodeName).toLowerCase();
-    if (name !== "product") return null;
+  function nodeSummary(element, ctx) {
+    let summary = null;
+    if (ctx.isOnix) {
+      const summarize = SUMMARIZERS[referenceName(element)] || identifierSummary;
+      summary = summarize(element, ctx) || null;
+    }
+    return summary;
+  }
 
+  const SUMMARIZERS = Object.assign(Object.create(null), {
+    Product: productSummary,
+    TitleDetail: (element) => quoted(titleOfDetail(element)),
+    TitleElement: (element) => quoted(titleOfElement(element)),
+    Contributor: contributorSummary,
+    Price: priceSummary,
+  });
+
+  // Reference-dialect name for an element, so a summary rule can be written
+  // once and match in both dialects. SHORT_TO_REFERENCE is keyed on the
+  // lower-cased tag and holds both short tags (b221) and the lower-cased
+  // reference names that short-dialect composites use (productidentifier), so
+  // one lookup serves both; an unmapped tag keeps its own name.
+  function referenceName(element) {
+    const name = element.localName || element.nodeName;
+    return SHORT_TO_REFERENCE[name.toLowerCase()] || name;
+  }
+
+  // A chip is read at a glance beside a folded row, so it gets a hard cap: one
+  // that wraps breaks the one-row-per-line reading the tree depends on. The
+  // <Product> chip caps its title instead (see productSummary) — capping that
+  // whole chip at this length would start truncating summaries that read fine
+  // today.
+  const SUMMARY_MAX = 60;
+
+  function clampSummary(text) {
+    const summary = (text || "").trim();
+    return summary.length > SUMMARY_MAX ? `${summary.slice(0, SUMMARY_MAX - 1)}…` : summary;
+  }
+
+  function quoted(text) {
+    const clamped = clampSummary(text);
+    return clamped ? `"${clamped}"` : "";
+  }
+
+  // Every ONIX identifier composite — ProductIdentifier, RecordSourceIdentifier,
+  // NameIdentifier, SupplierIdentifier, CollectionIdentifier, … — has the same
+  // shape: a <*IDType> naming a code list plus an <IDValue>. One rule
+  // summarises them all, so identifier composites we've never heard of need no
+  // upkeep here. Proprietary schemes (type 01) name themselves in
+  // <IDTypeName>, which beats that list's own label ("Proprietary …").
+  function identifierSummary(element, ctx) {
+    let summary = "";
+    const typeEl = identifierTypeChild(element);
+    const value = textOfDirectChild(element, "idvalue", "b244");
+    if (typeEl && value) {
+      const resolved = resolveCodelist(typeEl, ctx);
+      const scheme =
+        textOfDirectChild(element, "idtypename", "b233") ||
+        (resolved ? resolved.label : "");
+      summary = clampSummary(scheme ? `${scheme} ${value}` : value);
+    }
+    return summary;
+  }
+
+  function identifierTypeChild(element) {
+    let found = null;
+    for (const child of element.children) {
+      if (!found && referenceName(child).endsWith("IDType")) found = child;
+    }
+    return found;
+  }
+
+  // Role plus name: "By (author) Ola Nordmann".
+  function contributorSummary(element, ctx) {
+    const roleEl = directChild(element, "contributorrole", "b035");
+    const resolved = roleEl ? resolveCodelist(roleEl, ctx) : null;
+    const role = resolved ? resolved.label : "";
+    return clampSummary([role, contributorName(element)].filter(Boolean).join(" "));
+  }
+
+  // A contributor names itself in one of several conformant ways depending on
+  // the feed, so try the personal forms before the corporate one.
+  function contributorName(element) {
+    return (
+      textOfDirectChild(element, "personname", "b036") ||
+      textOfDirectChild(element, "personnameinverted", "b037") ||
+      textOfDirectChild(element, "corporatename", "b047") ||
+      keyName(element)
+    );
+  }
+
+  function keyName(element) {
+    const before = textOfDirectChild(element, "namesbeforekey", "b039");
+    const key = textOfDirectChild(element, "keynames", "b040");
+    return [before, key].filter(Boolean).join(" ");
+  }
+
+  // The amount and its currency: "399.00 NOK". Price type, tax and conditions
+  // are what you expand the composite for.
+  function priceSummary(element) {
+    const amount = textOfDirectChild(element, "priceamount", "j151");
+    const currency = textOfDirectChild(element, "currencycode", "j152");
+    return clampSummary([amount, currency].filter(Boolean).join(" "));
+  }
+
+  /**
+   * The <Product> chip:
+   *   ISBN 9780123456789 · Hardback · "Title goes here"
+   */
+  function productSummary(element) {
     const parts = [];
 
     // Primary identifier — try the EDItEUR ID types in this preference
@@ -369,7 +479,7 @@
       }
     }
 
-    return parts.length ? parts.join(" · ") : null;
+    return parts.length ? parts.join(" · ") : "";
   }
 
   /**
@@ -391,7 +501,7 @@
     return { value: String(value).trim(), label, listNumber };
   }
 
-  // ---- helpers used by productSummary -------------------------------------
+  // ---- helpers used by the summaries ---------------------------------------
 
   function directChild(parentEl, lcName, lcShortAlt) {
     for (const c of parentEl.children) {
@@ -479,11 +589,17 @@
     if (!chosen) chosen = titleDetails[0];
 
     // The title itself lives one level down, inside <TitleElement>.
-    for (const te of directChildren(chosen, "titleelement")) {
-      const txt = titleOfElement(te);
-      if (txt) return txt;
+    return titleOfDetail(chosen);
+  }
+
+  // The title carried by a <TitleDetail>: the first <TitleElement> that has
+  // one. A TitleDetail can hold several (collection level, then item level).
+  function titleOfDetail(titleDetailEl) {
+    let title = "";
+    for (const te of directChildren(titleDetailEl, "titleelement")) {
+      if (!title) title = titleOfElement(te);
     }
-    return "";
+    return title;
   }
 
   // ---- ONIX 3.x blocks ------------------------------------------------------
@@ -561,8 +677,9 @@
     resolveAttributeCodelist,
     codelistMeta,
     externalLinkIcon,
-    productSummary,
+    nodeSummary,
     blockNumber,
+    isProductElement,
     singleProductBlocks,
     blockNames: new Set(BLOCK_NUMBERS.keys()),
   };

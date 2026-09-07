@@ -123,6 +123,13 @@ function rowsNamed(window, tagName) {
 function badges(window) {
   return $$(window, "#oxv-root .px-codelist").map((b) => b.textContent);
 }
+// Text of the collapsed-row summary chips on rows named tagName.
+function summariesOf(window, tagName) {
+  return rowsNamed(window, tagName)
+    .map((row) => row.querySelector(".px-summary"))
+    .filter(Boolean)
+    .map((chip) => chip.textContent);
+}
 
 // ---- tests -----------------------------------------------------------------
 
@@ -214,21 +221,21 @@ describe("ONIX 3.0 reference", () => {
 
   test("product summary picks GTIN-13 when ISBN-13 is absent (preference: 15 → 03 → 02)", () => {
     const w = render("onix-3.0-gtin-only.xml");
-    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    const summary = summariesOf(w, "Product")[0];
     assert(summary.startsWith("GTIN 9780000000003"),
       `expected "GTIN 9780000000003 …" prefix, got: ${summary}`);
   });
 
   test("product summary labels ISBN-10 as ISBN", () => {
     const w = render("onix-3.0-isbn10-only.xml");
-    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    const summary = summariesOf(w, "Product")[0];
     assert(summary.startsWith("ISBN 0123456789"),
       `expected "ISBN 0123456789 …" prefix, got: ${summary}`);
   });
 
   test("product summary omits the identifier segment when no ISBN-13 / GTIN-13 / ISBN-10 is present", () => {
     const w = render("onix-3.0-proprietary-only.xml");
-    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    const summary = summariesOf(w, "Product")[0];
     assert(!/^(ISBN|GTIN)\b/.test(summary),
       `expected no ISBN / GTIN prefix when only a proprietary ID exists, got: ${summary}`);
     assert(summary.includes("No ISBN here"),
@@ -237,7 +244,7 @@ describe("ONIX 3.0 reference", () => {
 
   test("product summary picks the distinctive title (TitleType=01) when multiple TitleDetails exist", () => {
     const w = render("onix-3.0-multi-title.xml");
-    const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);
+    const summaries = summariesOf(w, "Product");
     assert(summaries.length === 1, `expected 1 product summary, got ${summaries.length}`);
     assert(summaries[0].includes("Fra en dag til en annen"),
       `summary should pick TitleType=01 title, got: ${summaries[0]}`);
@@ -247,7 +254,7 @@ describe("ONIX 3.0 reference", () => {
 
   test("product summary reads the split-form title (TitleWithoutPrefix) when TitleText is absent", () => {
     const w = render("onix-3.0-title-without-prefix.xml");
-    const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);
+    const summaries = summariesOf(w, "Product");
     assert(summaries.length === 2, `expected 2 product summaries, got ${summaries.length}`);
     assert(summaries[0].includes("Rovfugl"),
       `expected the NoPrefix title, got: ${summaries[0]}`);
@@ -257,14 +264,14 @@ describe("ONIX 3.0 reference", () => {
 
   test("split-form title works in short dialect (b030 + b031)", () => {
     const w = render("onix-3.0-title-without-prefix-short.xml");
-    const summary = $$(w, "#oxv-root .px-summary")[0].textContent;
+    const summary = summariesOf(w, "product")[0];
     assert(summary.includes("Det hvite kartet"),
       `expected b030 joined to b031, got: ${summary}`);
   });
 
   test("renders product summaries with ISBN + form + title", () => {
     const w = render("onix-3.0-reference.xml");
-    const summaries = $$(w, "#oxv-root .px-summary").map((s) => s.textContent);
+    const summaries = summariesOf(w, "Product");
     assert(summaries.length >= 2, "expected summaries on each product");
     assert(summaries[0].includes("ISBN"), `summary missing ISBN: ${summaries[0]}`);
     assert(summaries[0].includes("Hardback"), `summary missing form: ${summaries[0]}`);
@@ -561,12 +568,29 @@ describe("Collapse blocks", () => {
     assert(rowsNamed(w, "Header").every((r) => !r.classList.contains("px-folded")), "Header should be untouched");
   });
 
+  test("folds the block-0 composites too, so a Product is one line per child", () => {
+    const w = render("onix-3.0-reference.xml");
+    w.document.querySelector('[data-action="collapse-blocks"]').click();
+    const identifiers = rowsNamed(w, "ProductIdentifier");
+    assert(identifiers.length >= 1, "expected ProductIdentifier rows in the fixture");
+    assert(identifiers.every((r) => r.classList.contains("px-folded")),
+      "ProductIdentifier sits directly in <Product> and should fold with the blocks");
+    // Composites deeper than a Product's own children stay as they are —
+    // they're hidden inside a folded block anyway.
+    assert(rowsNamed(w, "TitleDetail").every((r) => !r.classList.contains("px-folded")),
+      "TitleDetail is inside DescriptiveDetail and should be untouched");
+  });
+
   test("works in short dialect and via the b shortcut", () => {
     const w = render("onix-3.0-short.xml");
     w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "b", bubbles: true }));
     const blocks = rowsNamed(w, "descriptivedetail");
     assert(blocks.length >= 1, "expected short-tag block rows");
     assert(blocks.every((r) => r.classList.contains("px-folded")), "short-tag block rows should be folded");
+    const identifiers = rowsNamed(w, "productidentifier");
+    assert(identifiers.length >= 1, "expected short-tag ProductIdentifier rows");
+    assert(identifiers.every((r) => r.classList.contains("px-folded")),
+      "short-tag block-0 composites should fold too");
   });
 });
 
@@ -626,6 +650,85 @@ describe("Selection", () => {
                        ".px-fold-ellipsis", ".px-fold-close", ".px-node-menu-btn", ".px-toggle"]) {
       assert(decorated.has(sel), `${sel} should have user-select: none`);
     }
+  });
+});
+
+describe("Composite summaries", () => {
+  test("an identifier composite reads as its resolved type plus value", () => {
+    const w = render("onix-3.0-gtin-only.xml");
+    const summaries = summariesOf(w, "ProductIdentifier");
+    assert(summaries.length === 2, `expected a chip per ProductIdentifier, got ${summaries.length}`);
+    assert(summaries[1] === "GTIN-13 9780000000003",
+      `expected the List 5 label and the IDValue, got: ${summaries[1]}`);
+    assert(summaries[0] === "Proprietary product ID scheme internal-1234",
+      `expected the list label when no IDTypeName is given, got: ${summaries[0]}`);
+  });
+
+  test("the identifier rule is shape-based, so it covers other *IDType composites", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    const summaries = summariesOf(w, "RecordSourceIdentifier");
+    assert(summaries.length === 1, "expected a RecordSourceIdentifier chip");
+    assert(summaries[0] === "Bokbasen 14349",
+      `RecordSourceIdentifier should summarise with no rule of its own, got: ${summaries[0]}`);
+  });
+
+  test("a proprietary scheme names itself via IDTypeName", () => {
+    const w = render("onix-3.0-proprietary-only.xml");
+    const summaries = summariesOf(w, "ProductIdentifier");
+    assert(summaries[0] === "internal internal-XYZ",
+      `expected IDTypeName in place of the "Proprietary" label, got: ${summaries[0]}`);
+  });
+
+  test("contributor reads as role plus name; price as amount plus currency", () => {
+    const w = render("onix-3.0-reference.xml");
+    assert(summariesOf(w, "Contributor")[0] === "By (author) Ola Nordmann",
+      `got: ${summariesOf(w, "Contributor")[0]}`);
+    const priced = render("onix-3.0-single-product-blocks.xml");
+    assert(summariesOf(priced, "Price")[0] === "399.00 NOK",
+      `got: ${summariesOf(priced, "Price")[0]}`);
+  });
+
+  test("title composites read as the quoted title", () => {
+    const w = render("onix-3.0-multi-title.xml");
+    assert(summariesOf(w, "TitleDetail")[0] === '"Fra en dag til en annen"',
+      `got: ${summariesOf(w, "TitleDetail")[0]}`);
+  });
+
+  test("the seven blocks deliberately carry no chip", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    for (const block of ["DescriptiveDetail", "PublishingDetail", "ProductSupply"]) {
+      assert(summariesOf(w, block).length === 0, `${block} should have no summary chip`);
+    }
+  });
+
+  test("works in short dialect", () => {
+    const w = render("onix-3.0-short.xml");
+    assert(summariesOf(w, "productidentifier")[0] === "ISBN-13 9788234567892",
+      `got: ${summariesOf(w, "productidentifier")[0]}`);
+    assert(summariesOf(w, "contributor")[0] === "By (author) Kari Nordmann",
+      `got: ${summariesOf(w, "contributor")[0]}`);
+  });
+
+  test("a long title is clamped so the chip cannot wrap", () => {
+    const w = render("onix-3.0-multi-title.xml");
+    for (const chip of summariesOf(w, "TitleDetail")) {
+      assert(chip.length <= 62, `chip should stay within the cap, got ${chip.length}: ${chip}`);
+    }
+  });
+});
+
+describe("Double injection", () => {
+  test("a second viewer.js instance leaves the rendered tree alone", () => {
+    // Two enabled copies of the extension both inject the viewer bundle into
+    // the surviving shell. Without a guard the tree is rendered twice and
+    // every click handler is registered twice, which makes the fold chevrons
+    // dead. The second instance must find #oxv-root already filled and stop.
+    const w = render("onix-3.1-standalone-product.xml");
+    const before = $$(w, "#oxv-root .px-row").length;
+    w.eval(viewerJs);
+    assert(before > 0, "first pass should have rendered rows");
+    assert($$(w, "#oxv-root .px-row").length === before, "second pass must not add rows");
+    assert(rowsNamed(w, "Product").length === 1, "the root <Product> must appear once");
   });
 });
 

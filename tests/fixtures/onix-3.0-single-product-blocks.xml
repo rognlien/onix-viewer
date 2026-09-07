@@ -9,6 +9,11 @@
   <Product>
     <RecordReference>bokbasen-9788234567892</RecordReference>
     <NotificationType>03</NotificationType>
+    <RecordSourceIdentifier>
+      <RecordSourceIDType>01</RecordSourceIDType>
+      <IDTypeName>Bokbasen</IDTypeName>
+      <IDValue>14349</IDValue>
+    </RecordSourceIdentifier>
     <ProductIdentifier>
       <ProductIDType>15</ProductIDType>
       <IDValue>9788234567892</IDValue>
@@ -38,6 +43,11 @@
           <SupplierName>Eksempeldistributøren</SupplierName>
         </Supplier>
         <ProductAvailability>20</ProductAvailability>
+        <Price>
+          <PriceType>02</PriceType>
+          <PriceAmount>399.00</PriceAmount>
+          <CurrencyCode>NOK</CurrencyCode>
+        </Price>
       </SupplyDetail>
     </ProductSupply>
   </Product>

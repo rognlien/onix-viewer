@@ -19,6 +19,12 @@
     ? window.OnixViewerOnix.blockNames
     : new Set();
 
+  // Named here so "Collapse blocks" is inert on non-ONIX documents, where the
+  // ONIX module isn't consulted at all.
+  const isProductElement = window.OnixViewerOnix
+    ? window.OnixViewerOnix.isProductElement
+    : () => false;
+
   // Bidirectional map between a tree row and its right-pane <details>.
   // Populated by setupBlockSync.bindPair(); used by click-to-highlight.
   const pairMap = new WeakMap();
@@ -49,6 +55,17 @@
   const sourceEl = document.getElementById("__oxv-source__");
   const SOURCE = (sourceEl && sourceEl.textContent) || window.__OXV_SOURCE__ || "";
   const root = document.getElementById("oxv-root");
+
+  // Two enabled copies of the extension (a Web Store install alongside an
+  // unpacked one) each inject this file. The second copy's shell replaces the
+  // first one's, but the first copy's scripts still execute — removing a
+  // dynamically inserted <script> from the document doesn't cancel it — so
+  // both instances would render into the surviving #oxv-root and double up
+  // every click handler, leaving the tree drawn twice and the fold chevrons
+  // dead (two handlers toggling px-folded cancel each other out). The first
+  // instance to arrive wins; later ones bail out here.
+  if (!root || root.firstElementChild) return;
+
   const meta = document.getElementById("oxv-meta");
   // EDItEUR schema info label in the toolbar — driven by the constant
   // OnixViewerCodeListSchema baked into onix-codelists.js at generation time.
@@ -316,9 +333,11 @@
         }
       }
 
-      // Inline summary span (visible when folded).
+      // Inline summary span (visible when folded). onix.js decides which
+      // composites have a one-line essence worth showing and returns null for
+      // the rest.
       if (window.OnixViewerOnix) {
-        const summary = window.OnixViewerOnix.productSummary(el, onixCtx);
+        const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
         if (summary) {
           const s = document.createElement("span");
           s.className = "px-summary";
@@ -535,22 +554,28 @@
 
   // ---- collapse blocks ------------------------------------------------------
 
-  // Fold every ONIX block element (DescriptiveDetail, CollateralDetail, …)
-  // and make sure each is visible by unfolding its ancestors, so a feed
-  // reads as a list of Products with one row per block.
+  // Fold every composite inside each <Product> and make sure each is visible
+  // by unfolding its ancestors, so a feed reads as a list of Products with
+  // one row per child.
   function collapseBlocks() {
     for (const row of root.querySelectorAll(".px-row.px-collapsible")) {
-      if (isBlockRow(row)) {
+      if (isProductChildRow(row)) {
         unfoldAncestors(row);
         row.classList.add("px-folded");
       }
     }
   }
 
-  function isBlockRow(row) {
+  // Every composite sitting directly inside a <Product>: the seven ONIX
+  // blocks plus the block-0 composites (ProductIdentifier,
+  // RecordSourceIdentifier, Barcode), so a collapsed record reads as one line
+  // per child instead of leaving those three sprawling. Keying on the parent
+  // rather than a list of names covers both dialects and needs no upkeep as
+  // ONIX gains elements — BLOCK_NUMBERS stays behind to drive the Block N
+  // badge only.
+  function isProductChildRow(row) {
     const element = rowElements.get(row);
-    const name = element ? (element.localName || element.nodeName).toLowerCase() : "";
-    return ONIX_BLOCK_NAMES.has(name);
+    return !!element && isProductElement(element.parentNode);
   }
 
   // Unfold every folded open-row above `node` so it becomes visible. Works

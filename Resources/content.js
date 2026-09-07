@@ -170,6 +170,15 @@
   }
 
   function takeOver(xmlSource) {
+    // Another enabled copy of the extension may already have taken this page
+    // over (a Web Store install running alongside an unpacked one). Replacing
+    // its shell would leave two viewer instances rendering into one tree, so
+    // the first takeover wins and later ones stand down.
+    if (document.documentElement.hasAttribute("data-oxv")) {
+      dlog("[OnixViewer] page already taken over, standing down.");
+      return;
+    }
+
     // We can't use document.open() + document.write() here: per the HTML spec,
     // document.open() throws InvalidStateError on a non-HTML document, and a
     // raw XML page in WebKit is exactly that. (Chromium is lenient and lets
@@ -195,7 +204,7 @@
   <div class="px-left">
     <button type="button" data-action="expand-all" title="Expand all (E)">Expand all</button>
     <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
-    <button type="button" data-action="collapse-blocks" title="Collapse the ONIX blocks inside each Product (B)">Collapse blocks</button>
+    <button type="button" data-action="collapse-blocks" title="Collapse the blocks and other composites inside each Product (B)">Collapse blocks</button>
     <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
     <!--
