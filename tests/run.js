@@ -653,6 +653,46 @@ describe("Selection", () => {
   });
 });
 
+describe("Short-tag code lists", () => {
+  test("code lists the hand-kept map used to miss now resolve", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const found = badges(w);
+    for (const label of ["→ Language of text", "→ Norwegian Bokmål", "→ Active",
+                         "→ Proprietary name ID scheme", "→ RRP including tax"]) {
+      assert(found.includes(label), `missing ${label}; got: ${found.join(" | ")}`);
+    }
+  });
+
+  test("the short-tag map is generated, not a hand-kept subset", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const pairs = w.OnixViewerShortTags;
+    assert(pairs && Object.keys(pairs).length > 400,
+      `expected the generated short-tag map, got ${pairs ? Object.keys(pairs).length : 0} pairs`);
+    // Every key is lower-cased, because both lookups use name.toLowerCase().
+    const mixed = Object.keys(pairs).filter((k) => k !== k.toLowerCase());
+    assert(mixed.length === 0, `keys must be lower-cased, found: ${mixed.join(", ")}`);
+    assert(pairs.onixmessage === "ONIXMessage", "the one mixed-case tag must still be reachable");
+  });
+
+  test("every code-list-bound element with a short tag resolves in short dialect", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const pairs = w.OnixViewerShortTags;
+    const reverse = Object.create(null);
+    for (const [short, ref] of Object.entries(pairs)) if (!reverse[ref]) reverse[ref] = short;
+    const unresolved = Object.keys(w.OnixViewerCodeLists)
+      .filter((ref) => reverse[ref] && pairs[reverse[ref]] !== ref);
+    assert(unresolved.length === 0, `unlabelled in short dialect: ${unresolved.join(", ")}`);
+  });
+
+  test("ONIX 2.1-era short tags are still mapped alongside their 3.1 replacements", () => {
+    const w = render("onix-3.0-short.xml");
+    // b005/b332 are absent from the 3.1 schema; b253/b394 are its replacements.
+    assert(w.OnixViewerShortTags.b253 === "LanguageRole", "3.1 tag should come from the schema");
+    assert(w.OnixViewerShortTags.b394 === "PublishingStatus", "3.1 tag should come from the schema");
+    assert(w.OnixViewerShortTags.b005 === undefined, "2.1 tags are not in the generated map");
+  });
+});
+
 describe("Composite summaries", () => {
   test("an identifier composite reads as its resolved type plus value", () => {
     const w = render("onix-3.0-gtin-only.xml");

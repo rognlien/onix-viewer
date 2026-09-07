@@ -32,64 +32,56 @@
   // namespace; ONIX 2.1 short uses <ONIXmessage> with lowercase children.
   // The reliable signal is the namespace URI, which we check first.
 
-  // Map from short tag → reference-name (subset; the full mapping is in
-  // EDItEUR's "Element name aliases" table). Used both for highlighting and
-  // for codelist lookups (so b221 still resolves ProductIDType).
+  // Short tag → reference name. Used both for highlighting and for codelist
+  // lookups, so <b253> still resolves LanguageRole.
+  //
+  // The bulk is GENERATED into onix-codelists.js from EDItEUR's short-tag
+  // schema — all 505 pairs, keys lower-cased. It used to be a hand-kept
+  // subset of ~30 tags, which left 145 of the 157 code-list-bound elements
+  // unlabelled in short-tag documents.
+  //
+  // EXTRA_SHORT_TAGS adds only what that schema can't supply, and
+  // registerAcknowledgementBindings() folds in the Acknowledgement tags.
+  //
   // Both maps are accessed with keys derived from untrusted XML (element /
   // attribute names). Object.create(null) prevents an XML element named e.g.
   // "constructor" or "__proto__" from accidentally resolving to a prototype
   // property and bypassing the falsy-check guards below.
-  const SHORT_TO_REFERENCE = Object.assign(Object.create(null), {
-    "ONIXmessage": "ONIXMessage",
-    "header":      "Header",
-    "product":     "Product",
-    "a001": "RecordReference",
-    "a002": "NotificationType",
+  const EXTRA_SHORT_TAGS = {
+    // ONIX 2.1-era codes, absent from the 3.1 schema. Kept so 2.1 short-tag
+    // documents — which the detector still recognises — keep their labels.
+    // Their 3.1 replacements (b253, x415, b394, x419) come from the schema.
+    "b003": "PublishingStatus",
+    "b005": "LanguageRole",
+    "b056": "EditionType",
+    "b332": "PublishingStatus",
+    "b390": "NameIDType",
+    // Tolerance for feeds that write a data element's reference name in lower
+    // case rather than its short tag. Not conformant, but harmless to accept;
+    // short-tag *composites* are lower-cased reference names already, so the
+    // generated map covers those.
+    "countrycode": "CountryCode",
+    "datevalue": "Date",
+    "editiontype": "EditionType",
+    "extenttype": "ExtentType",
+    "extentunit": "ExtentUnit",
+    "extentvalue": "ExtentValue",
+    "languagecode": "LanguageCode",
+    "languagerole": "LanguageRole",
+    "nameidtype": "NameIDType",
     "notificationtype": "NotificationType",
-    "productidentifier": "ProductIdentifier",
-    "b221": "ProductIDType",
-    "b244": "IDValue",
-    "b012": "ProductForm",
-    "b035": "ContributorRole",
-    "descriptivedetail": "DescriptiveDetail",
-    "titledetail": "TitleDetail",
-    "titleelement": "TitleElement",
+    "personname": "PersonName",
+    "productcomposition": "ProductComposition",
+    "subjectschemeidentifier": "SubjectSchemeIdentifier",
     "titletext": "TitleText",
     "titletype": "TitleType",
-    "b202": "TitleType",
-    "productcomposition": "ProductComposition",
-    "x314": "ProductComposition",
-    "contributor": "Contributor",
-    "personname":  "PersonName",
-    "nameidentifier": "NameIdentifier",
-    "nameidtype": "NameIDType",
-    "b390": "NameIDType",
-    "publishingdetail": "PublishingDetail",
-    "publishingdate":   "PublishingDate",
-    "x448": "PublishingDateRole",
-    "b332": "PublishingStatus",
-    "language":      "Language",
-    "languagerole":  "LanguageRole",
-    "languagecode":  "LanguageCode",
-    "b005": "LanguageRole",
-    "b252": "LanguageCode",
-    "countrycode": "CountryCode",
-    "b251": "CountryCode",
-    "b003": "PublishingStatus",
-    "datevalue": "Date",
-    "b306": "Date",
-    "extent": "Extent",
-    "extenttype": "ExtentType",
-    "b218": "ExtentType",
-    "extentvalue": "ExtentValue",
-    "b219": "ExtentValue",
-    "extentunit": "ExtentUnit",
-    "b220": "ExtentUnit",
-    "subjectschemeidentifier": "SubjectSchemeIdentifier",
-    "b067": "SubjectSchemeIdentifier",
-    "editiontype": "EditionType",
-    "b056": "EditionType",
-  });
+  };
+
+  const SHORT_TO_REFERENCE = Object.assign(
+    Object.create(null),
+    window.OnixViewerShortTags || null,
+    EXTRA_SHORT_TAGS
+  );
 
   // ONIX-defined attribute names → EDItEUR code list number. Derived from
   // the codelist-bound attributes in ONIX_BookProduct_3.1_reference.xsd

@@ -30,7 +30,7 @@ onix-viewer/
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
-│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists (auto-generated, ~195 KB)
+│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~226 KB)
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
 │   └── icons/                      icon-{16,32,48,96,128,256,512}.png from icons/image.png
@@ -44,7 +44,8 @@ onix-viewer/
 │   ├── release.sh                  bumps version, commits, tags
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
-│       └── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
+│       ├── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
+│       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── tests/
 │   ├── run.js                      jsdom harness (84 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
@@ -93,7 +94,7 @@ Signals checked, in order:
 Reference vs. short tag matters because:
 - Reference dialect uses `<ProductIdentifier>`, `<ProductIDType>`, etc.
 - Short dialect uses `<productidentifier>`, `<b221>`, etc.
-- The codelist resolver handles both via a `SHORT_TO_REFERENCE` map in `onix.js`. The map is the most common short tags; extending it is mechanical (mirror the EDItEUR aliases table).
+- The codelist resolver handles both via `SHORT_TO_REFERENCE` in `onix.js`, which is **generated** from EDItEUR's short-tag schema (see below) — all 505 pairs, so every code-list-bound element resolves a label in short dialect. It was previously a hand-kept subset of ~30 tags, which left 145 of the 157 bound elements showing bare codes.
 
 ## Acknowledgement message support
 
@@ -160,19 +161,22 @@ Adding another action is: append a `.px-node-menu-item` with a
 
 ## Codelists — generated from EDItEUR's published JSON
 
-`Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from two committed inputs:
+`Resources/onix-codelists.js` is **auto-generated** by `tools/generate-codelists.js` from three committed inputs:
 
 - `tools/data/onix-codelists.json` — EDItEUR's published codelists JSON (currently **Issue 74**, 2026-07-22). Authoritative source of (list number, code, label).
 - `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, used **only** for element-name → list-number bindings (those rarely change between minor issues).
+- `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, used **only** for short-tag → reference-name pairs. Each element there is declared under its short tag and names its reference form as the sole `refname` enumeration, e.g. `<xs:element name="b253">` → `LanguageRole`.
 
-Both inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs) and 158 element bindings — about 195 KB unminified, ~53 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
+All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 505 short-tag pairs — about 226 KB unminified, ~57 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
+
+Short-tag keys are emitted **lower-cased**, because every consumer looks a tag up as `name.toLowerCase()` — the schema's one mixed-case tag, `ONIXmessage`, would otherwise be unreachable. `onix.js` layers two things on top of the generated map: `EXTRA_SHORT_TAGS` (ONIX 2.1-era codes such as `b005`/`b332` that the 3.1 schema doesn't contain, kept because the detector still recognises 2.1 documents, plus tolerance for feeds that lower-case a data element's reference name) and the Acknowledgement tags from `registerAcknowledgementBindings()`.
 
 ```bash
-node tools/generate-codelists.js                          # default paths
-node tools/generate-codelists.js --json=PATH --xsd=PATH   # override
+node tools/generate-codelists.js                                  # default paths
+node tools/generate-codelists.js --json=PATH --xsd=PATH --short-xsd=PATH
 ```
 
-The generator also writes `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "EDItEUR ONIX 3.1, Issue 74" as a toolbar pill so users can see at a glance which schema version they're looking at.
+The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "EDItEUR ONIX 3.1, Issue 74" as a toolbar pill so users can see at a glance which schema version they're looking at.
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
@@ -189,6 +193,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
+- `window.OnixViewerShortTags` — generated short-tag → reference-name pairs (lower-cased keys); `onix.js` builds `SHORT_TO_REFERENCE` from it
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
 - `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
@@ -254,6 +259,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `rss.xml` | Non-ONIX XML doesn't get misidentified as ONIX |
 | `onix-3.0-reference.xml` | Reference dialect: codelist resolution, tag classes, Product auto-collapse, summaries |
 | `onix-3.0-short.xml` | Short-tag dialect: detection, styling, `SHORT_TO_REFERENCE` map |
+| `onix-3.0-short-codelists.xml` | Short-tag code lists that the old hand-kept map missed (`b253`, `b252`, `x415`, `b394`, `x462`), and the `<price>` chip in short dialect |
 | `onix-3.1-standalone-product.xml` | Document root is `<Product>` (no `<ONIXMessage>` envelope) |
 | `onix-3.0-multi-title.xml` | Multiple `<TitleDetail>` blocks → summary picks `<TitleType>01</TitleType>` |
 | `onix-3.0-gtin-only.xml` | Identifier preference order: GTIN-13 wins when ISBN-13 absent |

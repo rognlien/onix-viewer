@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Short dialect, code lists that the hand-kept short-tag map used to miss:
+     b253 (LanguageRole), b252 (LanguageCode), x415 (NameIDType),
+     b394 (PublishingStatus), x462 (PriceType). Also covers the <price>
+     composite summary in short dialect. -->
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">
+  <product>
+    <a001>short-codelists-1</a001>
+    <a002>03</a002>
+    <productidentifier>
+      <b221>15</b221>
+      <b244>9788234567892</b244>
+    </productidentifier>
+    <descriptivedetail>
+      <b012>BC</b012>
+      <language>
+        <b253>01</b253>
+        <b252>nob</b252>
+      </language>
+      <contributor>
+        <b035>A01</b035>
+        <b036>Kari Nordmann</b036>
+        <nameidentifier>
+          <x415>01</x415>
+          <b244>kari-1</b244>
+        </nameidentifier>
+      </contributor>
+    </descriptivedetail>
+    <publishingdetail>
+      <b394>04</b394>
+    </publishingdetail>
+    <productsupply>
+      <supplydetail>
+        <price>
+          <x462>02</x462>
+          <j151>399.00</j151>
+          <j152>NOK</j152>
+        </price>
+      </supplydetail>
+    </productsupply>
+  </product>
+</ONIXMessage>
