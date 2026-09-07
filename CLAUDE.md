@@ -48,7 +48,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (113 tests, ~1s)
+│   ├── run.js                      jsdom harness (117 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -135,13 +135,21 @@ Rules:
 
 Lookups intentionally restrict to direct children of the right composite. A free DFS would happily pick the title or ISBN of a `<RelatedProduct>` inside `<RelatedMaterial>`, which is exactly the bug the older implementation had.
 
-## Dialect toggle (reference names ↔ short tags)
+## Dialect switch (reference names ↔ short tags)
 
-A toolbar pair — **Ref** / **Short**, shortcut `t` — switches which dialect's
-element names the tree displays. It's a display switch, not a conversion: the
-parsed document is untouched, so code-list badges, summaries, block numbers
-and "Copy node XML" all keep working from the source and the copy stays
-faithful to the file on disk.
+EDItEUR's own terms, from the schema headers ("REFERENCE TAG VERSION" /
+"SHORT TAG VERSION") and the `refname` / `shortname` attributes every element
+declares: **reference names** and **short tags**.
+
+One toolbar switch, shortcut `t`. Its label is written by `viewer.js` — which
+knows the document's dialect — and names the *translation*, never the current
+state: **View as reference names** over a short-tag file, **View as short
+tags** over a reference file. The label doesn't flip when pressed, so the
+document's own dialect is always the unpressed state and the reader can't lose
+track of what they opened. `aria-pressed` means "you are looking at the
+translation". The toolbar meta pill states the source dialect outright
+(`ONIX 3.1 short tags (1 product)`) and describes the file, so it doesn't
+change when the view does.
 
 `translatedName(nodeName, targetDialect)` in `onix.js` does the lookup, in both
 directions. Short → reference reads `SHORT_TO_REFERENCE`; reference → short
@@ -152,17 +160,28 @@ ambiguous. The generated map is one-to-one, so the reverse is exact. Reverse
 lookups go through `SHORT_SPELLINGS` to restore `<ONIXmessage>`, the one short
 tag that isn't all lower case (generated keys are lower-cased for lookup).
 
-Switching is a **textContent swap, not a re-render**: at render time
-`markTranslatable()` stashes the counterpart spelling on the tag span as
-`data-oxv-alt`, and `applyDialect()` swaps the two. That keeps fold state,
-search matches and the active row alive, and costs nothing on a large feed.
-Spans with no translation (unknown or extension elements — including the
-XHTML `<p>`/`<em>` inside `textformat="05"` content) simply carry no
-`data-oxv-alt` and keep their name in both views. The `px-onix-short` /
-`px-onix-ref` classes are swapped alongside, so translated names don't keep
-the other dialect's italics.
+Switching **rewrites the names in place, never re-renders**, so fold state,
+search matches and the active row all survive. Two things keep it cheap on a
+large feed, both of which matter at ~700k tag spans:
 
-The choice persists in `localStorage` under `oxv-dialect`; the toggle is
+1. **The tree is built in the displayed dialect.** `preferredDialect()` reads
+   the stored preference *before* `renderNode()`, and `displayedTagName()`
+   translates as each tag is written. A reader whose preference differs from
+   the document pays no rewrite at load — earlier this rendered the source
+   dialect and then immediately rewrote every span.
+2. **Nothing is stored per span.** `applyDialect()` re-derives each name from
+   the one on screen via `translatedName()`, finding them by the
+   `px-tag-name` class. There is no counterpart attribute — which would be
+   one extra DOM attribute per tag span — and because `translatedName()`
+   returns null for a name already in the target dialect, repeating a switch
+   is harmless.
+
+Names with no translation (unknown or extension elements — including the XHTML
+`<p>`/`<em>` inside `textformat="05"` content) are left as they are. The
+`px-onix-short` / `px-onix-ref` classes follow the displayed dialect, so
+translated names don't keep the other dialect's italics.
+
+The choice persists in `localStorage` under `oxv-dialect`; the switch is
 hidden (`body.px-no-dialect-toggle`) for non-ONIX documents and for ONIX with
 no detected dialect, where there is nothing to translate between.
 
@@ -261,7 +280,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`)
 - `data-oxv` — data attribute on the replaced `<html>`
-- `data-oxv-alt` — the counterpart-dialect spelling stashed on a tag span for the Ref / Short toggle
+- `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-*` — CSS class prefix (kept short; ubiquitous in viewer.js)
 
 The `px-` CSS prefix was retained from the rename because changing it would touch every line of `viewer.js` that builds DOM.
@@ -283,7 +302,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 113-test jsdom suite (~1s)
+npm test        # runs the 117-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

@@ -107,7 +107,7 @@
   // ---- render ---------------------------------------------------------------
 
   sourceDialect = onixCtx.dialect;
-  displayDialect = sourceDialect;
+  displayDialect = preferredDialect();
 
   // Render is iterative-via-recursion; XML trees are rarely deep enough to
   // overflow the JS stack (the standard browser limit is ~10k frames).
@@ -137,7 +137,8 @@
       metaText = `ONIX Acknowledgement${versionPart} (${recordsLabel}) · ` + metaText;
     } else {
       const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
-      metaText = `ONIX${versionPart} (${productsLabel}) · ` + metaText;
+      const dialectPart = onixCtx.dialect ? ` ${dialectLabel(onixCtx.dialect)}` : "";
+      metaText = `ONIX${versionPart}${dialectPart} (${productsLabel}) · ` + metaText;
     }
     // Auto-collapse Product blocks for big ONIX feeds — otherwise scrolling
     // through 50,000 products is hostile.
@@ -325,12 +326,10 @@
 
       const closeInline = document.createElement("span");
       closeInline.className = "px-tag px-fold-close";
-      if (window.OnixViewerOnix) {
-        const extra = window.OnixViewerOnix.tagClass(el, onixCtx);
-        if (extra) closeInline.classList.add(extra);
-      }
-      closeInline.textContent = `</${el.nodeName}>`;
-      markTranslatable(closeInline, el.nodeName, (n) => `</${n}>`);
+      const foldDialectClass = displayedTagClass();
+      if (foldDialectClass) closeInline.classList.add(foldDialectClass);
+      closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
+      closeInline.classList.add("px-tag-name");
       row.appendChild(closeInline);
 
       // "Block N" badge on ONIX 3.x block elements, visible folded or not.
@@ -382,13 +381,10 @@
     row.appendChild(lt);
 
     const name = document.createElement("span");
-    name.className = "px-tag";
-    if (window.OnixViewerOnix) {
-      const extra = window.OnixViewerOnix.tagClass(el, onixCtx);
-      if (extra) name.classList.add(extra);
-    }
-    name.textContent = el.nodeName; // preserve original case
-    markTranslatable(name, el.nodeName);
+    name.className = "px-tag px-tag-name";
+    const dialectClass = displayedTagClass();
+    if (dialectClass) name.classList.add(dialectClass);
+    name.textContent = displayedTagName(el.nodeName);
     row.appendChild(name);
 
     for (const attr of el.attributes) {
@@ -436,57 +432,94 @@
 
   function writeCloseTag(row, el) {
     const close = document.createElement("span");
-    close.className = "px-tag";
-    if (window.OnixViewerOnix) {
-      const extra = window.OnixViewerOnix.tagClass(el, onixCtx);
-      if (extra) close.classList.add(extra);
-    }
-    close.textContent = `</${el.nodeName}>`;
-    markTranslatable(close, el.nodeName, (n) => `</${n}>`);
+    close.className = "px-tag px-tag-name";
+    const dialectClass = displayedTagClass();
+    if (dialectClass) close.classList.add(dialectClass);
+    close.textContent = `</${displayedTagName(el.nodeName)}>`;
     row.appendChild(close);
   }
 
   // ---- dialect toggle (reference names ↔ short tags) ------------------------
 
-  // Stash the same tag written in the other dialect on the span itself, so
-  // switching is a textContent swap rather than a re-render — fold state,
-  // search matches and the active row all survive. Spans with no translation
-  // (unknown or extension elements) simply keep their name in both views.
-  function markTranslatable(span, nodeName, wrap) {
-    if (!window.OnixViewerOnix || !onixCtx.isOnix) return;
-    const other = window.OnixViewerOnix.translatedName(nodeName, otherDialect(sourceDialect));
-    if (!other) return;
-    span.dataset.oxvAlt = wrap ? wrap(other) : other;
+  // The tree is built in the dialect currently on display, so a reader whose
+  // stored preference differs from the document pays no rewrite at load. Names
+  // with no translation render as they are.
+  function displayedTagName(nodeName) {
+    let name = nodeName;
+    if (translating()) {
+      name = window.OnixViewerOnix.translatedName(nodeName, displayDialect) || nodeName;
+    }
+    return name;
+  }
+
+  // Short tags render italic, reference names don't, so the class follows the
+  // displayed dialect rather than the document's own.
+  function displayedTagClass() {
+    let className = "";
+    if (onixCtx.isOnix) {
+      className = displayDialect === "short" ? "px-onix-short" : "px-onix-ref";
+    }
+    return className;
   }
 
   function otherDialect(dialect) {
     return dialect === "short" ? "reference" : "short";
   }
 
+  function preferredDialect() {
+    let preferred = onixCtx.dialect;
+    if (onixCtx.isOnix && onixCtx.dialect) {
+      let stored = null;
+      try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); } catch (_) {}
+      if (stored === "reference" || stored === "short") preferred = stored;
+    }
+    return preferred;
+  }
+
   // Hidden unless the document is ONIX in a known dialect — there's nothing
-  // to translate between otherwise.
+  // to translate between otherwise. The tree is already rendered in the
+  // preferred dialect by this point, so there is nothing to rewrite: this
+  // only lights up the right button.
   function setupDialectToggle() {
     if (!onixCtx.isOnix || !sourceDialect) {
       document.body.classList.add("px-no-dialect-toggle");
       return;
     }
-    let stored = null;
-    try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); } catch (_) {}
-    applyDialect(stored === "reference" || stored === "short" ? stored : sourceDialect,
-      { persist: false });
+    // The label names the translation and never changes, so the document's
+    // own dialect is always the unpressed state: "View as reference names"
+    // can only appear over a short-tag file.
+    const button = document.querySelector('#oxv-toolbar [data-action="dialect-toggle"]');
+    if (button) {
+      const target = dialectLabel(otherDialect(sourceDialect));
+      button.textContent = `View as ${target}`;
+      button.title = `Show this ${dialectLabel(sourceDialect)} document as ${target} (T). ` +
+        "Copying follows the view.";
+    }
+    markPressedDialect();
   }
 
-  function applyDialect(target, opts) {
+  // EDItEUR's own terms: the schemas are the "reference tag version" and the
+  // "short tag version", and every element declares a refname and a shortname.
+  function dialectLabel(dialect) {
+    return dialect === "short" ? "short tags" : "reference names";
+  }
+
+  function applyDialect(target) {
     if (target !== "reference" && target !== "short") return;
     if (!onixCtx.isOnix || !sourceDialect) return;
 
     if (target !== displayDialect) {
-      // Pure swap: the span holds one spelling and its counterpart, so
-      // flipping between exactly two states needs no re-render.
-      for (const span of root.querySelectorAll("[data-oxv-alt]")) {
-        const alternate = span.dataset.oxvAlt;
-        span.dataset.oxvAlt = span.textContent;
-        span.textContent = alternate;
+      // Each name is re-derived from the one on screen rather than from a
+      // counterpart stashed per span — nothing to store, and translatedName
+      // returns null for a name already in the target dialect, so repeating a
+      // switch is harmless.
+      const translate = window.OnixViewerOnix.translatedName;
+      for (const span of root.querySelectorAll(".px-tag-name")) {
+        const text = span.textContent;
+        const closing = text.startsWith("</");
+        const current = closing ? text.slice(2, -1) : text;
+        const translated = translate(current, target);
+        if (translated) span.textContent = closing ? `</${translated}>` : translated;
         // Short tags render italic, reference names don't — follow the names.
         if (span.classList.contains("px-onix-short") || span.classList.contains("px-onix-ref")) {
           span.classList.toggle("px-onix-short", target === "short");
@@ -494,15 +527,16 @@
         }
       }
       displayDialect = target;
-    }
-
-    for (const button of document.querySelectorAll('#oxv-toolbar [data-action^="dialect-"]')) {
-      const isActive = button.dataset.action === `dialect-${displayDialect}`;
-      button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    }
-    if (!opts || opts.persist !== false) {
       try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); } catch (_) {}
     }
+
+    markPressedDialect();
+  }
+
+  // Pressed means "you are looking at the translation", not the source.
+  function markPressedDialect() {
+    const button = document.querySelector('#oxv-toolbar [data-action="dialect-toggle"]');
+    if (button) button.setAttribute("aria-pressed", displayDialect === sourceDialect ? "false" : "true");
   }
 
   function buildListLink(resolved) {
@@ -586,11 +620,8 @@
         case "collapse-blocks":
           collapseBlocks();
           break;
-        case "dialect-reference":
-          applyDialect("reference");
-          break;
-        case "dialect-short":
-          applyDialect("short");
+        case "dialect-toggle":
+          applyDialect(otherDialect(displayDialect));
           break;
         case "toggle-attrs": {
           const on = document.body.classList.toggle("px-no-attrs");

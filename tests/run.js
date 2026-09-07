@@ -54,13 +54,16 @@ function assert(cond, msg) {
 
 // ---- harness: render a fixture and return the jsdom window -----------------
 
-function render(fixtureName) {
-  return renderSource(fs.readFileSync(path.join(FIXTURES, fixtureName), "utf8"), fixtureName);
+function render(fixtureName, beforeScripts) {
+  return renderSource(fs.readFileSync(path.join(FIXTURES, fixtureName), "utf8"), fixtureName, beforeScripts);
 }
 
 // Render arbitrary XML — used by the fixtures above and by the conversion
 // tests, which read their input from Onix/ rather than tests/fixtures/.
-function renderSource(xml, label) {
+// `beforeScripts(window)` runs after the shell exists but before the viewer
+// scripts execute, so a test can seed localStorage the way a returning reader
+// would have it.
+function renderSource(xml, label, beforeScripts) {
   const fixtureName = label || "inline.xml";
 
   const html = `<!doctype html><html><head><style>${viewerCss}</style></head>
@@ -72,8 +75,7 @@ function renderSource(xml, label) {
     <button data-action="toggle-wrap"></button>
     <button data-action="copy-xml"></button>
     <span class="px-dialect-group">
-      <button data-action="dialect-reference" aria-pressed="false"></button>
-      <button data-action="dialect-short" aria-pressed="false"></button>
+      <button data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
     <span class="px-view-group">
       <button data-action="view-xml"></button>
@@ -106,6 +108,7 @@ function renderSource(xml, label) {
   });
   const { window } = dom;
   window.__OXV_SOURCE__ = xml;
+  if (beforeScripts) beforeScripts(window);
 
   window.eval(codelistsJs);
   window.eval(onixJs);
@@ -191,7 +194,7 @@ describe("Generic XML", () => {
 describe("ONIX 3.0 reference", () => {
   test("detects dialect and version", () => {
     const w = render("onix-3.0-reference.xml");
-    assert(/^ONIX 3\.0 \(\d+ products?\)/.test(meta(w)), `bad meta: ${meta(w)}`);
+    assert(/^ONIX 3\.0 reference names \(\d+ products?\)/.test(meta(w)), `bad meta: ${meta(w)}`);
   });
 
   test("classifies tag spans with px-onix-ref", () => {
@@ -329,7 +332,7 @@ describe("ONIX 3.0 reference", () => {
 describe("ONIX 3.0 short-tag", () => {
   test("detects dialect", () => {
     const w = render("onix-3.0-short.xml");
-    assert(/^ONIX 3\.0 \(\d+ products?\)/.test(meta(w)), `bad meta: ${meta(w)}`);
+    assert(/^ONIX 3\.0 short tags \(\d+ products?\)/.test(meta(w)), `bad meta: ${meta(w)}`);
   });
 
   test("classifies tag spans with px-onix-short", () => {
@@ -391,7 +394,7 @@ describe("Standalone Product without namespace", () => {
   test("detects a bare <Product> root as ONIX (no envelope, no namespace)", () => {
     const w = render("onix-standalone-product-no-namespace.xml");
     // Version is unknown without a namespace, so the label omits it.
-    assert(/^ONIX \(1 product\)/.test(meta(w)), `bad meta: ${meta(w)}`);
+    assert(/^ONIX reference names \(1 product\)/.test(meta(w)), `bad meta: ${meta(w)}`);
   });
 
   test("resolves codelists on the un-namespaced Product (ProductForm BB → Hardback)", () => {
@@ -705,8 +708,8 @@ describe("Short-tag code lists", () => {
 
 describe("Copying the displayed dialect", () => {
   const fs2 = require("fs");
-  function press(window, dialect) {
-    window.document.querySelector(`[data-action="dialect-${dialect}"]`).click();
+  function flip(window) {
+    window.document.querySelector('[data-action="dialect-toggle"]').click();
   }
   function copyAll(window) {
     const copied = stubClipboard(window);
@@ -725,7 +728,7 @@ describe("Copying the displayed dialect", () => {
 
   test("translated, Copy XML hands over the converted document", () => {
     const w = render("onix-3.0-short-codelists.xml");
-    press(w, "reference");
+    flip(w);
     const xml = copyAll(w).text;
     assert(xml.includes("<ProductIdentifier>"), `expected reference names, got: ${xml.slice(0, 200)}`);
     assert(xml.includes("<LanguageRole>01</LanguageRole>"), "data elements should translate too");
@@ -739,7 +742,7 @@ describe("Copying the displayed dialect", () => {
 
   test("translated, Copy node XML hands over the converted subtree", () => {
     const w = render("onix-3.0-short-codelists.xml");
-    press(w, "reference");
+    flip(w);
     const row = rowsNamed(w, "ProductIdentifier")[0];
     const copied = stubClipboard(w);
     row.querySelector(".px-node-menu-btn").click();
@@ -755,7 +758,7 @@ describe("Copying the displayed dialect", () => {
     const shortFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-shorttags.xml"), "utf8");
     const referenceFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-refnames.xml"), "utf8");
     const w = renderSource(shortFile);
-    press(w, "reference");
+    flip(w);
     const converted = copyAll(w).text;
     const produced = elementNames(converted);
     const expected = elementNames(referenceFile);
@@ -773,7 +776,7 @@ describe("Copying the displayed dialect", () => {
     const shortFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-shorttags.xml"), "utf8");
     const referenceFile = fs2.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-refnames.xml"), "utf8");
     const w = renderSource(referenceFile);
-    press(w, "short");
+    flip(w);
     const converted = copyAll(w).text;
     const produced = elementNames(converted);
     const expected = elementNames(shortFile);
@@ -789,47 +792,69 @@ describe("Copying the displayed dialect", () => {
   test("returning to the source dialect hands back the untouched source", () => {
     const w = render("onix-3.0-short-codelists.xml");
     const source = fs2.readFileSync(path.join(FIXTURES, "onix-3.0-short-codelists.xml"), "utf8");
-    press(w, "reference");
-    press(w, "short");
+    flip(w);
+    flip(w);
     assert(copyAll(w).text === source, "back at the source dialect, the copy is the file itself");
   });
 });
 
 describe("Dialect toggle", () => {
-  function press(window, dialect) {
-    window.document.querySelector(`[data-action="dialect-${dialect}"]`).click();
+  function switchButton(window) {
+    return window.document.querySelector('[data-action="dialect-toggle"]');
   }
-  function pressedState(window) {
-    return ["reference", "short"].filter((d) =>
-      window.document.querySelector(`[data-action="dialect-${d}"]`).getAttribute("aria-pressed") === "true");
+  function flip(window) {
+    switchButton(window).click();
+  }
+  // Pressed means "showing the translation", so the source view is unpressed.
+  function showingTranslation(window) {
+    return switchButton(window).getAttribute("aria-pressed") === "true";
   }
 
   test("a short-tag document can be read with reference names", () => {
     const w = render("onix-3.0-short-codelists.xml");
     assert(rowsNamed(w, "productidentifier").length === 1, "should start in short tags");
-    press(w, "reference");
+    flip(w);
     assert(rowsNamed(w, "ProductIdentifier").length === 1, "composite should read as reference");
     assert(rowsNamed(w, "LanguageRole").length === 1, "b253 should read as LanguageRole");
     assert(rowsNamed(w, "productidentifier").length === 0, "short spelling should be gone");
-    press(w, "short");
+    flip(w);
     assert(rowsNamed(w, "productidentifier").length === 1, "and back again");
     assert(rowsNamed(w, "b253").length === 1, "data element back to its short tag");
   });
 
   test("a reference document can be read with short tags", () => {
     const w = render("onix-3.0-reference.xml");
-    press(w, "short");
+    flip(w);
     assert(rowsNamed(w, "productidentifier").length >= 1, "composite should read as short");
     assert(rowsNamed(w, "b221").length >= 1, "ProductIDType should read as b221");
     // The message root is the one short tag that isn't all lower case.
     assert(rowsNamed(w, "ONIXmessage").length === 1, "root should be <ONIXmessage>, not <onixmessage>");
   });
 
-  test("only one side of the toggle is pressed, and it starts on the source dialect", () => {
+  test("the switch names the translation, so the source dialect is the unpressed state", () => {
+    const shortDoc = render("onix-3.0-short-codelists.xml");
+    assert(switchButton(shortDoc).textContent === "View as reference names",
+      `got: ${switchButton(shortDoc).textContent}`);
+    assert(!showingTranslation(shortDoc), "a freshly opened document shows itself");
+    flip(shortDoc);
+    assert(showingTranslation(shortDoc), "pressed once you are reading the translation");
+    assert(switchButton(shortDoc).textContent === "View as reference names",
+      "the label is anchored to the source and must not flip");
+    flip(shortDoc);
+    assert(!showingTranslation(shortDoc), "and unpressed back at the source");
+
+    const referenceDoc = render("onix-3.0-reference.xml");
+    assert(switchButton(referenceDoc).textContent === "View as short tags",
+      `got: ${switchButton(referenceDoc).textContent}`);
+  });
+
+  test("the meta pill states which dialect the document is written in", () => {
+    assert(meta(render("onix-3.0-short-codelists.xml")).includes("short tags"), "short document");
+    assert(meta(render("onix-3.0-reference.xml")).includes("reference names"), "reference document");
     const w = render("onix-3.0-short-codelists.xml");
-    assert(pressedState(w).join() === "short", `got: ${pressedState(w).join()}`);
-    press(w, "reference");
-    assert(pressedState(w).join() === "reference", `got: ${pressedState(w).join()}`);
+    flip(w);
+    assert(meta(w).includes("short tags"),
+      "the pill describes the file, so translating must not change it");
   });
 
   test("switching keeps fold state, code-list badges and summaries intact", () => {
@@ -837,7 +862,7 @@ describe("Dialect toggle", () => {
     const before = badges(w).join("|");
     const product = rowsNamed(w, "product")[0];
     product.classList.add("px-folded");
-    press(w, "reference");
+    flip(w);
     assert(rowsNamed(w, "Product")[0].classList.contains("px-folded"),
       "the folded row should still be folded after switching");
     assert(badges(w).join("|") === before, "code-list labels come from the parsed document, not the display");
@@ -847,7 +872,7 @@ describe("Dialect toggle", () => {
   test("translated names follow the dialect styling", () => {
     const w = render("onix-3.0-short-codelists.xml");
     assert($$(w, "#oxv-root .px-onix-short").length > 0, "short tags start italic");
-    press(w, "reference");
+    flip(w);
     assert($$(w, "#oxv-root .px-onix-short").length === 0, "reference names are not italic");
     assert($$(w, "#oxv-root .px-onix-ref").length > 0, "and carry the reference class");
   });
@@ -868,6 +893,31 @@ describe("Dialect toggle", () => {
     assert(checked > 400, `expected the full map, checked ${checked}`);
   });
 
+  test("a stored preference renders straight into that dialect, with no rewrite pass", () => {
+    const w = render("onix-3.0-short-codelists.xml",
+      (window) => window.localStorage.setItem("oxv-dialect", "reference"));
+    assert(rowsNamed(w, "ProductIdentifier").length === 1,
+      "the tree should be built in the preferred dialect, not swapped afterwards");
+    assert(rowsNamed(w, "productidentifier").length === 0, "no short spellings should have been rendered");
+    assert(showingTranslation(w), "and the switch should show that this is the translation");
+    assert($$(w, "#oxv-root .px-onix-short").length === 0, "styling should match the displayed dialect");
+  });
+
+  test("no counterpart spelling is stored per span", () => {
+    // ~700k DOM attributes on a large feed if it were; names are re-derived.
+    const w = render("onix-3.0-short-codelists.xml");
+    assert($$(w, "#oxv-root [data-oxv-alt]").length === 0, "tag spans should carry no stored alternate");
+    assert($$(w, "#oxv-root .px-tag-name").length > 0, "name spans should be marked for the toggle");
+  });
+
+  test("flipping back and forth is lossless", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const before = $$(w, "#oxv-root .px-tag-name").map((span) => span.textContent).join("|");
+    for (let i = 0; i < 3; i++) { flip(w); flip(w); }
+    assert($$(w, "#oxv-root .px-tag-name").map((span) => span.textContent).join("|") === before,
+      "three round trips must leave every name exactly as it started");
+  });
+
   test("unknown elements keep their name, and non-ONIX documents hide the toggle", () => {
     const w = render("onix-3.0-short-codelists.xml");
     const translate = w.OnixViewerOnix.translatedName;
@@ -882,13 +932,13 @@ describe("Dialect toggle", () => {
 describe("Short-tag message root", () => {
   test("<ONIXmessage> is the short-tag root, so a namespaced short feed is detected", () => {
     const w = render("onix-3.0-short-codelists.xml");
-    assert(meta(w).startsWith("ONIX 3.0 (1 product)"), `got: ${meta(w)}`);
+    assert(meta(w).startsWith("ONIX 3.0 short tags (1 product)"), `got: ${meta(w)}`);
     assert($$(w, "#oxv-root .px-onix-short").length > 0, "short-tag rows should carry .px-onix-short");
   });
 
   test("a namespace-less <ONIXmessage> is read as short dialect at its release version", () => {
     const w = render("onix-short-no-namespace.xml");
-    assert(meta(w).startsWith("ONIX 3.1 (1 product)"),
+    assert(meta(w).startsWith("ONIX 3.1 short tags (1 product)"),
       `release attribute should give the version; got: ${meta(w)}`);
     assert($$(w, "#oxv-root .px-onix-short").length > 0,
       "the root's spelling alone should select the short dialect");

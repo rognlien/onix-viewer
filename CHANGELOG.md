@@ -6,21 +6,26 @@ the main branch.
 ## Unreleased
 
 ### Added
-- **Read either dialect.** A toolbar toggle — **Ref** / **Short**, shortcut
-  `t` — switches the element names the tree displays between reference names
-  and short tags, in either direction: a short-tag feed can be read as
-  `<LanguageRole>` and a reference feed as `<b253>`. The translation is exact
-  and lossless, because the map behind it is generated from EDItEUR's own
-  schemas and is one-to-one; verified against a real record supplied in both
-  dialects, where translating the short-tag file reproduces every one of the
-  160 element names in the reference file.
+- **Read either dialect.** ONIX comes in two: reference names
+  (`<LanguageRole>`) and short tags (`<b253>`). A toolbar switch (shortcut
+  `t`) shows the document as the other one, in either direction. It's
+  labelled after the translation and never relabels — **View as reference
+  names** can only appear over a short-tag file — so the dialect you actually
+  opened stays obvious, and the toolbar now names it outright
+  (`ONIX 3.1 short tags (1 product)`).
 
-  Switching swaps the rendered names in place rather than re-rendering, so
-  fold state and search results survive. Elements with no translation —
-  including the XHTML inside `textformat="05"` content — keep their names, and
-  code-list labels, summaries and block numbers are unaffected because they
-  are read from the parsed document. The choice is remembered between
-  documents.
+  The translation is exact and lossless, because the map behind it is
+  generated from EDItEUR's own schemas and is one-to-one; verified against a
+  real record supplied in both dialects, where translating the short-tag file
+  reproduces every one of the 160 element names in the reference file.
+
+  Names are rewritten in place rather than re-rendered, so fold state and
+  search results survive; the tree is built in the preferred dialect from the
+  start, so a remembered preference costs nothing at load. Elements with no
+  translation — including the XHTML inside `textformat="05"` content — keep
+  their names, and code-list labels, summaries and block numbers are
+  unaffected because they are read from the parsed document. The choice is
+  remembered between documents.
 - **Copying follows the display.** While translated, **Copy XML** hands over
   the converted document and **Copy node XML** the converted subtree — with
   the EDItEUR namespace switched to match, since element names alone would
