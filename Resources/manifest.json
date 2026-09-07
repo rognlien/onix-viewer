@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ONIX Viewer",
-  "version": "0.9.14",
+  "version": "0.9.15",
   "description": "Readable ONIX XML in Chrome: collapsible tree, syntax highlighting, product summaries and inline EDItEUR code-list labels.",
 
   "icons": {
