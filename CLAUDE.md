@@ -47,7 +47,7 @@ onix-viewer/
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── tests/
-│   ├── run.js                      jsdom harness (100 tests, ~1s)
+│   ├── run.js                      jsdom harness (107 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -134,6 +134,37 @@ Rules:
 
 Lookups intentionally restrict to direct children of the right composite. A free DFS would happily pick the title or ISBN of a `<RelatedProduct>` inside `<RelatedMaterial>`, which is exactly the bug the older implementation had.
 
+## Dialect toggle (reference names ↔ short tags)
+
+A toolbar pair — **Ref** / **Short**, shortcut `t` — switches which dialect's
+element names the tree displays. It's a display switch, not a conversion: the
+parsed document is untouched, so code-list badges, summaries, block numbers
+and "Copy node XML" all keep working from the source and the copy stays
+faithful to the file on disk.
+
+`translatedName(nodeName, targetDialect)` in `onix.js` does the lookup, in both
+directions. Short → reference reads `SHORT_TO_REFERENCE`; reference → short
+reads `REFERENCE_TO_SHORT`, a reverse index built **only** from the generated
+map, never from `EXTRA_SHORT_TAGS` — those point several keys at one reference
+name (`b005` and `b253` are both `LanguageRole`), which would make the reverse
+ambiguous. The generated map is one-to-one, so the reverse is exact. Reverse
+lookups go through `SHORT_SPELLINGS` to restore `<ONIXmessage>`, the one short
+tag that isn't all lower case (generated keys are lower-cased for lookup).
+
+Switching is a **textContent swap, not a re-render**: at render time
+`markTranslatable()` stashes the counterpart spelling on the tag span as
+`data-oxv-alt`, and `applyDialect()` swaps the two. That keeps fold state,
+search matches and the active row alive, and costs nothing on a large feed.
+Spans with no translation (unknown or extension elements — including the
+XHTML `<p>`/`<em>` inside `textformat="05"` content) simply carry no
+`data-oxv-alt` and keep their name in both views. The `px-onix-short` /
+`px-onix-ref` classes are swapped alongside, so translated names don't keep
+the other dialect's italics.
+
+The choice persists in `localStorage` under `oxv-dialect`; the toggle is
+hidden (`body.px-no-dialect-toggle`) for non-ONIX documents and for ONIX with
+no detected dialect, where there is nothing to translate between.
+
 ## Per-node menu ("Copy node XML")
 
 Every element row (open row, leaf row, self-closing row) gets a `⋮` button
@@ -189,7 +220,7 @@ Two features are bundled and tested but hidden from the UI while the simpler tre
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, codelistMeta, externalLinkIcon, blockNumber, isProductElement, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, codelistMeta, externalLinkIcon, blockNumber, isProductElement, singleProductBlocks, blockNames)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
@@ -200,6 +231,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`)
 - `data-oxv` — data attribute on the replaced `<html>`
+- `data-oxv-alt` — the counterpart-dialect spelling stashed on a tag span for the Ref / Short toggle
 - `px-*` — CSS class prefix (kept short; ubiquitous in viewer.js)
 
 The `px-` CSS prefix was retained from the rename because changing it would touch every line of `viewer.js` that builds DOM.
@@ -221,7 +253,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 100-test jsdom suite (~1s)
+npm test        # runs the 107-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

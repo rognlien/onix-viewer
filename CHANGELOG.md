@@ -5,6 +5,23 @@ the main branch.
 
 ## Unreleased
 
+### Added
+- **Read either dialect.** A toolbar toggle — **Ref** / **Short**, shortcut
+  `t` — switches the element names the tree displays between reference names
+  and short tags, in either direction: a short-tag feed can be read as
+  `<LanguageRole>` and a reference feed as `<b253>`. The translation is exact
+  and lossless, because the map behind it is generated from EDItEUR's own
+  schemas and is one-to-one; verified against a real record supplied in both
+  dialects, where translating the short-tag file reproduces every one of the
+  160 element names in the reference file.
+
+  It's a display switch, not a conversion: the parsed document is untouched,
+  so code-list labels, summaries and **Copy node XML** keep reporting the file
+  as it actually is. Switching swaps the rendered names in place rather than
+  re-rendering, so fold state and search results survive. Elements with no
+  translation — including the XHTML inside `textformat="05"` content — keep
+  their names. The choice is remembered between documents.
+
 ### Fixed
 - **Short-tag documents now resolve every code-list label.** The short-tag →
   reference-name map was a hand-kept subset of about thirty tags, so only 12

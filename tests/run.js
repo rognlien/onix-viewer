@@ -65,6 +65,10 @@ function render(fixtureName) {
     <button data-action="collapse-blocks"></button>
     <button data-action="toggle-wrap"></button>
     <button data-action="copy-xml"></button>
+    <span class="px-dialect-group">
+      <button data-action="dialect-reference" aria-pressed="false"></button>
+      <button data-action="dialect-short" aria-pressed="false"></button>
+    </span>
     <span class="px-view-group">
       <button data-action="view-xml"></button>
       <button data-action="view-split"></button>
@@ -690,6 +694,90 @@ describe("Short-tag code lists", () => {
     assert(w.OnixViewerShortTags.b253 === "LanguageRole", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b394 === "PublishingStatus", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b005 === undefined, "2.1 tags are not in the generated map");
+  });
+});
+
+describe("Dialect toggle", () => {
+  function press(window, dialect) {
+    window.document.querySelector(`[data-action="dialect-${dialect}"]`).click();
+  }
+  function pressedState(window) {
+    return ["reference", "short"].filter((d) =>
+      window.document.querySelector(`[data-action="dialect-${d}"]`).getAttribute("aria-pressed") === "true");
+  }
+
+  test("a short-tag document can be read with reference names", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    assert(rowsNamed(w, "productidentifier").length === 1, "should start in short tags");
+    press(w, "reference");
+    assert(rowsNamed(w, "ProductIdentifier").length === 1, "composite should read as reference");
+    assert(rowsNamed(w, "LanguageRole").length === 1, "b253 should read as LanguageRole");
+    assert(rowsNamed(w, "productidentifier").length === 0, "short spelling should be gone");
+    press(w, "short");
+    assert(rowsNamed(w, "productidentifier").length === 1, "and back again");
+    assert(rowsNamed(w, "b253").length === 1, "data element back to its short tag");
+  });
+
+  test("a reference document can be read with short tags", () => {
+    const w = render("onix-3.0-reference.xml");
+    press(w, "short");
+    assert(rowsNamed(w, "productidentifier").length >= 1, "composite should read as short");
+    assert(rowsNamed(w, "b221").length >= 1, "ProductIDType should read as b221");
+    // The message root is the one short tag that isn't all lower case.
+    assert(rowsNamed(w, "ONIXmessage").length === 1, "root should be <ONIXmessage>, not <onixmessage>");
+  });
+
+  test("only one side of the toggle is pressed, and it starts on the source dialect", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    assert(pressedState(w).join() === "short", `got: ${pressedState(w).join()}`);
+    press(w, "reference");
+    assert(pressedState(w).join() === "reference", `got: ${pressedState(w).join()}`);
+  });
+
+  test("switching keeps fold state, code-list badges and summaries intact", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const before = badges(w).join("|");
+    const product = rowsNamed(w, "product")[0];
+    product.classList.add("px-folded");
+    press(w, "reference");
+    assert(rowsNamed(w, "Product")[0].classList.contains("px-folded"),
+      "the folded row should still be folded after switching");
+    assert(badges(w).join("|") === before, "code-list labels come from the parsed document, not the display");
+    assert(summariesOf(w, "Product")[0].startsWith("ISBN 9788234567892"), "summary should survive");
+  });
+
+  test("translated names follow the dialect styling", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    assert($$(w, "#oxv-root .px-onix-short").length > 0, "short tags start italic");
+    press(w, "reference");
+    assert($$(w, "#oxv-root .px-onix-short").length === 0, "reference names are not italic");
+    assert($$(w, "#oxv-root .px-onix-ref").length > 0, "and carry the reference class");
+  });
+
+  test("every generated pair round-trips in both directions", () => {
+    const w = render("onix-3.0-short.xml");
+    const translate = w.OnixViewerOnix.translatedName;
+    const pairs = w.OnixViewerShortTags;
+    let checked = 0;
+    for (const [shortTag, referenceName] of Object.entries(pairs)) {
+      assert(translate(shortTag, "reference") === referenceName,
+        `${shortTag} should read as ${referenceName}`);
+      const back = translate(referenceName, "short");
+      assert(back && back.toLowerCase() === shortTag,
+        `${referenceName} should read as ${shortTag}, got ${back}`);
+      checked++;
+    }
+    assert(checked > 400, `expected the full map, checked ${checked}`);
+  });
+
+  test("unknown elements keep their name, and non-ONIX documents hide the toggle", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const translate = w.OnixViewerOnix.translatedName;
+    assert(translate("NotAnOnixElement", "reference") === null, "no invented translation");
+    assert(translate("Product", "reference") === null, "already reference: nothing to do");
+    const plain = render("rss.xml");
+    assert(plain.document.body.classList.contains("px-no-dialect-toggle"),
+      "non-ONIX documents should hide the toggle");
   });
 });
 

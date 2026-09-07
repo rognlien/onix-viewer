@@ -85,6 +85,26 @@
     EXTRA_SHORT_TAGS
   );
 
+  // Reverse index for translating a reference-dialect document into short
+  // tags. Built from the generated map alone, never from EXTRA_SHORT_TAGS:
+  // those deliberately point several keys at one reference name (b005 and
+  // b253 are both LanguageRole), which would make the reverse ambiguous. The
+  // generated map is one-to-one, so this direction is exact.
+  const REFERENCE_TO_SHORT = Object.create(null);
+  for (const shortTag of Object.keys(window.OnixViewerShortTags || {})) {
+    const referenceForm = window.OnixViewerShortTags[shortTag];
+    if (REFERENCE_TO_SHORT[referenceForm] == null) {
+      REFERENCE_TO_SHORT[referenceForm] = shortTag;
+    }
+  }
+
+  // The short schema spells the message root <ONIXmessage> and every other
+  // short tag in lower case, so the generated keys are lower-cased for
+  // lookup. Translating *to* short has to restore that one spelling.
+  const SHORT_SPELLINGS = Object.assign(Object.create(null), {
+    onixmessage: "ONIXmessage",
+  });
+
   // ONIX-defined attribute names → EDItEUR code list number. Derived from
   // the codelist-bound attributes in ONIX_BookProduct_3.1_reference.xsd
   // (direct `type="ListN"` and via `*Code` simpleTypes that restrict to
@@ -243,6 +263,24 @@
   function tagClass(element, ctx) {
     if (!ctx.isOnix) return "";
     return ctx.dialect === "short" ? "px-onix-short" : "px-onix-ref";
+  }
+
+  /**
+   * The same element's name in the other dialect, or null when there's no
+   * translation (an unknown or extension element) or the name is already the
+   * requested form. Powers the toolbar's Reference / Short toggle: the tree
+   * keeps rendering the parsed document, only the displayed names change.
+   */
+  function translatedName(nodeName, targetDialect) {
+    let translated = null;
+    const name = String(nodeName || "");
+    if (targetDialect === "reference") {
+      translated = SHORT_TO_REFERENCE[name.toLowerCase()] || null;
+    } else if (targetDialect === "short") {
+      const shortTag = REFERENCE_TO_SHORT[name] || null;
+      translated = shortTag ? SHORT_SPELLINGS[shortTag] || shortTag : null;
+    }
+    return translated === name ? null : translated;
   }
 
   /**
@@ -680,6 +718,7 @@
     codelistMeta,
     externalLinkIcon,
     nodeSummary,
+    translatedName,
     blockNumber,
     isProductElement,
     singleProductBlocks,

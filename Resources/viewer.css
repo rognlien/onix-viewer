@@ -144,6 +144,7 @@ body {
   border-color: var(--accent);
 }
 
+#oxv-toolbar .px-dialect-group,
 #oxv-toolbar .px-view-group {
   display: inline-flex;
   align-items: center;
@@ -269,6 +270,11 @@ body.oxv-view-structure #oxv-blocks-pane { flex: 1; }
 /* Non-ONIX docs have no structure pane to switch to — hide the toggle group
    entirely. Layout is locked to XML view (viewer.js enforces this). */
 body.px-no-onix .px-view-group { display: none; }
+
+/* The Ref / Short toggle only means something for an ONIX document in a
+   known dialect; viewer.js sets this class otherwise. */
+body.px-no-onix .px-dialect-group,
+body.px-no-dialect-toggle .px-dialect-group { display: none; }
 
 /* The toolbar "Wrap" toggle now reverses the default: turning it OFF disables
    wrapping so the viewer behaves like the original raw-XML mode. */

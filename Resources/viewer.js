@@ -36,6 +36,12 @@
 
   const VIEW_MODES = ["xml", "split", "structure"];
   const VIEW_STORAGE_KEY = "oxv-view-mode";
+  const DIALECT_STORAGE_KEY = "oxv-dialect";
+
+  // The dialect the document is written in, and the one currently on screen.
+  // They differ once the reader flips the toolbar toggle.
+  let sourceDialect = null;
+  let displayDialect = null;
 
   // We render into a document whose contentType is still "application/xml"
   // (we only swapped documentElement; the document type is set at navigation
@@ -100,6 +106,9 @@
 
   // ---- render ---------------------------------------------------------------
 
+  sourceDialect = onixCtx.dialect;
+  displayDialect = sourceDialect;
+
   // Render is iterative-via-recursion; XML trees are rarely deep enough to
   // overflow the JS stack (the standard browser limit is ~10k frames).
   renderNode(doc, root, 0);
@@ -138,6 +147,7 @@
   showBlockList();
 
   setupToolbar();
+  setupDialectToggle();
   setupViewMode(onixCtx.isOnix);
   setupSearch();
   setupKeyboard();
@@ -320,6 +330,7 @@
         if (extra) closeInline.classList.add(extra);
       }
       closeInline.textContent = `</${el.nodeName}>`;
+      markTranslatable(closeInline, el.nodeName, (n) => `</${n}>`);
       row.appendChild(closeInline);
 
       // "Block N" badge on ONIX 3.x block elements, visible folded or not.
@@ -377,6 +388,7 @@
       if (extra) name.classList.add(extra);
     }
     name.textContent = el.nodeName; // preserve original case
+    markTranslatable(name, el.nodeName);
     row.appendChild(name);
 
     for (const attr of el.attributes) {
@@ -430,7 +442,67 @@
       if (extra) close.classList.add(extra);
     }
     close.textContent = `</${el.nodeName}>`;
+    markTranslatable(close, el.nodeName, (n) => `</${n}>`);
     row.appendChild(close);
+  }
+
+  // ---- dialect toggle (reference names ↔ short tags) ------------------------
+
+  // Stash the same tag written in the other dialect on the span itself, so
+  // switching is a textContent swap rather than a re-render — fold state,
+  // search matches and the active row all survive. Spans with no translation
+  // (unknown or extension elements) simply keep their name in both views.
+  function markTranslatable(span, nodeName, wrap) {
+    if (!window.OnixViewerOnix || !onixCtx.isOnix) return;
+    const other = window.OnixViewerOnix.translatedName(nodeName, otherDialect(sourceDialect));
+    if (!other) return;
+    span.dataset.oxvAlt = wrap ? wrap(other) : other;
+  }
+
+  function otherDialect(dialect) {
+    return dialect === "short" ? "reference" : "short";
+  }
+
+  // Hidden unless the document is ONIX in a known dialect — there's nothing
+  // to translate between otherwise.
+  function setupDialectToggle() {
+    if (!onixCtx.isOnix || !sourceDialect) {
+      document.body.classList.add("px-no-dialect-toggle");
+      return;
+    }
+    let stored = null;
+    try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); } catch (_) {}
+    applyDialect(stored === "reference" || stored === "short" ? stored : sourceDialect,
+      { persist: false });
+  }
+
+  function applyDialect(target, opts) {
+    if (target !== "reference" && target !== "short") return;
+    if (!onixCtx.isOnix || !sourceDialect) return;
+
+    if (target !== displayDialect) {
+      // Pure swap: the span holds one spelling and its counterpart, so
+      // flipping between exactly two states needs no re-render.
+      for (const span of root.querySelectorAll("[data-oxv-alt]")) {
+        const alternate = span.dataset.oxvAlt;
+        span.dataset.oxvAlt = span.textContent;
+        span.textContent = alternate;
+        // Short tags render italic, reference names don't — follow the names.
+        if (span.classList.contains("px-onix-short") || span.classList.contains("px-onix-ref")) {
+          span.classList.toggle("px-onix-short", target === "short");
+          span.classList.toggle("px-onix-ref", target !== "short");
+        }
+      }
+      displayDialect = target;
+    }
+
+    for (const button of document.querySelectorAll('#oxv-toolbar [data-action^="dialect-"]')) {
+      const isActive = button.dataset.action === `dialect-${displayDialect}`;
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    }
+    if (!opts || opts.persist !== false) {
+      try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); } catch (_) {}
+    }
   }
 
   function buildListLink(resolved) {
@@ -513,6 +585,12 @@
           break;
         case "collapse-blocks":
           collapseBlocks();
+          break;
+        case "dialect-reference":
+          applyDialect("reference");
+          break;
+        case "dialect-short":
+          applyDialect("short");
           break;
         case "toggle-attrs": {
           const on = document.body.classList.toggle("px-no-attrs");
@@ -928,6 +1006,9 @@
           break;
         case "w":
           document.body.classList.toggle("px-no-wrap");
+          break;
+        case "t":
+          applyDialect(otherDialect(displayDialect));
           break;
       }
     });

@@ -206,6 +206,10 @@
     <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
     <button type="button" data-action="collapse-blocks" title="Collapse the blocks and other composites inside each Product (B)">Collapse blocks</button>
     <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
+    <span class="px-dialect-group" role="group" aria-label="Tag names">
+      <button type="button" data-action="dialect-reference" title="Show reference names, e.g. <LanguageRole> (T)" aria-pressed="false">Ref</button>
+      <button type="button" data-action="dialect-short" title="Show short tags, e.g. <b253> (T)" aria-pressed="false">Short</button>
+    </span>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
     <!--
       View-mode toggle (XML / Split / Structure) is currently DISABLED.

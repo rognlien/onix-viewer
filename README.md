@@ -13,7 +13,8 @@ When the browser loads a page whose `Content-Type` is `application/xml`, `text/x
    - Auto-collapsed `<Product>` blocks with a one-line summary (ISBN · form · title) so you can scan thousands of products without scrolling forever. Other collapsed composites get one too: an identifier reads `GTIN-13 9788284517247`, a contributor `By (author) Ola Nordmann`, a price `399.00 NOK`.
    - Resolved code-list labels for every value the bundled EDItEUR lists know about — shown as a small `→ ISBN-13` style badge after the value, with a clickable `List N ↗` chip that opens a popup containing every code in that list (and a link to the canonical EDItEUR page).
 4. Labels the ONIX blocks: each block element inside a `<Product>` gets a `Block N` badge, a **Collapse blocks** button folds every composite inside each `<Product>` — the seven blocks plus `ProductIdentifier`, `RecordSourceIdentifier` and `Barcode` — so a record reads as one row per child, and for a single-Product document the toolbar shows which blocks are present (`Blocks: 1, 4, 6`).
-5. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
+5. Lets you read either dialect: the **Ref** / **Short** toggle (shortcut `t`) switches the displayed element names between reference names and short tags — `<LanguageRole>` or `<b253>` — in either direction. It's a display switch, so labels, summaries and **Copy node XML** keep reporting the document as it actually is.
+6. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
 
 It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAcknowledgement>`) — the optional response format a recipient sends back to confirm or reject a feed. It's labelled `ONIX Acknowledgement 3.0` in the toolbar, and the status codes it's built from (`MessageStatus`, `RecordStatus`, status-detail severity, …) resolve to readable labels just like product code-lists.
 
@@ -55,7 +56,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (100 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
+Runs the full jsdom suite (107 tests) covering generic XML, ONIX 3.0/3.1 reference, ONIX short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), and the (currently disabled) structure view.
 
 ### Visual loop — Chrome
 
@@ -76,6 +77,7 @@ Pages worth opening:
 | `e` | Expand all |
 | `c` | Collapse all |
 | `b` | Collapse blocks (fold every composite inside each Product) |
+| `t` | Toggle reference names / short tags |
 | `w` | Toggle line wrap |
 
 ## ONIX code lists
