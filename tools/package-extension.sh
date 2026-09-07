@@ -26,5 +26,5 @@ echo "Wrote $OUT"
 ls -lh "$OUT" | awk '{print "  size: " $5}'
 echo "  contents:"
 unzip -l "$OUT" | awk 'NR>3 && $4 != "" {print "    " $4}' | sort | head -20
-total=$(unzip -l "$OUT" | tail -1 | awk '{print $2}')
+total=$(unzip -l "$OUT" | tail -1 | awk '{print $1}')
 echo "  total uncompressed: $total bytes"
