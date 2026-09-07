@@ -338,18 +338,21 @@
   function nodeSummary(element, ctx) {
     let summary = null;
     if (ctx.isOnix) {
-      const summarize = SUMMARIZERS[referenceName(element)] || identifierSummary;
+      const summarize = SUMMARIZERS[referenceName(element).toLowerCase()] || identifierSummary;
       summary = summarize(element, ctx) || null;
     }
     return summary;
   }
 
+  // Keyed on the lower-cased reference name: short-tag composites are the
+  // lower-cased reference name already, so dispatch works in both dialects
+  // without going through the short-tag map.
   const SUMMARIZERS = Object.assign(Object.create(null), {
-    Product: productSummary,
-    TitleDetail: (element) => quoted(titleOfDetail(element)),
-    TitleElement: (element) => quoted(titleOfElement(element)),
-    Contributor: contributorSummary,
-    Price: priceSummary,
+    product: productSummary,
+    titledetail: (element) => quoted(titleOfDetail(element)),
+    titleelement: (element) => quoted(titleOfElement(element)),
+    contributor: contributorSummary,
+    price: priceSummary,
   });
 
   // Reference-dialect name for an element, so a summary rule can be written

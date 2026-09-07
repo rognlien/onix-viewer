@@ -747,6 +747,10 @@ describe("Composite summaries", () => {
       `got: ${summariesOf(w, "productidentifier")[0]}`);
     assert(summariesOf(w, "contributor")[0] === "By (author) Kari Nordmann",
       `got: ${summariesOf(w, "contributor")[0]}`);
+    // Dispatch is on the lower-cased name, so <price> works too.
+    const priced = render("onix-3.0-short-codelists.xml");
+    assert(summariesOf(priced, "price")[0] === "399.00 NOK",
+      `got: ${summariesOf(priced, "price")[0]}`);
   });
 
   test("a long title is clamped so the chip cannot wrap", () => {

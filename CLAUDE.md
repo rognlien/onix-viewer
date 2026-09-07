@@ -114,7 +114,7 @@ Three kinds of answer:
 2. **A short table** (`SUMMARIZERS`) for composites whose essence is one value: `Product` (below), `TitleDetail` / `TitleElement` (the quoted title), `Contributor` (role + name), `Price` (amount + currency).
 3. **Nothing**, for everything else — including the seven ONIX blocks, deliberately: their contents are too heterogeneous to sample in one line, and the `<Product>` row above already carries the identifier, form and title. They have the `Block N` badge instead.
 
-Rules are written against **reference** names; `referenceName()` maps short tags through `SHORT_TO_REFERENCE` first, so each rule is written once and works in both dialects. A short tag missing from that map simply gets no chip.
+Rules are written against **reference** names; `referenceName()` maps short tags through `SHORT_TO_REFERENCE` first, so each rule is written once and works in both dialects. `SUMMARIZERS` is additionally keyed on the *lower-cased* reference name, so a short-tag composite (which is just the lower-cased reference name) dispatches without depending on that map at all.
 
 Chips are capped at `SUMMARY_MAX` (60 chars) by `clampSummary`. The `<Product>` chip is the exception — it caps its title instead, because capping that whole chip at 60 would truncate summaries that render fine today.
 
