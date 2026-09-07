@@ -51,7 +51,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (125 tests, ~1s)
+│   ├── run.js                      jsdom harness (130 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -291,9 +291,35 @@ match. Without that recovery a single typo makes every following sibling "not
 allowed at this position" — nine findings for four defects in the test fixture,
 versus five with it.
 
+### Severity, markers and the findings list
+
+Every finding carries a severity from `SEVERITIES`, a per-code table
+overridable like `MESSAGES`. An **error** is a schema violation; a **warning**
+is valid ONIX that shouldn't be sent (`codelist.deprecated`) or something the
+viewer couldn't check (`model.missing`). Anything unlisted defaults to error,
+so a newly registered rule is conservative until it says otherwise.
+
 Findings are pinned to rows through `elementRows` (source element → row) and
-shown as a `⚠` marker whose tooltip carries the message. Validation is on
-demand only: ~920 ms for an 11.4 MB feed with 319k elements, which is fine for
+shown as a chip: a red `✕` for errors, an amber `⚠` for warnings, with the
+message in the tooltip and the row itself tinted to match. A row that collects
+several findings takes the worst severity and lists them all in the tooltip.
+
+The severity modifier classes are **`px-sev-error` / `px-sev-warning`**, not
+`px-error` / `px-warning` — `.px-error` is the parse-error panel, and chips
+that reused the name inherited its margins, padding and border and rendered as
+large blocks. There's a test asserting the chips carry neither of the old names.
+
+The toolbar label reads `3 errors, 2 warnings` rather than a single total,
+since the two counts are acted on differently, and clicking it opens a
+findings list (`#oxv-findings`). That modal reuses the code-list popup's
+`.px-popup*` shell styling but is built in `viewer.js`, because its entries
+link back into the tree: clicking one closes the list, unfolds the ancestors
+of the row it concerns, makes it the active row and scrolls it into view.
+`.px-active` carries `!important`, so the row you jump to shows the selection
+accent rather than its severity tint — the chip still carries the severity,
+which isn't worth an `!important` of its own.
+
+Validation is on demand only: ~920 ms for an 11.4 MB feed with 319k elements, which is fine for
 a button press and not fine on every page load. `options.maxFindings`
 (default 500) caps the array while `total` keeps counting.
 
@@ -362,9 +388,9 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
-- `window.OnixViewerValidation` — `run`, `message`, `messages`, `rules`, `registerRule`, `modelFor`, `availableVersions`
+- `window.OnixViewerValidation` — `run`, `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`)
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-*` — CSS class prefix (kept short; ubiquitous in viewer.js)
@@ -388,7 +414,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 125-test jsdom suite (~1s)
+npm test        # runs the 130-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

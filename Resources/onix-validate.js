@@ -36,6 +36,19 @@
     "model.missing": "No content model bundled for ONIX {version}; structure was not checked",
   });
 
+  // Severity per code, overridable like MESSAGES. An error is a schema
+  // violation; a warning is valid ONIX that shouldn't be sent, or something
+  // the viewer couldn't check. Anything unlisted is an error, so a new rule
+  // is conservative until it says otherwise.
+  const SEVERITIES = Object.assign(Object.create(null), {
+    "codelist.deprecated": "warning",
+    "model.missing": "warning",
+  });
+
+  function severity(finding) {
+    return SEVERITIES[finding.code] || "error";
+  }
+
   function message(finding) {
     const template = MESSAGES[finding.code] || finding.code;
     return template.replace(/\{(\w+)\}/g, (whole, key) => {
@@ -82,6 +95,7 @@
     const limit = settings.maxFindings == null ? 500 : settings.maxFindings;
     const model = modelFor(onixCtx.version);
     const findings = [];
+    const counts = { error: 0, warning: 0 };
     let total = 0;
 
     const api = {
@@ -90,7 +104,9 @@
       findings,
       report(code, node, data) {
         total++;
-        if (findings.length < limit) findings.push({ code, node, data: data || {} });
+        const finding = { code, node, data: data || {}, severity: SEVERITIES[code] || "error" };
+        counts[finding.severity]++;
+        if (findings.length < limit) findings.push(finding);
       },
       referenceName,
       childElements,
@@ -115,6 +131,8 @@
     return {
       findings,
       total,
+      errors: counts.error,
+      warnings: counts.warning,
       truncated: total > findings.length,
       version: model ? model.version : null,
       checkedStructure: !!model,
@@ -396,7 +414,9 @@
   window.OnixViewerValidation = {
     run,
     message,
+    severity,
     messages: MESSAGES,
+    severities: SEVERITIES,
     rules: RULES,
     registerRule,
     modelFor,

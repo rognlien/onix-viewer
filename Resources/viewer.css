@@ -43,6 +43,13 @@
   --accent: #1f6dc4;
   --accent-soft: rgba(31, 109, 196, 0.12);
 
+  /* Validation severities: red is a schema violation, amber is valid ONIX
+     that shouldn't be sent (a deprecated code) or something we couldn't
+     check. Both are readable against white marker text except amber, which
+     takes dark text. */
+  --severity-error: #c8322b;
+  --severity-warning: #e0a109;
+
   /* Subtle drop shadow for cards/popup. */
   --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.05);
   --shadow-popup: 0 24px 60px rgba(15, 22, 36, 0.28);
@@ -86,6 +93,8 @@
 
     --accent: #58a6ff;
     --accent-soft: rgba(88, 166, 255, 0.18);
+  --severity-error: #f2645c;
+  --severity-warning: #e8b53a;
 
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-popup: 0 24px 60px rgba(0, 0, 0, 0.6);
@@ -393,20 +402,85 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
    so a drag-copy still yields plain XML. */
 .px-finding {
   margin-left: 6px;
-  padding: 0 5px;
+  padding: 1px 6px;
   border-radius: 4px;
-  background: var(--bg-hover);
-  color: var(--tag-onix-ref);
   font-family: var(--ui);
   font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #fff;
   cursor: help;
   user-select: none;
 }
-.px-row.px-has-finding { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+/* px-sev-* rather than px-error/px-warning: .px-error is already the
+   parse-error box, whose margins and borders these chips would inherit. */
+.px-finding.px-sev-error { background: var(--severity-error); }
+.px-finding.px-sev-warning { background: var(--severity-warning); color: #3a2c00; }
+
+/* Tint the row itself so a finding is visible while scanning, not only when
+   the eye reaches the right-hand marker. The #oxv-root prefix keeps these
+   ahead of the ordinary row rules; the one thing that still overrides them is
+   .px-active, which carries !important — so the row you jumped to shows the
+   selection accent rather than its severity tint. That's the right trade:
+   the accent says "you are here", and the ✕ / ⚠ chip still carries the
+   severity. Not worth an !important of its own. */
+#oxv-root .px-row.px-has-finding {
+  background: color-mix(in srgb, var(--severity-warning) 16%, transparent);
+}
+#oxv-root .px-row.px-has-error {
+  background: color-mix(in srgb, var(--severity-error) 12%, transparent);
+}
 
 #oxv-validation { font-family: var(--ui); font-size: 12px; margin-right: 8px; }
 #oxv-validation.px-valid { color: var(--fg-muted); }
-#oxv-validation.px-invalid { color: var(--accent); font-weight: 600; }
+#oxv-validation.px-invalid {
+  color: var(--severity-error);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+/* Findings list — the shell classes are shared with the code-list popup. */
+.px-findings-list { display: flex; flex-direction: column; gap: 2px; }
+.px-findings-item {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 160px) 1fr;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.px-findings-item:hover,
+.px-findings-item:focus-visible { background: var(--bg-hover); outline: none; }
+.px-findings-severity {
+  justify-self: start;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+.px-findings-severity.px-sev-error { background: var(--severity-error); }
+.px-findings-severity.px-sev-warning { background: var(--severity-warning); color: #3a2c00; }
+.px-findings-where {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--tag);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.px-findings-message { font-family: var(--ui); font-size: 12px; }
 
 /* Fold suffix: "…</Tag>" appears inline on the open row when folded so the
    collapsed element reads as <Tag>…</Tag>. Hidden when the row is expanded

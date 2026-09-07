@@ -7,11 +7,16 @@ the main branch.
 
 ### Added
 - **Validate the document.** A toolbar button (shortcut `v`) checks the file
-  and marks each finding with a `⚠` on the row it concerns, message in the
-  tooltip: elements that are missing, misplaced or unknown; codes that aren't
-  in their EDItEUR list; codes EDItEUR has deprecated (the code lists carry a
-  deprecation issue for 167 of the 4,791 codes, which the viewer now reads);
-  and values that break their declared datatype.
+  and marks each finding on the row it concerns — a red `✕` for a schema
+  error, an amber `⚠` for a warning, message in the tooltip: elements that are
+  missing, misplaced or unknown; codes that aren't in their EDItEUR list;
+  codes EDItEUR has deprecated (the code lists carry a deprecation issue for
+  167 of the 4,791 codes, which the viewer now reads); and values that break
+  their declared datatype.
+
+  The toolbar reads `4 errors, 1 warning` rather than a single total, since
+  the two are acted on differently. Clicking it opens the full list, and
+  clicking an entry there jumps to the row it concerns.
 
   There's no XML Schema processor involved — the browser has none, and
   libxml2-via-WASM would add roughly 4 MB and needs a CSP privilege the viewer

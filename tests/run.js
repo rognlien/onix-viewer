@@ -761,7 +761,69 @@ describe("Validation", () => {
     const marker = notification.querySelector(".px-finding");
     assert(marker, "the bad code's row should carry a marker");
     assert(marker.title.includes("not in List 1"), `got: ${marker.title}`);
-    assert(validate(w).textContent === "5 problems", `got: ${validate(w).textContent}`);
+    assert(validate(w).textContent === "4 errors, 1 warning", `got: ${validate(w).textContent}`);
+  });
+
+  test("markers carry their severity: errors red, warnings amber", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w);
+    const badCode = rowsNamed(w, "NotificationType")[0].querySelector(".px-finding");
+    assert(badCode.classList.contains("px-sev-error"), "an out-of-list code is a schema violation");
+    assert(badCode.textContent === "✕", `got: ${badCode.textContent}`);
+    const deprecated = rowsNamed(w, "ProductIDType")[0].querySelector(".px-finding");
+    assert(deprecated.classList.contains("px-sev-warning"), "a deprecated code is still valid ONIX");
+    assert(deprecated.textContent === "⚠", `got: ${deprecated.textContent}`);
+    // The row tint distinguishes them too, so a finding is visible while scanning.
+    assert(rowsNamed(w, "NotificationType")[0].classList.contains("px-has-error"), "error row tint");
+    assert(!rowsNamed(w, "ProductIDType")[0].classList.contains("px-has-error"), "warning row tint only");
+  });
+
+  test("severity chips don't inherit the parse-error box styling", () => {
+    // .px-error is the parse-error panel: margins, padding and a border. A
+    // severity chip that reused that name rendered as a huge block.
+    const w = render("onix-3.1-invalid.xml");
+    validate(w);
+    for (const marker of $$(w, "#oxv-root .px-finding")) {
+      assert(!marker.classList.contains("px-error") && !marker.classList.contains("px-warning"),
+        `chips must not reuse the parse-error class names: ${marker.className}`);
+    }
+  });
+
+  test("the summary label opens a list of every finding", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const status = validate(w);
+    assert(status.getAttribute("role") === "button", "the label should announce itself as clickable");
+    status.click();
+    const modal = w.document.getElementById("oxv-findings");
+    assert(modal && !modal.hidden, "the findings modal should open");
+    const items = [...modal.querySelectorAll(".px-findings-item")];
+    assert(items.length === 5, `expected one entry per finding, got ${items.length}`);
+    assert(items.filter((i) => i.dataset.oxvSeverity === "error").length === 4, "4 errors");
+    assert(items.filter((i) => i.dataset.oxvSeverity === "warning").length === 1, "1 warning");
+    assert(items[0].textContent.includes("is not in List 1"), `got: ${items[0].textContent}`);
+    assert(items[0].textContent.includes("<NotificationType>"), "each entry names its element");
+  });
+
+  test("clicking an entry closes the list and reveals that row", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w).click();
+    const modal = w.document.getElementById("oxv-findings");
+    const entry = [...modal.querySelectorAll(".px-findings-item")]
+      .find((i) => i.textContent.includes("not in List 1"));
+    entry.click();
+    assert(modal.hidden, "the list should close");
+    assert(rowsNamed(w, "NotificationType")[0].classList.contains("px-active"),
+      "and the row it points at should be the active one");
+  });
+
+  test("a clean document leaves the label inert", () => {
+    const w = render("onix-3.1-valid.xml");
+    const status = validate(w);
+    assert(status.textContent === "No problems found", `got: ${status.textContent}`);
+    assert(status.getAttribute("role") === "status", "nothing to open");
+    status.click();
+    const modal = w.document.getElementById("oxv-findings");
+    assert(!modal || modal.hidden, "no modal for a clean document");
   });
 
   test("re-validating replaces the markers instead of stacking them", () => {

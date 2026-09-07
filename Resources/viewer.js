@@ -159,6 +159,7 @@
   setupBlockSync();
   setupClickHandlers();
   setupNodeMenu();
+  setupFindingsLabel();
 
   // ---- rendering helpers ----------------------------------------------------
 
@@ -711,6 +712,9 @@
 
   // On demand only: a 12 MB feed is a couple of seconds' work, which is fine
   // for a button press and not fine on every page load.
+  // The last run, so the summary label can open a list of it.
+  let lastValidation = null;
+
   function runValidation() {
     const status = document.getElementById("oxv-validation");
     if (!window.OnixViewerValidation || !onixCtx.isOnix) {
@@ -718,31 +722,51 @@
       return;
     }
     clearFindings();
-    const result = window.OnixViewerValidation.run(doc, onixCtx);
-    for (const finding of result.findings) pinFinding(finding);
+    lastValidation = window.OnixViewerValidation.run(doc, onixCtx);
+    for (const finding of lastValidation.findings) pinFinding(finding);
     if (status) {
-      status.textContent = summariseValidation(result);
-      status.title = result.checkedStructure
-        ? `Checked against the bundled ONIX ${result.version} content model`
-        : `No content model bundled for ONIX ${onixCtx.version || "?"} — code lists were still checked`;
-      status.className = result.total ? "px-invalid" : "px-valid";
+      status.textContent = summariseValidation(lastValidation);
+      status.title = lastValidation.total ? "Click for the full list" : validationScopeNote(lastValidation);
+      status.className = lastValidation.total ? "px-invalid" : "px-valid";
+      status.setAttribute("role", lastValidation.total ? "button" : "status");
+      if (lastValidation.total) status.setAttribute("tabindex", "0");
+      else status.removeAttribute("tabindex");
     }
     const firstRow = root.querySelector(".px-has-finding");
-    if (firstRow) {
-      unfoldAncestors(firstRow);
-      if (firstRow.scrollIntoView) firstRow.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
+    if (firstRow) revealRow(firstRow);
   }
 
+  function validationScopeNote(result) {
+    return result.checkedStructure
+      ? `Checked against the bundled ONIX ${result.version} content model`
+      : `No content model bundled for ONIX ${onixCtx.version || "?"} — code lists were still checked`;
+  }
+
+  // "3 errors, 2 warnings" says more than "5 problems": the two counts are
+  // what a reader acts on differently.
   function summariseValidation(result) {
     if (!result.total) return "No problems found";
-    const shown = result.truncated ? `first ${result.findings.length} of ${result.total}` : result.total;
-    return result.total === 1 ? "1 problem" : `${shown} problems`;
+    const parts = [];
+    if (result.errors) parts.push(countOf(result.errors, "error"));
+    if (result.warnings) parts.push(countOf(result.warnings, "warning"));
+    return parts.join(", ");
+  }
+
+  function countOf(n, noun) {
+    return `${n} ${noun}${n === 1 ? "" : "s"}`;
+  }
+
+  function revealRow(row) {
+    unfoldAncestors(row);
+    setActiveTreeRow(row);
+    if (row.scrollIntoView) row.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
   function clearFindings() {
     for (const marker of root.querySelectorAll(".px-finding")) marker.remove();
-    for (const row of root.querySelectorAll(".px-has-finding")) row.classList.remove("px-has-finding");
+    for (const row of root.querySelectorAll(".px-has-finding, .px-has-error")) {
+      row.classList.remove("px-has-finding", "px-has-error");
+    }
   }
 
   // Findings carry the element they are about; the marker lands on that
@@ -750,21 +774,145 @@
   function pinFinding(finding) {
     const row = (finding.node && elementRows.get(finding.node)) || root.querySelector(".px-row");
     if (!row) return;
+    const isError = finding.severity === "error";
     row.classList.add("px-has-finding");
-    const existing = row.querySelector(".px-finding");
+    if (isError) row.classList.add("px-has-error");
+
     const text = window.OnixViewerValidation.message(finding);
+    const existing = row.querySelector(".px-finding");
     if (existing) {
+      // A row can collect several findings: the marker takes the worst
+      // severity and its tooltip lists them all.
       existing.title += `\n${text}`;
-      existing.dataset.oxvCount = String(Number(existing.dataset.oxvCount || 1) + 1);
-      existing.textContent = `⚠ ${existing.dataset.oxvCount}`;
+      const seen = Number(existing.dataset.oxvCount || 1) + 1;
+      existing.dataset.oxvCount = String(seen);
+      if (isError) existing.classList.add("px-sev-error");
+      existing.classList.toggle("px-sev-warning", !existing.classList.contains("px-sev-error"));
+      existing.textContent = `${existing.classList.contains("px-sev-error") ? "✕" : "⚠"} ${seen}`;
       return;
     }
     const marker = document.createElement("span");
-    marker.className = "px-finding";
-    marker.textContent = "⚠";
+    marker.className = `px-finding px-sev-${finding.severity}`;
+    marker.textContent = isError ? "✕" : "⚠";
     marker.title = text;
     marker.dataset.oxvCode = finding.code;
     row.appendChild(marker);
+  }
+
+  // ---- findings list --------------------------------------------------------
+
+  // Reuses the code-list popup's shell styling; the behaviour is its own,
+  // because these entries link back into the tree.
+  let findingsModal = null;
+
+  function setupFindingsLabel() {
+    const status = document.getElementById("oxv-validation");
+    if (!status) return;
+    status.addEventListener("click", showFindings);
+    status.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showFindings();
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && findingsModal && !findingsModal.hidden) closeFindings();
+    });
+  }
+
+  function showFindings() {
+    if (!lastValidation || !lastValidation.total) return;
+    const overlay = ensureFindingsModal();
+    const list = overlay.querySelector(".px-findings-list");
+    list.textContent = "";
+    for (const finding of lastValidation.findings) list.appendChild(findingEntry(finding));
+    overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
+    overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
+    overlay.querySelector(".px-popup-footer").textContent = lastValidation.truncated
+      ? `Showing the first ${lastValidation.findings.length} of ${lastValidation.total}.`
+      : "";
+    overlay.hidden = false;
+    const closeButton = overlay.querySelector(".px-popup-close");
+    if (closeButton) closeButton.focus();
+  }
+
+  function findingEntry(finding) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "px-findings-item";
+    item.dataset.oxvSeverity = finding.severity;
+
+    const badge = document.createElement("span");
+    badge.className = `px-findings-severity px-sev-${finding.severity}`;
+    badge.textContent = finding.severity === "error" ? "Error" : "Warning";
+
+    const where = document.createElement("span");
+    where.className = "px-findings-where";
+    where.textContent = finding.node ? `<${finding.node.nodeName}>` : "";
+
+    const text = document.createElement("span");
+    text.className = "px-findings-message";
+    text.textContent = window.OnixViewerValidation.message(finding);
+
+    item.append(badge, where, text);
+    item.addEventListener("click", () => {
+      const row = finding.node && elementRows.get(finding.node);
+      closeFindings();
+      if (row) revealRow(row);
+    });
+    return item;
+  }
+
+  function ensureFindingsModal() {
+    if (findingsModal) return findingsModal;
+    const overlay = document.createElement("div");
+    overlay.className = "px-popup-overlay";
+    overlay.id = "oxv-findings";
+    overlay.hidden = true;
+
+    const dialog = document.createElement("div");
+    dialog.className = "px-popup";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+
+    const header = document.createElement("div");
+    header.className = "px-popup-header";
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "px-popup-title-wrap";
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "px-popup-eyebrow";
+    const title = document.createElement("div");
+    title.className = "px-popup-title";
+    titleWrap.append(eyebrow, title);
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "px-popup-close";
+    closeButton.setAttribute("aria-label", "Close");
+    closeButton.textContent = "✕";
+    closeButton.addEventListener("click", closeFindings);
+    header.append(titleWrap, closeButton);
+
+    const body = document.createElement("div");
+    body.className = "px-popup-body";
+    const list = document.createElement("div");
+    list.className = "px-findings-list";
+    body.appendChild(list);
+
+    const footer = document.createElement("div");
+    footer.className = "px-popup-footer";
+
+    dialog.append(header, body, footer);
+    overlay.appendChild(dialog);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeFindings();
+    });
+    document.body.appendChild(overlay);
+    findingsModal = overlay;
+    return overlay;
+  }
+
+  function closeFindings() {
+    if (findingsModal) findingsModal.hidden = true;
   }
 
   // ---- copy raw XML ---------------------------------------------------------
