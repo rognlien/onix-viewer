@@ -47,7 +47,7 @@ onix-viewer/
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, element→list bindings only)
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── tests/
-│   ├── run.js                      jsdom harness (84 tests, ~1s)
+│   ├── run.js                      jsdom harness (98 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -221,7 +221,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 84-test jsdom suite (~1s)
+npm test        # runs the 98-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
