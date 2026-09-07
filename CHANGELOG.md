@@ -3,6 +3,47 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Added
+- **Summaries on collapsed composites.** The one-line chip that collapsed
+  `<Product>` rows have always had now appears on other composites too, so a
+  folded record still tells you what it holds. Identifier composites —
+  `ProductIdentifier`, `RecordSourceIdentifier`, `NameIdentifier`,
+  `SupplierIdentifier`, … — read as their resolved type plus value, e.g.
+  `GTIN-13 9788284517247`; a proprietary scheme uses its own `<IDTypeName>`
+  in place of the list's "Proprietary …" label. `<TitleDetail>` and
+  `<TitleElement>` show the quoted title, `<Contributor>` its role and name
+  (`By (author) Ola Nordmann`), `<Price>` its amount and currency
+  (`399.00 NOK`). Chips are capped at 60 characters so they can't wrap. The
+  seven ONIX blocks deliberately get none — their contents are too varied to
+  sample in one line, and the `<Product>` row above already carries the
+  identifier, form and title; they keep the `Block N` badge instead. Works in
+  both reference and short-tag dialect.
+
+### Changed
+- **Collapse blocks now folds every composite inside a `<Product>`**, not
+  only the seven ONIX blocks — so `ProductIdentifier`,
+  `RecordSourceIdentifier` and `Barcode` fold to one line each and a record
+  reads as one row per child rather than a mix of folded blocks and sprawling
+  identifiers.
+- Codelists upgraded to **EDItEUR Issue 74** (was 73). 22 new codes,
+  including two AI-disclosure links (List 196), three EUDR raw-material
+  location codes plus "Map projection" (List 163), Bookshop.org, Hoopla and
+  XigXag (List 253), `SH` "Multiple-component retail product, partly digital"
+  (List 2) and `B427` "Belly band" (List 79). List 203 is relabelled
+  throughout from "Content warning" to "Content advice" and gains codes for
+  death and grief, and for suicide.
+
+### Fixed
+- **Two enabled copies of the extension no longer break the page.** With a
+  Web Store install alongside an unpacked build, both content scripts took
+  the page over: the second replaced the first one's shell, but the first
+  one's scripts still ran, so two viewer instances rendered into the
+  surviving tree. The result was every element drawn twice with dead fold
+  chevrons — two click handlers toggling each row back and forth. The first
+  takeover now wins and later ones stand down.
+
 ## 0.9.13 — 2026-09-03
 
 ### Changed
