@@ -185,27 +185,65 @@ body {
   gap: 8px;
 }
 
+/* Search collapses to its icon. The field is still in the DOM — it holds the
+   query and the match state — but has no width until the group is open, so
+   the toolbar spends a button on it rather than 420px. */
+#oxv-toolbar .px-search-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+#oxv-toolbar .px-icon-btn[data-action="search"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  padding: 4px 0;
+  margin-right: 0;
+}
+body.px-search-open #oxv-toolbar .px-icon-btn[data-action="search"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 #oxv-search {
   appearance: none;
-  width: min(420px, 100%);
-  padding: 4px 10px;
-  border: 1px solid var(--border);
+  width: 0;
+  padding: 4px 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: var(--bg);
   color: var(--fg);
   font: inherit;
+  /* Collapsed, it must not catch clicks meant for the row beneath. */
+  opacity: 0;
+  pointer-events: none;
+  transition: width 120ms ease, padding 120ms ease, opacity 120ms ease;
+}
+body.px-search-open #oxv-search {
+  width: min(320px, 40vw);
+  padding: 4px 10px;
+  border-color: var(--border);
+  opacity: 1;
+  pointer-events: auto;
 }
 #oxv-search:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
   border-color: var(--accent);
 }
+@media (prefers-reduced-motion: reduce) {
+  #oxv-search { transition: none; }
+}
 
 #oxv-search-status {
   color: var(--fg-muted);
-  min-width: 8ch;
   text-align: left;
 }
+body:not(.px-search-open) #oxv-search-status { display: none; }
 
 #oxv-meta {
   color: var(--fg-muted);

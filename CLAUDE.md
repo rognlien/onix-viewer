@@ -51,7 +51,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (134 tests, ~1s)
+│   ├── run.js                      jsdom harness (138 tests, ~1s)
 │   └── fixtures/                   XML samples per test category
 ├── dist/                           build output (gitignored except listing/)
 │   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
@@ -293,8 +293,10 @@ versus five with it.
 
 ### Icons
 
-`icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table —
-`error`, `warning`, `ok`, `spinner`, `close` — on a shared `0 0 16 16` grid, stroked in
+`icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table,
+declared at the top of the IIFE because the toolbar setup uses it before the
+sections further down have been reached —
+`error`, `warning`, `ok`, `spinner`, `search`, `close` — on a shared `0 0 16 16` grid, stroked in
 `currentColor` and sized to 12px by `.px-icon`, so one chip's colour carries
 its icon.
 
@@ -383,6 +385,25 @@ row happens only when the reader clicks an entry in the findings list.
 Cost, measured in Chrome: the walk is ~100 ms for a 4.8 MB feed with 135k
 elements, and the finding chips are free by comparison — 380 SVG chips built
 and laid out in **2 ms**, about 4 µs each.
+
+## Search, collapsed to its icon
+
+The search field sits behind a magnifier button in the toolbar: zero width
+until opened by the button or `/`, restored to `min(320px, 40vw)` when open,
+and closed by `Esc` or by blurring while empty. `body.px-search-open` drives
+it; the input stays in the DOM throughout because it holds the query and the
+match state. While collapsed it carries `tabindex="-1"` — a zero-width field
+should not be tabbable — and the button is the way in.
+
+**Why it wasn't simply deleted.** It looks redundant next to the browser's own
+find, but `Ctrl+F` cannot see `display: none` content, and `<Product>` blocks
+are auto-collapsed on any multi-product feed — so on exactly the large files
+where searching matters, browser find reports nothing. `runSearch` walks every
+text node in the tree, and `gotoMatch` unfolds the ancestors of the current
+match. There's a test for that: a contributor's name inside a folded Product
+is found and its Product unfolded. (The test deliberately searches a
+contributor rather than a title, because a title also appears in the folded
+row's own summary chip, where there would be nothing to unfold.)
 
 ## Per-node menu ("Copy node XML")
 
@@ -476,7 +497,7 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 134-test jsdom suite (~1s)
+npm test        # runs the 138-test jsdom suite (~1s)
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.

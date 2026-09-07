@@ -84,8 +84,11 @@ function renderSource(xml, label, beforeScripts) {
       <button data-action="view-split"></button>
       <button data-action="view-structure"></button>
     </span>
-    <input id="oxv-search">
-    <span id="oxv-search-status"></span>
+    <span class="px-search-group">
+      <button class="px-icon-btn" data-action="search" aria-expanded="false"></button>
+      <input id="oxv-search" tabindex="-1">
+      <span id="oxv-search-status"></span>
+    </span>
     <span id="oxv-validation"></span>
     <span id="oxv-block-list"></span>
     <span id="oxv-schema"></span>
@@ -708,6 +711,74 @@ describe("Short-tag code lists", () => {
     assert(w.OnixViewerShortTags.b253 === "LanguageRole", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b394 === "PublishingStatus", "3.1 tag should come from the schema");
     assert(w.OnixViewerShortTags.b005 === undefined, "2.1 tags are not in the generated map");
+  });
+});
+
+describe("Search", () => {
+  function searchButton(window) {
+    return window.document.querySelector('#oxv-toolbar [data-action="search"]');
+  }
+  function field(window) {
+    return window.document.getElementById("oxv-search");
+  }
+  function isOpen(window) {
+    return window.document.body.classList.contains("px-search-open");
+  }
+  // The input handler debounces by 120ms, and the harness is synchronous, so
+  // run the pending timer immediately instead of waiting for it.
+  function type(window, text) {
+    const realSetTimeout = window.setTimeout;
+    window.setTimeout = (fn) => { fn(); return 0; };
+    field(window).value = text;
+    field(window).dispatchEvent(new window.Event("input"));
+    window.setTimeout = realSetTimeout;
+  }
+
+  test("starts collapsed to its icon and out of the tab order", () => {
+    const w = render("onix-3.0-reference.xml");
+    assert(!isOpen(w), "the field should start collapsed");
+    assert(searchButton(w).querySelector("svg"), "the button should carry the magnifier icon");
+    assert(searchButton(w).getAttribute("aria-expanded") === "false", "and say it is collapsed");
+    assert(field(w).getAttribute("tabindex") === "-1",
+      "a zero-width field must not be tabbable — the button is the way in");
+  });
+
+  test("the button and / both open it", () => {
+    const w = render("onix-3.0-reference.xml");
+    searchButton(w).click();
+    assert(isOpen(w), "clicking the button opens it");
+    assert(searchButton(w).getAttribute("aria-expanded") === "true", "and announces it");
+    assert(field(w).getAttribute("tabindex") === null, "the field joins the tab order");
+    searchButton(w).click();
+    assert(!isOpen(w), "clicking again closes it");
+
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "/", bubbles: true }));
+    assert(isOpen(w), "/ opens it too");
+  });
+
+  test("it still searches, and still finds text inside folded rows", () => {
+    // The reason it survives at all: browser find skips display:none, and
+    // Products are auto-collapsed on a multi-product feed.
+    const w = render("onix-3.0-reference.xml");
+    const products = rowsNamed(w, "Product");
+    assert(products.every((r) => r.classList.contains("px-folded")), "products start folded");
+    searchButton(w).click();
+    // A contributor name, not the title: a title also appears in the folded
+    // row's own summary chip, where there would be nothing to unfold.
+    type(w, "Ola Nordmann");
+    assert($$(w, "#oxv-root .px-match").length > 0, "the match should be highlighted");
+    assert(!products[0].classList.contains("px-folded"),
+      "and its Product unfolded so the match is actually visible");
+  });
+
+  test("Esc clears the query and collapses it again", () => {
+    const w = render("onix-3.0-reference.xml");
+    searchButton(w).click();
+    type(w, "Eksempelboken");
+    field(w).dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert(!isOpen(w), "collapsed");
+    assert(field(w).value === "", "query cleared");
+    assert($$(w, "#oxv-root .px-match").length === 0, "highlights cleared");
   });
 });
 

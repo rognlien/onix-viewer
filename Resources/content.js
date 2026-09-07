@@ -214,6 +214,13 @@
       <button type="button" data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
+    <span class="px-search-group">
+      <!-- Collapsed to its icon until used: the field earns its width only
+           while you are searching. viewer.js fills in the icon. -->
+      <button type="button" class="px-icon-btn" data-action="search" title="Search (/)" aria-label="Search" aria-expanded="false"></button>
+      <input type="search" id="oxv-search" placeholder="Search" autocomplete="off" spellcheck="false" tabindex="-1">
+      <span id="oxv-search-status" aria-live="polite"></span>
+    </span>
     <!--
       View-mode toggle (XML / Split / Structure) is currently DISABLED.
       The blocks-pane code (onix-blocks.js, the right pane, sync logic) is
@@ -234,10 +241,7 @@
     </span>
     -->
   </div>
-  <div class="px-center">
-    <input type="search" id="oxv-search" placeholder="Search (/ to focus)" autocomplete="off" spellcheck="false">
-    <span id="oxv-search-status" aria-live="polite"></span>
-  </div>
+  <div class="px-center"></div>
   <div class="px-right">
     <span id="oxv-validation"></span>
     <span id="oxv-block-list"></span>

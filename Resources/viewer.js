@@ -38,6 +38,53 @@
   // Declared up here because validation starts during setup, before the
   // validation section further down has been reached.
   let lastValidation = null;
+
+  // ---- icons ----------------------------------------------------------------
+
+  // Inline SVG rather than characters. ⚠ has an emoji presentation on several
+  // platforms, so it renders as a colour emoji inside a coloured chip, and
+  // glyph metrics vary enough between fonts to shift a 12px chip around.
+  // Everything is stroked in currentColor, so a chip's own colour carries.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const ICONS = Object.assign(Object.create(null), {
+    // A bold cross. Outlined shapes go muddy at 12px; two thick strokes don't.
+    error: [["path", { d: "M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8", "stroke-width": "2.2" }]],
+    // An exclamation rather than the usual triangle: a 12px triangle with a
+    // bang inside it loses both shapes, and the amber chip already reads as a
+    // warning without one.
+    warning: [
+      ["path", { d: "M8 3.6v5.1", "stroke-width": "2.2" }],
+      ["circle", { cx: "8", cy: "12", r: "1.15", fill: "currentColor", stroke: "none" }],
+    ],
+    close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
+    ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
+    search: [
+      ["circle", { cx: "7", cy: "7", r: "4.3", "stroke-width": "1.8" }],
+      ["path", { d: "M10.3 10.3l3.3 3.3", "stroke-width": "1.8" }],
+    ],
+    // An open arc: three quarters of the circle, spun by CSS.
+    spinner: [["circle", {
+      cx: "8", cy: "8", r: "5.6", "stroke-width": "2",
+      "stroke-dasharray": "26 9", "stroke-linecap": "round",
+    }]],
+  });
+
+  function icon(name) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("class", "px-icon");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    for (const [tag, attributes] of ICONS[name] || []) {
+      const shape = document.createElementNS(SVG_NS, tag);
+      for (const key of Object.keys(attributes)) shape.setAttribute(key, attributes[key]);
+      svg.appendChild(shape);
+    }
+    return svg;
+  }
   let activeTreeRow = null;
   let activeBlockEl = null;
 
@@ -637,6 +684,9 @@
           btn.setAttribute("aria-pressed", on ? "false" : "true");
           break;
         }
+        case "search":
+          toggleSearch();
+          break;
         case "toggle-wrap": {
           // Wrap is the default; pressing the button turns it OFF.
           const off = document.body.classList.toggle("px-no-wrap");
@@ -881,49 +931,6 @@
     marker.setAttribute("aria-label", `${isError ? "Error" : "Warning"}: ${text}`);
     marker.dataset.oxvCode = finding.code;
     row.appendChild(marker);
-  }
-
-  // ---- icons ----------------------------------------------------------------
-
-  // Inline SVG rather than characters. ⚠ has an emoji presentation on several
-  // platforms, so it renders as a colour emoji inside a coloured chip, and
-  // glyph metrics vary enough between fonts to shift a 12px chip around.
-  // Everything is stroked in currentColor, so a chip's own colour carries.
-  const SVG_NS = "http://www.w3.org/2000/svg";
-  const ICONS = Object.assign(Object.create(null), {
-    // A bold cross. Outlined shapes go muddy at 12px; two thick strokes don't.
-    error: [["path", { d: "M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8", "stroke-width": "2.2" }]],
-    // An exclamation rather than the usual triangle: a 12px triangle with a
-    // bang inside it loses both shapes, and the amber chip already reads as a
-    // warning without one.
-    warning: [
-      ["path", { d: "M8 3.6v5.1", "stroke-width": "2.2" }],
-      ["circle", { cx: "8", cy: "12", r: "1.15", fill: "currentColor", stroke: "none" }],
-    ],
-    close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
-    ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
-    // An open arc: three quarters of the circle, spun by CSS.
-    spinner: [["circle", {
-      cx: "8", cy: "8", r: "5.6", "stroke-width": "2",
-      "stroke-dasharray": "26 9", "stroke-linecap": "round",
-    }]],
-  });
-
-  function icon(name) {
-    const svg = document.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("viewBox", "0 0 16 16");
-    svg.setAttribute("class", "px-icon");
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-    for (const [tag, attributes] of ICONS[name] || []) {
-      const shape = document.createElementNS(SVG_NS, tag);
-      for (const key of Object.keys(attributes)) shape.setAttribute(key, attributes[key]);
-      svg.appendChild(shape);
-    }
-    return svg;
   }
 
   // ---- findings list --------------------------------------------------------
@@ -1322,7 +1329,15 @@
   let matchIndex = -1;
   let searchTimer = null;
 
+  // The field is collapsed to its icon until wanted, so it costs a button's
+  // width in the toolbar instead of 420px. Browser find is not a substitute:
+  // it cannot see folded rows, and Products are auto-collapsed on any
+  // multi-product feed — this search walks every text node and unfolds the
+  // ancestors of each match.
   function setupSearch() {
+    const button = document.querySelector('#oxv-toolbar [data-action="search"]');
+    if (button && !button.firstChild) button.appendChild(icon("search"));
+
     search.addEventListener("input", () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(runSearch, 120);
@@ -1333,11 +1348,42 @@
         if (ev.shiftKey) gotoMatch(matchIndex - 1);
         else gotoMatch(matchIndex + 1);
       } else if (ev.key === "Escape") {
-        search.value = "";
-        runSearch();
-        search.blur();
+        closeSearch();
       }
     });
+    search.addEventListener("blur", () => {
+      // Leave it open while it holds a query, so the match counter and the
+      // highlights stay put when focus moves to the tree.
+      if (!search.value.trim()) closeSearch();
+    });
+  }
+
+  function toggleSearch() {
+    if (document.body.classList.contains("px-search-open")) closeSearch();
+    else openSearch();
+  }
+
+  function openSearch() {
+    document.body.classList.add("px-search-open");
+    setSearchExpanded(true);
+    search.removeAttribute("tabindex");
+    search.focus();
+    search.select();
+  }
+
+  function closeSearch() {
+    search.value = "";
+    runSearch();
+    document.body.classList.remove("px-search-open");
+    setSearchExpanded(false);
+    // Out of the tab order while collapsed: the button is the way in.
+    search.setAttribute("tabindex", "-1");
+    search.blur();
+  }
+
+  function setSearchExpanded(open) {
+    const button = document.querySelector('#oxv-toolbar [data-action="search"]');
+    if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   function runSearch() {
@@ -1401,8 +1447,7 @@
       switch (ev.key) {
         case "/":
           ev.preventDefault();
-          search.focus();
-          search.select();
+          openSearch();
           break;
         case "e":
           for (const r of root.querySelectorAll(".px-folded")) r.classList.remove("px-folded");

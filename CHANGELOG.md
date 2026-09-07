@@ -113,6 +113,14 @@ the main branch.
   both reference and short-tag dialect.
 
 ### Changed
+- **Search is collapsed to a magnifier button**, opened by the button or `/`
+  and closed by `Esc`. It kept its place in the toolbar rather than being
+  removed: the browser's own find cannot see folded rows, and `<Product>`
+  blocks are auto-collapsed on any multi-product feed, so on exactly the files
+  where searching matters `Ctrl+F` finds nothing. This search walks every text
+  node and unfolds the ancestors of each match.
+- The **Validate** button is gone — validation is automatic now, and the
+  document never changes, so re-running it could only give the same answer.
 - **Collapse blocks now folds every composite inside a `<Product>`**, not
   only the seven ONIX blocks — so `ProductIdentifier`,
   `RecordSourceIdentifier` and `Barcode` fold to one line each and a record
