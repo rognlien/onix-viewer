@@ -129,35 +129,38 @@ group in the dashboard under "Distribution" once the org is connected.
 
 ## Listing assets to prepare
 
-| Asset | Size | Required? |
+| Asset | Size | Where it comes from |
 |---|---|---|
-| Store icon | 128 × 128 PNG | Required (already in `icons/icon-128.png`) |
-| Small promo tile | 440 × 280 | Required |
-| Marquee promo tile | 1400 × 560 | Optional but recommended |
-| Screenshot(s) | 1280 × 800 or 640 × 400 | At least 1 required, up to 5 |
+| Store icon | 128 × 128 PNG | `Resources/icons/icon-128.png`, baked by `tools/render-icons.sh` |
+| Small promo tile | 440 × 280 | rendered from `promo-tile.svg` |
+| Marquee promo tile | 1400 × 560 | rendered from `marquee.svg` |
+| Screenshot(s) | 1280 × 800 | **`Screenshots/`** — committed, upload as-is |
 
-`dist/` is gitignored in full, so these assets are rebuilt locally rather than
-committed. The promo tile and marquee come from the SVGs at the repo root:
+**Screenshots live in `Screenshots/` and are version-controlled**, already at
+1280 × 800, so they upload without a resize step. Re-take them there whenever
+the UI changes and commit the result; that is the record of what the listing
+shows. `Screenshots/Main.png` is the tree, `Screenshots/CodeList.png` the
+code-list popup.
+
+The icon and the two promo tiles are **generated**, so they are not committed —
+`dist/` is gitignored in full. Rebuild them into `dist/listing/` when you need
+to upload:
 
 ```bash
+cp Resources/icons/icon-128.png dist/listing/icon-128.png
 rsvg-convert -w 440  -h 280 promo-tile.svg -o dist/listing/promo-tile-440x280.png
 rsvg-convert -w 1400 -h 560 marquee.svg    -o dist/listing/marquee-1400x560.png
 ```
 
-**Screenshots need re-taking.** The two in `dist/listing/` are from May: they
-predate the structure pane being hidden, the validation state, the dialect
-switch, the search collapsing to an icon, the merged document pill, and the
-Expand/Collapse buttons (which were three buttons then, named differently).
-Nothing in them matches the shipping toolbar.
+Do not keep screenshots in `dist/listing/` as well. There were two there from
+May, and because nothing kept them in sync with `Screenshots/` they quietly
+went two UI revisions out of date while the committed pair moved on.
 
-Worth grabbing, at 1280 × 800 (or 2× HiDPI then resized):
+Further shots worth adding, if you want more than two:
 
-1. A real ONIX file: the syntax-highlighted tree with auto-collapsed
-   `<Product>` summaries and code-list labels.
-2. The validation findings list over a file with real defects — the feature
+1. The validation findings list over a file with real defects — the feature
    with no equivalent anywhere else, and the reason to install.
-3. The code-list popup, which makes the bundled-lists claim concrete.
-4. Optionally the same record under both dialects, showing the switch.
+2. The same record under both dialects, showing the switch.
 
 ## Review notes (paste into "Notes for reviewer")
 

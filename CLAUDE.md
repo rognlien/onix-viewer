@@ -56,10 +56,14 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      jsdom harness (187 tests, ~7s; takes a name filter)
 │   └── fixtures/                   XML samples per test category
+├── Screenshots/                    store screenshots, committed at 1280×800
+│   ├── Main.png                    the tree
+│   └── CodeList.png                the code-list popup
 ├── dist/                           build output — gitignored in full
-│   └── listing/                    CWS upload assets, rebuilt locally: icon, promo
-│                                   tile and marquee (rsvg-convert from the SVGs at
-│                                   the repo root), plus store screenshots
+│   └── listing/                    upload staging for the GENERATED assets only:
+│                                   icon-128 (copied from Resources/icons/) plus the
+│                                   promo tile and marquee (rsvg-convert from the
+│                                   SVGs at the repo root). No screenshots here.
 └── .github/workflows/
     ├── test.yml                    push/PR → tests → generated-file drift check
     └── release.yml                 tag-push → tests → zip → GitHub release
@@ -908,4 +912,5 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **Right-pane block changes** (only relevant if/when the structure view is re-enabled): live in `onix-blocks.js`. Uses native `<details>`/`<summary>` for collapse, no JS needed for that.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
 - **Icon changes**: edit `icons/image.png` (the cropped 546×546 source-of-truth), then `tools/render-icons.sh` rebakes all seven PNG sizes.
+- **Store screenshots**: re-take into `Screenshots/` at 1280×800 and commit them. That directory is the record of what the listing shows — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.
