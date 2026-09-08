@@ -808,6 +808,7 @@
     translateNode,
     blockNumber,
     isProductElement,
+    productElements,
     singleProductBlocks,
     blockNames: new Set(BLOCK_NUMBERS.keys()),
   };

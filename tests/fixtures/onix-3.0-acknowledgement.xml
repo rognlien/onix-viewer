@@ -12,11 +12,11 @@
     <MessageStatus>03</MessageStatus>
   </Header>
   <Product>
-    <RecordReference>com.acme.9780000000001</RecordReference>
+    <RecordReference>com.acme.9780000000019</RecordReference>
     <RecordStatus>02</RecordStatus>
     <ProductIdentifier>
       <ProductIDType>15</ProductIDType>
-      <IDValue>9780000000001</IDValue>
+      <IDValue>9780000000019</IDValue>
     </ProductIdentifier>
     <RecordStatusDetail>
       <StatusDetailType>E</StatusDetailType>

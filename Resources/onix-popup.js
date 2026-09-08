@@ -160,6 +160,19 @@
       if (ev.key === "Escape") {
         ev.preventDefault();
         close();
+        return;
+      }
+      // aria-modal="true" says nothing outside the dialog is reachable, so
+      // keep Tab inside it. The close button is the only control here, which
+      // makes the cycle a single element — but Tab must still not escape.
+      if (ev.key === "Tab" && dialog.contains(ev.target)) {
+        const focusable = [...dialog.querySelectorAll("button:not([disabled]), [href]")];
+        if (!focusable.length) return;
+        const edge = ev.shiftKey ? focusable[0] : focusable[focusable.length - 1];
+        if (document.activeElement === edge) {
+          ev.preventDefault();
+          (ev.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
+        }
       }
     };
     document.addEventListener("keydown", escListener);

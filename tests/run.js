@@ -18,9 +18,13 @@ const RES = path.join(__dirname, "..", "Resources");
 const FIXTURES = path.join(__dirname, "fixtures");
 
 const codelistsJs = fs.readFileSync(path.join(RES, "onix-codelists.js"), "utf8");
+const contentModelFor = {
+  "3.1": fs.readFileSync(path.join(RES, "onix-content-model-3.1.js"), "utf8"),
+  "3.0": fs.readFileSync(path.join(RES, "onix-content-model-3.0.js"), "utf8"),
+};
 const contentModelJs = [
-  fs.readFileSync(path.join(RES, "onix-content-model-3.1.js"), "utf8"),
-  fs.readFileSync(path.join(RES, "onix-content-model-3.0.js"), "utf8"),
+  contentModelFor["3.1"],
+  contentModelFor["3.0"],
 ].join("\n");
 const onixJs = fs.readFileSync(path.join(RES, "onix.js"), "utf8");
 const validateJs = fs.readFileSync(path.join(RES, "onix-validate.js"), "utf8");
@@ -31,11 +35,36 @@ const viewerCss = fs.readFileSync(path.join(RES, "viewer.css"), "utf8");
 
 // ---- minimal test framework ------------------------------------------------
 
+// An optional case-insensitive substring filter, matched against the test name
+// and its describe label:
+//
+//   node tests/run.js                # everything
+//   node tests/run.js x512           # one test
+//   node tests/run.js validation     # a whole describe block
+//   npm test -- "short tag"          # via npm, note the --
+//
+// Without it, debugging one assertion means reading past 150 lines of ✓.
+const FILTER = (process.argv[2] || "").toLowerCase();
+
 let passed = 0;
 let failed = 0;
+let skipped = 0;
 const failures = [];
 
+// The describe label is printed lazily, so filtering to one test doesn't leave
+// the headings of every block it skipped.
+let currentLabel = "";
+let labelPending = false;
+
 function test(name, fn) {
+  if (FILTER && !`${currentLabel} ${name}`.toLowerCase().includes(FILTER)) {
+    skipped++;
+    return;
+  }
+  if (labelPending) {
+    console.log(`\n${currentLabel}`);
+    labelPending = false;
+  }
   try {
     fn();
     passed++;
@@ -49,8 +78,10 @@ function test(name, fn) {
 }
 
 function describe(label, fn) {
-  console.log(`\n${label}`);
+  currentLabel = label;
+  labelPending = true;
   fn();
+  currentLabel = "";
 }
 
 function assert(cond, msg) {
@@ -68,37 +99,41 @@ function render(fixtureName, beforeScripts) {
 // `beforeScripts(window)` runs after the shell exists but before the viewer
 // scripts execute, so a test can seed localStorage the way a returning reader
 // would have it.
-function renderSource(xml, label, beforeScripts) {
+function renderSource(xml, label, beforeScripts, models) {
   const fixtureName = label || "inline.xml";
 
   const html = `<!doctype html><html><head><style>${viewerCss}</style></head>
 <body class="oxv-view-xml">
   <div id="oxv-toolbar">
-    <button data-action="expand-all"></button>
-    <button data-action="collapse-all"></button>
-    <button data-action="collapse-blocks"></button>
-    <button data-action="toggle-wrap"></button>
-    <button data-action="copy-xml"></button>
-    <span class="px-dialect-group">
-      <button data-action="dialect-toggle" aria-pressed="false"></button>
-    </span>
-    <span class="px-view-group">
-      <button data-action="view-xml"></button>
-      <button data-action="view-split"></button>
-      <button data-action="view-structure"></button>
-    </span>
-    <span class="px-search-group">
-      <button class="px-icon-btn" data-action="search" aria-expanded="false"></button>
-      <input id="oxv-search" tabindex="-1">
-      <span id="oxv-search-status"></span>
-    </span>
-    <span id="oxv-validation"></span>
-    <span id="oxv-block-list"></span>
-    <span id="oxv-schema"></span>
-    <span id="oxv-meta"></span>
+    <div class="px-left">
+      <button data-action="expand"></button>
+      <button data-action="collapse"></button>
+      <button data-action="toggle-wrap"></button>
+      <button data-action="copy-xml"></button>
+      <span class="px-dialect-group">
+        <button data-action="dialect-toggle" aria-pressed="false"></button>
+      </span>
+      <span class="px-view-group">
+        <button data-action="view-xml"></button>
+        <button data-action="view-split"></button>
+        <button data-action="view-structure"></button>
+      </span>
+      <span class="px-search-group">
+        <button class="px-icon-btn" data-action="search" aria-expanded="false"></button>
+        <input id="oxv-search" tabindex="-1">
+        <span id="oxv-search-status"></span>
+      </span>
+    </div>
+    <div class="px-center">
+      <span id="oxv-meta"><span id="oxv-block-list"></span></span>
+      <span id="oxv-validation"></span>
+    </div>
+    <div class="px-right">
+      <span id="oxv-schema"></span>
+    </div>
   </div>
   <div id="oxv-main">
-    <main id="oxv-root"></main>
+    <main id="oxv-root" tabindex="0"></main>
     <div id="oxv-divider"></div>
     <aside id="oxv-blocks-pane"><div id="oxv-blocks"></div></aside>
   </div>
@@ -120,7 +155,10 @@ function renderSource(xml, label, beforeScripts) {
   if (beforeScripts) beforeScripts(window);
 
   window.eval(codelistsJs);
-  window.eval(contentModelJs);
+  // Production ships only the model matching the document's release (see
+  // content.js's contentModelURLs); most tests load both, which is the
+  // superset, but a test can pin the exact set the content script would send.
+  window.eval(models ? models.map((v) => contentModelFor[v]).join("\n") : contentModelJs);
   window.eval(onixJs);
   window.eval(validateJs);
   window.eval(blocksJs);
@@ -156,6 +194,14 @@ function stubClipboard(window) {
   });
   return copied;
 }
+// The right pane builds its cards on first reveal, not at load — so a test
+// that asserts on the pane has to show it first, the same way a reader would.
+function renderWithBlocks(fixture) {
+  const window = render(fixture);
+  window.document.querySelector('#oxv-toolbar [data-action="view-split"]').click();
+  return window;
+}
+
 // Text of the collapsed-row summary chips on rows named tagName.
 function summariesOf(window, tagName) {
   return rowsNamed(window, tagName)
@@ -255,8 +301,8 @@ describe("ONIX 3.0 reference", () => {
   test("product summary picks GTIN-13 when ISBN-13 is absent (preference: 15 → 03 → 02)", () => {
     const w = render("onix-3.0-gtin-only.xml");
     const summary = summariesOf(w, "Product")[0];
-    assert(summary.startsWith("GTIN 9780000000003"),
-      `expected "GTIN 9780000000003 …" prefix, got: ${summary}`);
+    assert(summary.startsWith("GTIN 9780000000002"),
+      `expected "GTIN 9780000000002 …" prefix, got: ${summary}`);
   });
 
   test("product summary labels ISBN-10 as ISBN", () => {
@@ -545,7 +591,7 @@ describe("Node menu", () => {
     const expected = [
       "<ProductIdentifier>",
       "  <ProductIDType>15</ProductIDType>",
-      "  <IDValue>9788234567890</IDValue>",
+      "  <IDValue>9788234567896</IDValue>",
       "</ProductIdentifier>",
     ].join("\n");
     assert(copied.text === expected, `unexpected copy:\n${copied.text}`);
@@ -579,22 +625,28 @@ describe("Node menu", () => {
   });
 });
 
-describe("Collapse blocks", () => {
-  test("folds the block elements and unfolds the Products that contain them", () => {
+describe("Stepped collapse and expand", () => {
+  const collapse = (w) => w.document.querySelector('[data-action="collapse"]').click();
+  const expand = (w) => w.document.querySelector('[data-action="expand"]').click();
+  const foldedNames = (w) => rowsNamed(w, "Product").map((r) => r.classList.contains("px-folded"));
+
+  test("step 1 folds each Product's contents and the header, leaving Products open", () => {
     const w = render("onix-3.0-reference.xml");
     const products = rowsNamed(w, "Product");
-    assert(products.every((r) => r.classList.contains("px-folded")), "products should start folded");
-    w.document.querySelector('[data-action="collapse-blocks"]').click();
-    assert(products.every((r) => !r.classList.contains("px-folded")), "products should be unfolded");
+    assert(products.every((r) => r.classList.contains("px-folded")), "products start auto-folded");
+    collapse(w);
+    assert(products.every((r) => !r.classList.contains("px-folded")),
+      "step 1 opens the Products so their one-line children are visible");
     const blocks = [...rowsNamed(w, "DescriptiveDetail"), ...rowsNamed(w, "PublishingDetail")];
     assert(blocks.length >= 2, "expected block rows in the fixture");
     assert(blocks.every((r) => r.classList.contains("px-folded")), "block rows should be folded");
-    assert(rowsNamed(w, "Header").every((r) => !r.classList.contains("px-folded")), "Header should be untouched");
+    assert(rowsNamed(w, "Header").every((r) => r.classList.contains("px-folded")),
+      "the message Header folds with them");
   });
 
-  test("folds the block-0 composites too, so a Product is one line per child", () => {
+  test("step 1 folds the block-0 composites too, so a Product is one line per child", () => {
     const w = render("onix-3.0-reference.xml");
-    w.document.querySelector('[data-action="collapse-blocks"]').click();
+    collapse(w);
     const identifiers = rowsNamed(w, "ProductIdentifier");
     assert(identifiers.length >= 1, "expected ProductIdentifier rows in the fixture");
     assert(identifiers.every((r) => r.classList.contains("px-folded")),
@@ -603,6 +655,37 @@ describe("Collapse blocks", () => {
     // they're hidden inside a folded block anyway.
     assert(rowsNamed(w, "TitleDetail").every((r) => !r.classList.contains("px-folded")),
       "TitleDetail is inside DescriptiveDetail and should be untouched");
+  });
+
+  test("step 2 folds the Products, step 3 the root", () => {
+    const w = render("onix-3.0-reference.xml");
+    collapse(w);
+    assert(foldedNames(w).every((f) => !f), "after step 1 the Products are open");
+    collapse(w);
+    assert(foldedNames(w).every((f) => f), "step 2 folds the Products");
+    const messageRow = rowsNamed(w, "ONIXMessage")[0];
+    assert(!messageRow.classList.contains("px-folded"), "the root is still open");
+    collapse(w);
+    assert(messageRow.classList.contains("px-folded"), "step 3 folds the root");
+    // Nothing left to do; pressing again must not undo any of it.
+    collapse(w);
+    assert(messageRow.classList.contains("px-folded") && foldedNames(w).every((f) => f),
+      "a fourth press is a no-op, not a reversal");
+  });
+
+  test("the header folds in both dialects", () => {
+    for (const [fixture, name] of [["onix-3.0-reference.xml", "Header"],
+                                   ["onix-3.1-shorttags.xml", "header"]]) {
+      const xml = fixture.startsWith("onix-3.1-short")
+        ? fs.readFileSync(path.join(__dirname, "..", "Onix", fixture), "utf8")
+        : fs.readFileSync(path.join(FIXTURES, fixture), "utf8");
+      const w = renderSource(xml, fixture);
+      const header = rowsNamed(w, name);
+      assert(header.length === 1, `expected one <${name}> row in ${fixture}, got ${header.length}`);
+      assert(!header[0].classList.contains("px-folded"), "it should start expanded");
+      collapse(w);
+      assert(header[0].classList.contains("px-folded"), `<${name}> should fold in ${fixture}`);
+    }
   });
 
   test("works in short dialect and via the b shortcut", () => {
@@ -615,6 +698,82 @@ describe("Collapse blocks", () => {
     assert(identifiers.length >= 1, "expected short-tag ProductIdentifier rows");
     assert(identifiers.every((r) => r.classList.contains("px-folded")),
       "short-tag block-0 composites should fold too");
+  });
+
+  test("non-ONIX XML zips up from the leaves, a level per press", () => {
+    // A generic document has no ONIX shape to step through, so Collapse is the
+    // mirror of Expand: the deepest visible level goes first.
+    const w = render("rss.xml");
+    const depthOf = (r) => Number(r.style.getPropertyValue("--depth"));
+    const rows = $$(w, "#oxv-root .px-row.px-collapsible");
+    const byDepth = (d) => rows.filter((r) => depthOf(r) === d);
+    assert(byDepth(2).length >= 2 && byDepth(1).length === 1 && byDepth(0).length === 1,
+      "the fixture should have three levels to fold");
+
+    collapse(w);
+    assert(byDepth(2).every((r) => r.classList.contains("px-folded")), "deepest level first");
+    assert(!byDepth(1)[0].classList.contains("px-folded"), "and only that level");
+    collapse(w);
+    assert(byDepth(1)[0].classList.contains("px-folded"), "then the level above");
+    collapse(w);
+    assert(byDepth(0)[0].classList.contains("px-folded"), "then the root");
+  });
+
+  test("Expand reveals one more level per press, and stops when done", () => {
+    const w = render("rss.xml");
+    const depthOf = (r) => Number(r.style.getPropertyValue("--depth"));
+    const rows = $$(w, "#oxv-root .px-row.px-collapsible");
+    for (const r of rows) r.classList.add("px-folded");
+
+    expand(w);
+    assert(!rows.find((r) => depthOf(r) === 0).classList.contains("px-folded"),
+      "the root opens first");
+    assert(rows.filter((r) => depthOf(r) === 1).every((r) => r.classList.contains("px-folded")),
+      "and only the root");
+    expand(w);
+    assert(rows.filter((r) => depthOf(r) === 1).every((r) => !r.classList.contains("px-folded")),
+      "then the level below");
+    expand(w);
+    expand(w);
+    assert(rows.every((r) => !r.classList.contains("px-folded")), "until everything is open");
+    expand(w);
+    assert(rows.every((r) => !r.classList.contains("px-folded")), "a further press is a no-op");
+  });
+
+  test("Expand undoes a stepped collapse, level by level", () => {
+    const w = render("onix-3.0-reference.xml");
+    collapse(w); collapse(w); collapse(w);
+    const messageRow = rowsNamed(w, "ONIXMessage")[0];
+    assert(messageRow.classList.contains("px-folded"), "fully collapsed");
+    expand(w);
+    assert(!messageRow.classList.contains("px-folded"), "the root reopens first");
+    assert(foldedNames(w).every((f) => f), "the Products are still folded");
+    expand(w);
+    assert(foldedNames(w).every((f) => !f), "then the Products");
+  });
+
+  test("the control row is a flex row, so icons cannot shift a button off the line", () => {
+    // An inline-flex button takes its baseline from its first flex item, so a
+    // button carrying an icon aligned on the icon's bottom edge while a
+    // text-only one aligned on its text — measured in Chrome, that put the
+    // two 3.3px apart. Flex items are aligned by the container instead.
+    const w = render("onix-3.0-reference.xml");
+    const left = w.document.querySelector("#oxv-toolbar .px-left");
+    assert(left, "the control group should exist");
+    const style = w.getComputedStyle(left);
+    assert(style.display === "flex", `expected a flex row, got "${style.display}"`);
+    assert(style.alignItems === "center", `expected centred items, got "${style.alignItems}"`);
+  });
+
+  test("Expand and Collapse carry icons", () => {
+    const w = render("onix-3.0-reference.xml");
+    for (const action of ["expand", "collapse", "copy-xml"]) {
+      const button = w.document.querySelector(`[data-action="${action}"]`);
+      const glyph = button.querySelector("svg");
+      assert(glyph, `${action} should carry an icon`);
+      assert(glyph.getAttribute("viewBox") === "0 0 16 16", "from the shared icon set");
+      assert(glyph.classList.contains("px-icon"), "and be sized by the shared class");
+    }
   });
 });
 
@@ -698,6 +857,35 @@ describe("Short-tag code lists", () => {
     assert(pairs.onixmessage === "ONIXMessage", "the one mixed-case tag must still be reachable");
   });
 
+  // The generated map used to be scraped out of the schema with a regex that
+  // required name="x" to be the declaration's last attribute, so <xs:element
+  // name="x512" default="C"> was skipped and CopyrightType had no short tag.
+  // Reading the schema as XML makes that structurally impossible; this checks
+  // the whole set rather than the one tag that exposed it.
+  test("every element declared in the short schemas has a short-tag pair", () => {
+    const { JSDOM: SchemaDOM } = require("jsdom");
+    const XS = "http://www.w3.org/2001/XMLSchema";
+    const pairs = render("onix-3.0-short-codelists.xml").OnixViewerShortTags;
+    const missing = [];
+    for (const file of ["ONIX_BookProduct_3.1_short.xsd", "ONIX_BookProduct_3.0_short.xsd"]) {
+      const xsd = fs.readFileSync(path.join(__dirname, "..", "tools", "data", file), "utf8");
+      const doc = new (new SchemaDOM().window.DOMParser)().parseFromString(xsd, "application/xml");
+      const declared = [...doc.getElementsByTagNameNS(XS, "element")]
+        .filter((el) => el.parentNode === doc.documentElement && el.getAttribute("name"))
+        .map((el) => el.getAttribute("name").toLowerCase());
+      for (const tag of declared) if (!pairs[tag]) missing.push(`${file}:${tag}`);
+    }
+    assert(missing.length === 0, `short tags absent from the map: ${missing.join(", ")}`);
+  });
+
+  test("x512 (CopyrightType) resolves its code list in short dialect", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    assert(w.OnixViewerOnix.translatedName("x512", "reference") === "CopyrightType",
+      "x512 should translate to CopyrightType");
+    assert(w.OnixViewerCodeListMeta.CopyrightType,
+      "CopyrightType should carry a code-list binding");
+  });
+
   test("every code-list-bound element with a short tag resolves in short dialect", () => {
     const w = render("onix-3.0-short-codelists.xml");
     const pairs = w.OnixViewerShortTags;
@@ -736,6 +924,65 @@ describe("Search", () => {
     field(window).dispatchEvent(new window.Event("input"));
     window.setTimeout = realSetTimeout;
   }
+
+  test("closing the field hands focus to the toggle, not to nowhere", () => {
+    const w = render("onix-3.0-reference.xml");
+    searchButton(w).click();
+    assert(w.document.activeElement === field(w), "opening focuses the field");
+
+    field(w).dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert(!isOpen(w), "Escape closes it");
+    // A bare blur would leave focus on <body>, sending the next Tab back to
+    // the top of the document — and the field itself is now untabbable.
+    assert(w.document.activeElement === searchButton(w),
+      `focus should sit on the toggle, not ${w.document.activeElement.tagName}`);
+    assert(field(w).getAttribute("tabindex") === "-1", "and the field is out of the tab order");
+  });
+
+  test("closing a field the reader had already left does not steal focus", () => {
+    const w = render("onix-3.0-reference.xml");
+    searchButton(w).click();
+    // Focus moved into the tree; the blur handler closes the empty field.
+    const root = w.document.getElementById("oxv-root");
+    root.focus();
+    field(w).dispatchEvent(new w.FocusEvent("blur", { relatedTarget: root }));
+    assert(!isOpen(w), "an empty field collapses when left");
+    assert(w.document.activeElement === root,
+      "but focus stays where the reader put it, not on the toggle");
+  });
+
+  test("the toggle closes an open, empty field instead of reopening it", () => {
+    const w = render("onix-3.0-reference.xml");
+    const button = searchButton(w);
+    button.click();
+    assert(isOpen(w), "the first press should open it");
+
+    // What the browser actually does: mousedown blurs the field, then the
+    // click lands. The blur used to close the search, so the click found it
+    // closed and opened it again — the button looked dead.
+    field(w).dispatchEvent(new w.FocusEvent("blur", { relatedTarget: button }));
+    button.click();
+    assert(!isOpen(w), "the second press should close it, not reopen it");
+    assert(button.getAttribute("aria-expanded") === "false", "and say so");
+  });
+
+  test("the toggle's mousedown does not steal focus from the field", () => {
+    const w = render("onix-3.0-reference.xml");
+    searchButton(w).click();
+    const event = new w.MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    searchButton(w).dispatchEvent(event);
+    assert(event.defaultPrevented,
+      "mousedown must be prevented, or the field blurs before the click decides");
+  });
+
+  test("blurring to anywhere else still closes an empty field", () => {
+    const w = render("onix-3.0-reference.xml");
+    searchButton(w).click();
+    assert(isOpen(w), "open");
+    // Focus moving into the tree, not to the toggle.
+    field(w).dispatchEvent(new w.FocusEvent("blur", { relatedTarget: w.document.getElementById("oxv-root") }));
+    assert(!isOpen(w), "an empty field should still collapse when you leave it");
+  });
 
   test("starts collapsed to its icon and out of the tab order", () => {
     const w = render("onix-3.0-reference.xml");
@@ -805,6 +1052,99 @@ describe("Validation", () => {
     return result.findings.map((f) => f.code);
   }
 
+  // Production loads one model, not both — content.js picks it from the
+  // document's release — so every fixture must yield the same verdict from
+  // its own model alone as it does from both. A model that only validates
+  // because the other release happened to be loaded would show up here.
+  test("one model gives the same verdict as both, for every ONIX fixture", () => {
+    const disagreed = [];
+    // One window is enough to read each document's release; the comparison
+    // then renders the fixture once per model set.
+    const detector = render("onix-3.1-valid.xml");
+    for (const fixture of fsv.readdirSync(FIXTURES).filter((f) => f.startsWith("onix-"))) {
+      const xml = fsv.readFileSync(path.join(FIXTURES, fixture), "utf8");
+      const doc = new detector.DOMParser().parseFromString(xml, "application/xml");
+      const version = detector.OnixViewerOnix.detect(doc).version;
+      if (version !== "3.0" && version !== "3.1") continue;
+      const alone = codes(findings(renderSource(xml, fixture, null, [version]))).sort();
+      const both = codes(findings(renderSource(xml, fixture))).sort();
+      if (alone.join("|") !== both.join("|")) {
+        disagreed.push(`${fixture}: alone [${alone}] vs both [${both}]`);
+      }
+    }
+    assert(disagreed.length === 0, disagreed.join("; "));
+  });
+
+  test("a valid document stays valid with only its own model loaded", () => {
+    const xml = fsv.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+    const w = renderSource(xml, "onix-3.1-valid.xml", null, ["3.1"]);
+    assert(Object.keys(w.OnixViewerContentModels).join() === "3.1",
+      `only 3.1 should be loaded, got ${Object.keys(w.OnixViewerContentModels).join()}`);
+    const result = findings(w);
+    assert(result.checkedStructure, "structure should have been checked");
+    assert(result.total === 0, `expected clean, got: ${codes(result).join(", ")}`);
+  });
+
+  test("a standalone <Product> root is validated in full, in both dialects", () => {
+    // No <ONIXMessage> envelope, so nothing about the message shape applies —
+    // but <Product> is in the model like any other element, so the structural
+    // rules do bite. The release comes from the namespace, there being no
+    // `release` attribute to read.
+    const product = (ns, body) =>
+      `<?xml version="1.0"?><${ns.root} xmlns="http://ns.editeur.org/onix/3.1/${ns.dialect}">` +
+      `${body}</${ns.root}>`;
+    const reference = product({ root: "Product", dialect: "reference" },
+      "<RecordReference>r1</RecordReference><ProductFrom>typo</ProductFrom>" +
+      "<DescriptiveDetail><ProductForm>BB</ProductForm></DescriptiveDetail>");
+    const w = render("onix-3.1-standalone-product.xml");
+    const bad = findingsFor(w, reference);
+    assert(bad.checkedStructure, "a <Product> root must be checked structurally");
+    assert(codes(bad).includes("structure.unknown"), `got: ${codes(bad).join(", ")}`);
+    assert(codes(bad).filter((c) => c === "structure.missing").length >= 2,
+      `the root's own required children should be checked; got: ${codes(bad).join(", ")}`);
+
+    // The fixture itself is valid apart from its deprecated <TitleText>.
+    const clean = findings(w);
+    assert(clean.checkedStructure && codes(clean).join() === "element.deprecated",
+      `expected only the deprecation; got: ${codes(clean).join(", ")}`);
+
+    // And the same in short tags.
+    const short = findingsFor(w, product({ root: "product", dialect: "short" },
+      "<a001>r1</a001><a002>03</a002>" +
+      "<productidentifier><b221>15</b221><b244>9788234567896</b244></productidentifier>" +
+      "<descriptivedetail><x314>00</x314><b012>BB</b012><b203>T</b203></descriptivedetail>"));
+    assert(short.checkedStructure, "a short-tag <product> root must be checked too");
+  });
+
+  test("a <Product> root with no namespace has no release to check against", () => {
+    // The one case that genuinely cannot be validated structurally: no
+    // namespace and no release attribute means no way to pick a model. Code
+    // lists are release-independent, so those are still checked.
+    const w = render("onix-standalone-product-no-namespace.xml");
+    const result = findings(w);
+    assert(!result.checkedStructure, "structure must not be guessed at");
+    assert(codes(result).includes("model.missing"), `got: ${codes(result).join(", ")}`);
+    assert(w.OnixViewerOnix.detect(
+      new w.DOMParser().parseFromString(w.__OXV_SOURCE__, "application/xml")).isOnix,
+      "but it is still recognised as ONIX and taken over");
+  });
+
+  test("a release with no bundled model is reported, naming what did load", () => {
+    // ONIX 2.1 has no model. content.js ships both in that case precisely so
+    // this warning can list them, rather than under-reporting what exists.
+    const w = renderSource(
+      '<?xml version="1.0"?><ONIXMessage release="2.1"><Product>' +
+      "<RecordReference>x</RecordReference></Product></ONIXMessage>",
+      "onix-2.1.xml", null, ["3.1", "3.0"]);
+    const result = findings(w);
+    assert(codes(result).includes("model.missing"), `got: ${codes(result).join(", ")}`);
+    assert(!result.checkedStructure, "structure must not be checked against the wrong schema");
+    const warning = result.findings.find((f) => f.code === "model.missing");
+    const text = w.OnixViewerValidation.message(warning);
+    assert(text.includes("3.0") && text.includes("3.1"),
+      `the warning should name both bundled releases, got: ${text}`);
+  });
+
   test("a schema-valid ONIX 3.1 message reports nothing", () => {
     const w = render("onix-3.1-valid.xml");
     const result = findings(w);
@@ -819,13 +1159,14 @@ describe("Validation", () => {
     const w = render("onix-3.1-invalid.xml");
     const result = findings(w);
     for (const code of ["codelist.unknown", "codelist.deprecated", "structure.unknown",
-                        "datatype.range", "structure.expected-one-of"]) {
+                        "datatype.range", "structure.expected-one-of",
+                        "element.deprecated", "gtin.checkdigit"]) {
       assert(codes(result).includes(code), `missing ${code}; got: ${codes(result).join(", ")}`);
     }
     // An unknown element must not make its siblings "not allowed here" too.
     assert(!codes(result).includes("structure.unexpected"),
       `a typo should not cascade; got: ${codes(result).join(", ")}`);
-    assert(result.total === 5, `expected 5 findings, got ${result.total}: ${codes(result).join(", ")}`);
+    assert(result.total === 7, `expected 7 findings, got ${result.total}: ${codes(result).join(", ")}`);
   });
 
   test("findings are pinned to the rows they are about", () => {
@@ -837,7 +1178,7 @@ describe("Validation", () => {
     const marker = notification.querySelector(".px-finding");
     assert(marker, "the bad code's row should carry a marker");
     assert(marker.title.includes("not in List 1"), `got: ${marker.title}`);
-    assert(validate(w).textContent === "4 errors, 1 warning", `got: ${validate(w).textContent}`);
+    assert(validate(w).textContent === "5 errors, 2 warnings", `got: ${validate(w).textContent}`);
   });
 
   test("markers carry their severity: errors red, warnings amber", () => {
@@ -904,9 +1245,9 @@ describe("Validation", () => {
     const modal = w.document.getElementById("oxv-findings");
     assert(modal && !modal.hidden, "the findings modal should open");
     const items = [...modal.querySelectorAll(".px-findings-item")];
-    assert(items.length === 5, `expected one entry per finding, got ${items.length}`);
-    assert(items.filter((i) => i.dataset.oxvSeverity === "error").length === 4, "4 errors");
-    assert(items.filter((i) => i.dataset.oxvSeverity === "warning").length === 1, "1 warning");
+    assert(items.length === 7, `expected one entry per finding, got ${items.length}`);
+    assert(items.filter((i) => i.dataset.oxvSeverity === "error").length === 5, "5 errors");
+    assert(items.filter((i) => i.dataset.oxvSeverity === "warning").length === 2, "2 warnings");
     assert(items[0].textContent.includes("is not in List 1"), `got: ${items[0].textContent}`);
     assert(items[0].textContent.includes("<NotificationType>"), "each entry names its element");
     // Every badge is icon-only and so the same size; otherwise a wider label
@@ -930,6 +1271,117 @@ describe("Validation", () => {
       "and the row it points at should be the active one");
   });
 
+  test("a short-tag document's findings name short tags, never reference names", () => {
+    // The reader's file says <b203>; naming <TitleText> sends them looking for
+    // a tag it does not contain. Names read off a node are already the
+    // document's own; these come out of the content model, which is reference
+    // names only.
+    const short = fsv.readFileSync(path.join(__dirname, "..", "Onix", "onix-3.1-shorttags.xml"), "utf8");
+    const w = renderSource(short, "onix-3.1-shorttags.xml");
+    const stray = short.replace(/<x314>[^<]*<\/x314>/, "<zz999>oops</zz999>");
+    const messages = findingsFor(w, stray).findings.map((f) => w.OnixViewerValidation.message(f));
+    const joined = messages.join(" | ");
+
+    // Every element reference, in the "where" column and inside the prose.
+    for (const shortTag of ["<b203>", "<b030>", "<x501/>", "<b031>", "<x314>", "<descriptivedetail>"]) {
+      assert(joined.includes(shortTag), `expected ${shortTag}; got: ${joined}`);
+    }
+    for (const referenceName of ["<TitleText>", "<TitlePrefix>", "<NoPrefix/>",
+                                 "<TitleWithoutPrefix>", "<ProductComposition>",
+                                 "<DescriptiveDetail>"]) {
+      assert(!joined.includes(referenceName), `${referenceName} should be translated; got: ${joined}`);
+    }
+  });
+
+  test("a reference-dialect document keeps reference names", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const joined = findings(w).findings
+      .map((f) => w.OnixViewerValidation.message(f)).join(" | ");
+    assert(joined.includes("<TitleText>") && joined.includes("<TitleWithoutPrefix>"),
+      `expected reference names untouched; got: ${joined}`);
+    assert(!/[<(]b203/.test(joined), `no short tags here; got: ${joined}`);
+  });
+
+  test("the two dialects of one record report the same findings in their own names", () => {
+    const read = (n) => fsv.readFileSync(path.join(__dirname, "..", "Onix", n), "utf8");
+    const reference = findings(renderSource(read("onix-3.1-refnames.xml")));
+    const short = findings(renderSource(read("onix-3.1-shorttags.xml")));
+    // Same defects...
+    assert(codes(reference).join() === codes(short).join(),
+      `codes should match: ${codes(reference).join()} vs ${codes(short).join()}`);
+    // ...described in each file's own dialect.
+    const w = render("onix-3.1-valid.xml");
+    const messageOf = (result, code) => w.OnixViewerValidation.message(
+      result.findings.find((f) => f.code === code));
+    assert(messageOf(reference, "element.deprecated").includes("<TitleText>"),
+      "the reference file should be told about <TitleText>");
+    assert(messageOf(short, "element.deprecated").includes("<b203>"),
+      "the short-tag file should be told about <b203>");
+  });
+
+  test("the findings list is selectable text, and selecting it does not navigate", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w).click();
+    const modal = w.document.getElementById("oxv-findings");
+    const item = modal.querySelector(".px-findings-item");
+    // A <button> is unselectable by default, so the entry has to opt back in.
+    assert(w.getComputedStyle(item).userSelect === "text",
+      `expected selectable text, got "${w.getComputedStyle(item).userSelect}"`);
+
+    // With a selection inside the entry, the click that ends the drag must not
+    // close the list and jump the page.
+    const range = w.document.createRange();
+    range.selectNodeContents(item.querySelector(".px-findings-message"));
+    w.getSelection().removeAllRanges();
+    w.getSelection().addRange(range);
+    item.click();
+    assert(!modal.hidden, "selecting the message should not close the list");
+
+    // Without one, it navigates as before.
+    w.getSelection().removeAllRanges();
+    item.click();
+    assert(modal.hidden, "a plain click should still close the list");
+  });
+
+  test("closing the findings list puts focus back where it was", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const label = validate(w);
+    label.focus();
+    label.click();
+    const modal = w.document.getElementById("oxv-findings");
+    assert(modal.querySelector(".px-popup-close") === w.document.activeElement,
+      "opening should move focus into the dialog");
+    // An unnamed dialog announces as just "dialog"; the title supplies the name.
+    const dialog = modal.querySelector('[role="dialog"]');
+    const named = dialog.getAttribute("aria-labelledby");
+    assert(named && w.document.getElementById(named),
+      `aria-labelledby should resolve to a real element, got "${named}"`);
+
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert(modal.hidden, "Escape should close the list");
+    assert(w.document.activeElement === label,
+      "closing should return focus to whatever opened it");
+  });
+
+  test("Tab stays inside the findings list", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w).click();
+    const modal = w.document.getElementById("oxv-findings");
+    const dialog = modal.querySelector('[role="dialog"]');
+    const focusable = [...dialog.querySelectorAll("button:not([disabled])")];
+    assert(focusable.length > 1, `expected several controls, got ${focusable.length}`);
+
+    // Tab off the last control wraps to the first, rather than escaping into
+    // the page that aria-modal says is unreachable.
+    focusable[focusable.length - 1].focus();
+    dialog.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    assert(w.document.activeElement === focusable[0], "Tab should wrap to the first control");
+    focusable[0].focus();
+    dialog.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }));
+    assert(w.document.activeElement === focusable[focusable.length - 1],
+      "Shift+Tab should wrap to the last control");
+  });
+
   test("a clean document leaves the label inert", () => {
     const w = render("onix-3.1-valid.xml");
     const status = validate(w);
@@ -945,13 +1397,13 @@ describe("Validation", () => {
     assert(clean.querySelector("svg") && clean.textContent === "Valid", "a tick and the word");
     const dirty = validate(render("onix-3.1-invalid.xml"));
     assert(dirty.querySelector("svg"), "problems get an icon too");
-    assert(dirty.textContent === "4 errors, 1 warning", `got: ${dirty.textContent}`);
+    assert(dirty.textContent === "5 errors, 2 warnings", `got: ${dirty.textContent}`);
   });
 
   test("validation starts on its own and never scrolls the page", () => {
     const w = render("onix-3.1-invalid.xml");
     // Nothing was clicked: the label is already filled in.
-    assert(validate(w).textContent === "4 errors, 1 warning", `got: ${validate(w).textContent}`);
+    assert(validate(w).textContent === "5 errors, 2 warnings", `got: ${validate(w).textContent}`);
     assert($$(w, "#oxv-root .px-finding").length > 0, "and the rows are already marked");
     // A pass that runs on load must not yank the view or steal the active row.
     assert($$(w, "#oxv-root .px-active").length === 0, "no row should be made active on load");
@@ -968,7 +1420,7 @@ describe("Validation", () => {
     assert(session.done, `should finish; stopped after ${steps} steps`);
     assert(session.processed === session.total,
       `every element should be visited: ${session.processed} of ${session.total}`);
-    assert(session.result().total === 5, `same findings as a single pass: ${session.result().total}`);
+    assert(session.result().total === 7, `same findings as a single pass: ${session.result().total}`);
   });
 
   test("both dialects of the same record produce the same findings", () => {
@@ -977,8 +1429,13 @@ describe("Validation", () => {
     const short = findings(renderSource(read("onix-3.1-shorttags.xml")));
     assert(codes(reference).join() === codes(short).join(),
       `reference: ${codes(reference).join()} vs short: ${codes(short).join()}`);
-    assert(reference.total === 1 && codes(reference)[0] === "codelist.deprecated",
-      `expected the deprecated ISTC only; got ${codes(reference).join(", ")}`);
+    // EDItEUR's own sample is schema-valid but carries two deprecations: the
+    // ISTC code, and <TitleText>, which release 3.1 replaced with the split
+    // <NoPrefix/> + <TitleWithoutPrefix> form. Both are warnings, not errors.
+    assert(codes(reference).sort().join() === "codelist.deprecated,element.deprecated",
+      `expected the two deprecations; got ${codes(reference).join(", ")}`);
+    assert(reference.findings.every((f) => f.severity === "warning"),
+      "a valid document's deprecations must be warnings, not errors");
   });
 
   test("both releases since 3.0 are bundled and checked structurally", () => {
@@ -1048,32 +1505,168 @@ describe("Validation", () => {
   });
 
   test("a new rule can be registered without touching the walk", () => {
-    // The shape an xs:unique or GTIN-13 check-digit rule would take.
+    // The shape the remaining unwritten rule — xs:unique — would take: collect
+    // keys as elements go past, report the clashes once the walk is over. The
+    // schema carries 125 of these, e.g. no two <Price> with the same type,
+    // currency and territory.
     const w = render("onix-3.1-valid.xml");
-    const good = "9788234567896";
     const validation = w.OnixViewerValidation;
-    validation.messages["gtin.checkdigit"] = "{value} has a bad check digit";
+    validation.messages["unique.duplicate"] = "<{parent}> repeats {field} {value}";
     validation.registerRule({
-      name: "gtin",
+      name: "unique",
+      start(api) { api.seenIdentifiers = new Map(); },
       element(node, api) {
-        if (api.referenceName(node) !== "IDValue") return true;
-        const value = api.textOf(node);
-        if (value.length !== 13) return true;
-        const sum = [...value].reduce((t, d, i) => t + Number(d) * (i % 2 ? 3 : 1), 0);
-        if (sum % 10 !== 0) api.report("gtin.checkdigit", node, { value });
+        if (api.referenceName(node) === "IDValue") {
+          const value = api.textOf(node).trim();
+          const first = api.seenIdentifiers.get(value);
+          if (first) api.report("unique.duplicate", node, { parent: api.parentName(node), field: "IDValue", value });
+          else api.seenIdentifiers.set(value, node);
+        }
         return true;
       },
     });
     const valid = fsv.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
-    const clean = findingsFor(w, valid);
-    assert(clean.total === 0, `${good} should pass the check digit; got: ${codes(clean).join(", ")}`);
-    // Target the element: <RecordReference> embeds the same digits, and a
-    // string replace would rewrite that instead.
-    const after = findingsFor(w, valid.replace(`<IDValue>${good}`, "<IDValue>9788234567895"));
-    assert(codes(after).includes("gtin.checkdigit"),
+    assert(findingsFor(w, valid).total === 0,
+      `one identifier each should pass; got: ${codes(findingsFor(w, valid)).join(", ")}`);
+
+    // Give the product a second identifier carrying the same value.
+    const duplicated = valid.replace(
+      "</ProductIdentifier>",
+      "</ProductIdentifier>\n      <ProductIdentifier><ProductIDType>01</ProductIDType>" +
+      "<IDTypeName>Internal</IDTypeName><IDValue>9788234567896</IDValue></ProductIdentifier>");
+    const after = findingsFor(w, duplicated);
+    assert(codes(after).includes("unique.duplicate"),
       `the registered rule should fire; got: ${codes(after).join(", ")}`);
-    assert(w.OnixViewerValidation.message(after.findings[0]) === "9788234567895 has a bad check digit",
-      "and use its own message template");
+    const finding = after.findings.find((f) => f.code === "unique.duplicate");
+    assert(validation.message(finding) === "<ProductIdentifier> repeats IDValue 9788234567896",
+      `and use its own message template; got: ${validation.message(finding)}`);
+  });
+});
+
+describe("Deprecated elements", () => {
+  const fsd = require("fs");
+  function findingsFor(window, xml) {
+    const doc = new window.DOMParser().parseFromString(xml, "application/xml");
+    return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
+  }
+  function deprecations(window, xml) {
+    return findingsFor(window, xml).findings
+      .filter((f) => f.code === "element.deprecated")
+      .map((f) => window.OnixViewerValidation.message(f));
+  }
+
+  test("a deprecated element is reported as a warning, naming the replacement", () => {
+    const w = render("onix-3.1-standalone-product.xml");
+    const messages = deprecations(w, w.__OXV_SOURCE__);
+    assert(messages.length === 1, `expected one deprecation, got: ${messages.join(" | ")}`);
+    assert(messages[0] === "<TitleText> is deprecated from release 3.1 — use either " +
+      "<TitlePrefix> or <NoPrefix/>, plus <TitleWithoutPrefix> instead", `got: ${messages[0]}`);
+    const finding = findingsFor(w, w.__OXV_SOURCE__).findings
+      .find((f) => f.code === "element.deprecated");
+    assert(finding.severity === "warning", "deprecation is valid ONIX, so a warning");
+  });
+
+  test("a note about an element's children does not deprecate the element", () => {
+    // <Header> and <TitleElement> both carry a "Deprecated <Child>" note, and
+    // both appear in nearly every ONIX file — flagging them would bury a valid
+    // document in false warnings. <SalesRestriction>'s note names P.21 clauses.
+    const w = render("onix-3.1-valid.xml");
+    for (const version of ["3.1", "3.0"]) {
+      const deprecated = w.OnixViewerContentModels[version].deprecated;
+      for (const name of ["Header", "TitleElement", "SalesRestriction"]) {
+        assert(!deprecated[name], `${version}: <${name}> must not be marked deprecated`);
+      }
+    }
+    // And the fixture using both of them reports nothing.
+    assert(deprecations(w, w.__OXV_SOURCE__).length === 0,
+      `a valid 3.1 document should carry no deprecation: ${deprecations(w, w.__OXV_SOURCE__).join(" | ")}`);
+  });
+
+  test("a deprecation limited to one parent fires only there", () => {
+    // <TextSourceDescription> is deprecated within <TextContent>, but not
+    // within <TextSource>, so the parent decides.
+    const w = render("onix-3.1-valid.xml");
+    const within = w.OnixViewerContentModels["3.1"].deprecated.TextSourceDescription;
+    assert(within && within.within === "TextContent",
+      `expected the context to be recorded, got ${JSON.stringify(within)}`);
+  });
+
+  test("ONIX 3.0's deprecated elements are covered too", () => {
+    const w = render("onix-3.0-reference.xml");
+    const deprecated = w.OnixViewerContentModels["3.0"].deprecated;
+    for (const name of ["AudienceCode", "Conference", "ConferenceName", "CurrencyZone",
+                        "Reissue", "DateFormat"]) {
+      assert(deprecated[name], `<${name}> should be marked deprecated in 3.0`);
+    }
+    // 3.1 dropped these entirely, so they are unknown there rather than deprecated.
+    assert(!w.OnixViewerContentModels["3.1"].elements.ConferenceName,
+      "<ConferenceName> should not exist in the 3.1 model at all");
+  });
+});
+
+describe("Identifier check digits", () => {
+  function findingsFor(window, xml) {
+    const doc = new window.DOMParser().parseFromString(xml, "application/xml");
+    return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
+  }
+  // A product record carrying one identifier of the given type and value.
+  function record(type, value) {
+    return '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<ONIXMessage xmlns="http://ns.editeur.org/onix/3.1/reference" release="3.1">' +
+      "<Header><Sender><SenderName>T</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header><Product>" +
+      "<RecordReference>r1</RecordReference><NotificationType>03</NotificationType>" +
+      `<ProductIdentifier><ProductIDType>${type}</ProductIDType>` +
+      (type === "01" ? "<IDTypeName>Internal</IDTypeName>" : "") +
+      `<IDValue>${value}</IDValue></ProductIdentifier>` +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      "<ProductForm>BB</ProductForm></DescriptiveDetail></Product></ONIXMessage>";
+  }
+  function checkDigitFindings(window, type, value) {
+    return findingsFor(window, record(type, value)).findings
+      .filter((f) => f.code === "gtin.checkdigit")
+      .map((f) => window.OnixViewerValidation.message(f));
+  }
+
+  test("real ISBN-13s pass", () => {
+    const w = render("onix-3.1-valid.xml");
+    // Two canonical examples plus the one the fixtures use.
+    for (const isbn of ["9780306406157", "9783161484100", "9788234567896"]) {
+      assert(checkDigitFindings(w, "15", isbn).length === 0, `${isbn} should pass`);
+    }
+  });
+
+  test("a wrong check digit is reported, with the digit it should be", () => {
+    const w = render("onix-3.1-valid.xml");
+    const messages = checkDigitFindings(w, "15", "9788234567892");
+    assert(messages.length === 1, `expected one finding, got: ${messages.join(" | ")}`);
+    assert(messages[0] === '"9788234567892" has an invalid check digit for ISBN-13 (expected 6)',
+      `got: ${messages[0]}`);
+  });
+
+  test("GTIN-13 and ISBN-10 are checked, ISBN-10's X included", () => {
+    const w = render("onix-3.1-valid.xml");
+    assert(checkDigitFindings(w, "03", "9780000000002").length === 0, "valid GTIN-13");
+    assert(checkDigitFindings(w, "03", "9780000000003").length === 1, "invalid GTIN-13");
+    // 043942089X is a real ISBN-10 whose check digit is X (remainder 10).
+    assert(checkDigitFindings(w, "02", "043942089X").length === 0, "valid ISBN-10 ending X");
+    assert(checkDigitFindings(w, "02", "0439420891").length === 1, "invalid ISBN-10");
+  });
+
+  test("schemes without a check digit are left alone", () => {
+    const w = render("onix-3.1-valid.xml");
+    // A proprietary ID (01) is any string the sender likes; a DOI (06) has no
+    // check digit either. Neither may be judged by the GTIN algorithm.
+    assert(checkDigitFindings(w, "01", "9788234567892").length === 0, "proprietary IDs are opaque");
+    assert(checkDigitFindings(w, "06", "10.1000/182").length === 0, "DOIs have no check digit");
+  });
+
+  test("a value of the wrong length is left to the datatype rule", () => {
+    const w = render("onix-3.1-valid.xml");
+    // Reporting a check digit for a 12-digit "ISBN-13" would only add noise on
+    // top of the length error the schema already catches.
+    assert(checkDigitFindings(w, "15", "978823456789").length === 0, "too short");
+    assert(checkDigitFindings(w, "15", "97882345678966").length === 0, "too long");
   });
 });
 
@@ -1243,6 +1836,93 @@ describe("Dialect toggle", () => {
     assert(!schema.includes("EDItEUR"), "the vendor name is not needed here");
   });
 
+  test("the document pill is one unit: icon, what it is, its blocks, its size", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    const pill = w.document.getElementById("oxv-meta");
+    assert(pill.textContent === "ONIX 3.0 (1 product) · Blocks: 1, 4, 6 · 1.7 KB",
+      `got: "${pill.textContent}"`);
+    // The blocks are a segment of that pill now, not a pill of their own.
+    const blocks = w.document.getElementById("oxv-block-list");
+    assert(pill.contains(blocks), "the block list belongs inside the document pill");
+    assert(w.getComputedStyle(blocks).borderTopWidth !== "1px",
+      "and should not keep its own border");
+  });
+
+  test("the block list segment disappears when there is nothing to list", () => {
+    // Two products, so there is no single Product whose blocks to name.
+    const w = render("onix-3.0-reference.xml");
+    const pill = w.document.getElementById("oxv-meta");
+    assert(pill.textContent === "ONIX 3.0 (2 products) · 1.9 KB", `got: "${pill.textContent}"`);
+    // Still findable, just empty — and :empty keeps it off the screen.
+    const blocks = w.document.getElementById("oxv-block-list");
+    assert(blocks && pill.contains(blocks), "the element should stay in the pill");
+    assert(blocks.textContent === "", "with nothing in it");
+    assert(!/·\s*·/.test(pill.textContent), "and no doubled separator");
+  });
+
+  test("a non-ONIX document's pill claims only the size", () => {
+    const w = render("generic-note.xml");
+    assert(/^\d+\.\d+ KB$/.test(meta(w)), `got: "${meta(w)}"`);
+  });
+
+  test("on a narrow toolbar the document pill gives way, never the verdict", () => {
+    // Measured in Chrome: the pill's label ellipsises as the middle column
+    // shrinks, and past that the pill is dropped entirely. What must never be
+    // clipped is #oxv-validation — the size and release are recoverable from
+    // the file and the tree, "103 errors" is not. jsdom has no layout, so this
+    // asserts the rules that produce that behaviour rather than the pixels.
+    const w = render("onix-3.0-reference.xml");
+    const style = (sel) => w.getComputedStyle(w.document.querySelector(sel));
+
+    // The middle column must be allowed to shrink at all: a bare 1fr track
+    // refuses to go below its content's min-content width.
+    const cols = style("#oxv-toolbar").gridTemplateColumns;
+    assert(/minmax\(0(px)?, 1fr\)/.test(cols), `expected a shrinkable middle column, got "${cols}"`);
+    const metaMin = style("#oxv-meta").minWidth;
+    assert(metaMin === "0" || metaMin === "0px",
+      `the pill must be allowed to shrink, got min-width "${metaMin}"`);
+    assert(style("#oxv-meta").flexShrink !== "0", "and must not be pinned against shrinking");
+    assert(style("#oxv-schema").flexShrink === "0", "the issue pill keeps its width");
+    assert(style("#oxv-validation").flexShrink === "0", "and so does the verdict");
+    const label = style("#oxv-meta .px-meta-label");
+    assert(label.overflow === "hidden" && label.textOverflow === "ellipsis",
+      "the pill's label ellipsises rather than pushing the column wider");
+
+    // And the two breakpoints that drop the pill before anything else.
+    const sheet = w.document.styleSheets[0];
+    const dropped = [];
+    for (const rule of sheet.cssRules) {
+      const media = rule.media && String(rule.conditionText || rule.media.mediaText);
+      if (media && media.includes("width")) {
+        for (const inner of rule.cssRules) {
+          if (inner.style.display === "none") dropped.push(media + " " + inner.selectorText);
+        }
+      }
+    }
+    assert(dropped.some((d) => d.includes("1100px") && d.includes("px-search-open")),
+      `expected the pill dropped when the search field is open on a narrow window; got ${dropped.join("; ")}`);
+    assert(dropped.some((d) => d.includes("760px")),
+      `expected the pill dropped outright when very narrow; got ${dropped.join("; ")}`);
+    assert(!dropped.some((d) => d.includes("oxv-validation") || d.includes("oxv-schema")),
+      `only the document pill may be dropped; got ${dropped.join("; ")}`);
+  });
+
+  test("the toolbar reads left to right: controls, document, validation, then issue", () => {
+    const w = render("onix-3.0-single-product-blocks.xml");
+    const ids = ["oxv-meta", "oxv-validation", "oxv-schema"]
+      .map((id) => w.document.getElementById(id));
+    for (let i = 1; i < ids.length; i++) {
+      const order = ids[i - 1].compareDocumentPosition(ids[i]);
+      assert(order & w.Node.DOCUMENT_POSITION_FOLLOWING,
+        `${ids[i].id} should come after ${ids[i - 1].id}`);
+    }
+    // The document pill sits with the controls; the code-list issue is
+    // reference material and goes to the far right, in its own column.
+    assert(ids[0].closest(".px-center"), "the document pill belongs in the centre group");
+    assert(ids[1].closest(".px-center"), "so does the validation state");
+    assert(ids[2].closest(".px-right"), "the issue pill belongs in the right group");
+  });
+
   test("switching keeps fold state, code-list badges and summaries intact", () => {
     const w = render("onix-3.0-short-codelists.xml");
     const before = badges(w).join("|");
@@ -1252,7 +1932,7 @@ describe("Dialect toggle", () => {
     assert(rowsNamed(w, "Product")[0].classList.contains("px-folded"),
       "the folded row should still be folded after switching");
     assert(badges(w).join("|") === before, "code-list labels come from the parsed document, not the display");
-    assert(summariesOf(w, "Product")[0].startsWith("ISBN 9788234567892"), "summary should survive");
+    assert(summariesOf(w, "Product")[0].startsWith("ISBN 9788234567896"), "summary should survive");
   });
 
   test("translated names follow the dialect styling", () => {
@@ -1337,7 +2017,7 @@ describe("Composite summaries", () => {
     const w = render("onix-3.0-gtin-only.xml");
     const summaries = summariesOf(w, "ProductIdentifier");
     assert(summaries.length === 2, `expected a chip per ProductIdentifier, got ${summaries.length}`);
-    assert(summaries[1] === "GTIN-13 9780000000003",
+    assert(summaries[1] === "GTIN-13 9780000000002",
       `expected the List 5 label and the IDValue, got: ${summaries[1]}`);
     assert(summaries[0] === "Proprietary product ID scheme internal-1234",
       `expected the list label when no IDTypeName is given, got: ${summaries[0]}`);
@@ -1382,7 +2062,7 @@ describe("Composite summaries", () => {
 
   test("works in short dialect", () => {
     const w = render("onix-3.0-short.xml");
-    assert(summariesOf(w, "productidentifier")[0] === "ISBN-13 9788234567892",
+    assert(summariesOf(w, "productidentifier")[0] === "ISBN-13 9788234567896",
       `got: ${summariesOf(w, "productidentifier")[0]}`);
     assert(summariesOf(w, "contributor")[0] === "By (author) Kari Nordmann",
       `got: ${summariesOf(w, "contributor")[0]}`);
@@ -1415,6 +2095,125 @@ describe("Double injection", () => {
   });
 });
 
+// content.js is the gate for the whole extension — it decides whether a page
+// is taken over at all, and which content model is shipped to the viewer — but
+// it is an IIFE that acts on load, so it can't be evaluated in the harness the
+// way the viewer scripts are. Its pure string sniffs are lifted out of the
+// source instead and exercised directly. Extraction is asserted, so moving or
+// renaming one of them fails here rather than silently skipping the test.
+describe("Content-script sniffs", () => {
+  const contentJs = fs.readFileSync(path.join(RES, "content.js"), "utf8");
+
+  function lift(...names) {
+    const sources = names.map((name) => {
+      const match = contentJs.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n  \\}\\n`));
+      assert(match, `could not lift ${name}() out of content.js`);
+      return match[0];
+    });
+    const stubBrowserApi = () => ({ runtime: { getURL: (p) => p } });
+    return new Function("MODEL_VERSIONS", "browserAPI",
+      `${sources.join("\n")}\nreturn { ${names.join(", ")} };`)(["3.1", "3.0"], stubBrowserApi);
+  }
+
+  test("looksLikeOnix accepts every ONIX fixture and rejects the others", () => {
+    const { looksLikeOnix } = lift("looksLikeOnix");
+    const dir = path.join(__dirname, "fixtures");
+    const wrong = [];
+    for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".xml"))) {
+      // The ONIX fixtures are the ones that must be taken over. malformed.xml
+      // is a generic <root> document, so it is correctly left to the browser;
+      // the parse-error panel is exercised by rendering it directly.
+      const shouldMatch = file.startsWith("onix-");
+      const got = looksLikeOnix(fs.readFileSync(path.join(dir, file), "utf8"));
+      if (got !== shouldMatch) wrong.push(`${file}: expected ${shouldMatch}, got ${got}`);
+    }
+    assert(wrong.length === 0, wrong.join("; "));
+  });
+
+  test("only the content model matching the document's release is injected", () => {
+    const { contentModelURLs } = lift("contentModelURLs", "modelURL");
+    const cases = [
+      ['<ONIXMessage xmlns="http://ns.editeur.org/onix/3.1/reference" release="3.1">', ["3.1"]],
+      ['<ONIXMessage xmlns="http://ns.editeur.org/onix/3.0/reference" release="3.0">', ["3.0"]],
+      ['<ONIXmessage xmlns="http://ns.editeur.org/onix/3.0/short" release="3.0">', ["3.0"]],
+      ['<ONIXMessage release="3.1">', ["3.1"]],
+      ["<ONIXMessage release='3.0'>", ["3.0"]],
+      // Acknowledgement namespaces carry an extra segment, so these match on
+      // the release attribute rather than the namespace.
+      ['<ONIXMessageAcknowledgement xmlns="http://ns.editeur.org/onix/acknowledgement/3.0/reference" release="3.0">', ["3.0"]],
+    ];
+    for (const [head, expected] of cases) {
+      const got = contentModelURLs(head);
+      const want = expected.map((v) => `onix-content-model-${v}.js`);
+      assert(JSON.stringify(got) === JSON.stringify(want),
+        `${head.slice(0, 60)} → ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+    }
+  });
+
+  test("an unreadable release ships both models, so the warning stays truthful", () => {
+    const { contentModelURLs } = lift("contentModelURLs", "modelURL");
+    // ONIX 2.1 and un-namespaced standalone <Product> records declare no
+    // release. No model can match, but onix-validate.js's model.missing
+    // warning lists what actually loaded — so both must be present.
+    for (const head of ["<ONIXMessage>", "<Product><RecordReference>x</RecordReference>"]) {
+      assert(contentModelURLs(head).length === 2,
+        `${head} should ship both models, got ${JSON.stringify(contentModelURLs(head))}`);
+    }
+  });
+
+  test("every ONIX fixture is matched with a model that covers its release", () => {
+    const { contentModelURLs } = lift("contentModelURLs", "modelURL");
+    const dir = path.join(__dirname, "fixtures");
+    const wrong = [];
+    for (const file of fs.readdirSync(dir).filter((f) => f.startsWith("onix-"))) {
+      const xml = fs.readFileSync(path.join(dir, file), "utf8");
+      // A release is identifiable from the namespace as well as from the
+      // release attribute — a standalone <Product> record carries only the
+      // former, and detect() reads the version from it too.
+      const release = (xml.match(/ns\.editeur\.org\/onix\/(?:acknowledgement\/)?(\d+\.\d+)\//) ||
+                       xml.match(/release\s*=\s*["'](\d+\.\d+)["']/) || [])[1];
+      const urls = contentModelURLs(xml);
+      const expected = release ? [`onix-content-model-${release}.js`] : null;
+      if (expected && JSON.stringify(urls) !== JSON.stringify(expected)) {
+        wrong.push(`${file} (release ${release}) → ${JSON.stringify(urls)}`);
+      }
+      if (!expected && urls.length !== 2) wrong.push(`${file} (no release) → ${JSON.stringify(urls)}`);
+    }
+    assert(wrong.length === 0, wrong.join("; "));
+  });
+});
+
+// The renderer walks with an explicit stack, so nesting depth costs an array
+// entry rather than a JS frame. With recursion, 2,000 levels overflowed and the
+// throw escaped mid-render: the tree stopped at 1,681 of 4,002 rows, the meta
+// pill never filled in, and nothing after the render — validation, search, the
+// click handlers — ran at all. A truncated document that looks complete is the
+// part worth guarding.
+//
+// 2,000 is where the recursive version actually broke. Deeper would catch more
+// (a one-frame-per-level recursion survives to ~8,000) but jsdom's cost here is
+// roughly quadratic in depth — 1.7s at 2,000, 31s at 8,000 — and this is not a
+// shape real ONIX takes, so it isn't worth the test loop.
+describe("Deeply nested XML", () => {
+  test("a document nested past the old stack limit renders completely", () => {
+    const depth = 2000;
+    const w = renderSource('<?xml version="1.0"?>' +
+      '<ONIXMessage xmlns="http://ns.editeur.org/onix/3.1/reference" release="3.1">' +
+      "<a>".repeat(depth) + "</a>".repeat(depth) + "</ONIXMessage>", "deep.xml");
+
+    // One open and one close row per level, plus the message element's pair
+    // and the XML declaration.
+    const rows = $$(w, "#oxv-root .px-row").length;
+    assert(rows === 2 * (depth + 1), `expected ${2 * (depth + 1)} rows, got ${rows}`);
+    assert(!$$(w, "#oxv-root .px-error").length, "no parse-error panel");
+
+    // The things a mid-render throw used to skip.
+    assert(meta(w).includes("KB"), `the meta pill should be filled in, got "${meta(w)}"`);
+    assert(w.document.getElementById("oxv-validation").textContent,
+      "validation should have run");
+  });
+});
+
 describe("Feed formats", () => {
   test("RSS feed renders without ONIX detection", () => {
     const w = render("rss.xml");
@@ -1426,7 +2225,7 @@ describe("Feed formats", () => {
 
 describe("ONIX blocks pane", () => {
   test("renders the ONIX Message Header card above product cards", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const cards = $$(w, "#oxv-blocks > details");
     assert(cards.length >= 3, `expected header + ≥2 product cards, got ${cards.length}`);
     assert(cards[0].classList.contains("px-message-header"),
@@ -1437,27 +2236,27 @@ describe("ONIX blocks pane", () => {
   });
 
   test("standalone Product file has no Message Header card (no ONIXMessage envelope)", () => {
-    const w = render("onix-3.1-standalone-product.xml");
+    const w = renderWithBlocks("onix-3.1-standalone-product.xml");
     const headers = $$(w, "#oxv-blocks .px-message-header");
     assert(headers.length === 0, "standalone file should not render a Message Header card");
   });
 
   test("hides right pane on non-ONIX documents", () => {
-    const w = render("rss.xml");
+    const w = renderWithBlocks("rss.xml");
     assert(w.document.body.classList.contains("px-no-onix"), "body should have px-no-onix");
     const cards = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)");
     assert(cards.length === 0, `expected 0 product cards, got ${cards.length}`);
   });
 
   test("renders one product card per Product (reference dialect)", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     assert(!w.document.body.classList.contains("px-no-onix"), "body should not have px-no-onix");
     const cards = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)");
     assert(cards.length === 2, `expected 2 product cards, got ${cards.length}`);
   });
 
   test("Product card has no Record section (RecordReference/NotificationType only in tree)", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const card = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)")[0];
     const labels = Array.from(card.querySelectorAll(".px-block-section > summary"))
       .map((s) => s.textContent.trim());
@@ -1466,7 +2265,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("right pane has a section per ONIX block present in the document", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const card = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)")[0];
     const blockSections = Array.from(card.querySelectorAll(".px-block-section[data-oxv-block-name]"));
     const blockNames = blockSections.map((s) => s.dataset.oxvBlockName);
@@ -1479,7 +2278,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("Title and Contributors content lives inside the Descriptive Detail block", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const dd = $$(w, "#oxv-blocks .px-block-section[data-oxv-block-name='descriptivedetail']")[0];
     assert(dd, "descriptivedetail section missing");
     const body = dd.querySelector(".px-block-section-body");
@@ -1488,7 +2287,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("ProductIdentifier renders before any block section", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const card = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)")[0];
     const pi = card.querySelector("details[data-oxv-onix-element='productidentifier']");
     const block1 = card.querySelector(".px-block-section[data-oxv-block-name='descriptivedetail']");
@@ -1500,22 +2299,22 @@ describe("ONIX blocks pane", () => {
   });
 
   test("product header shows ISBN and title", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const header = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header) .px-block-product-header")[0];
     assert(header, "missing product header");
-    assert(header.textContent.includes("9788234567890"), `header missing ISBN: ${header.textContent}`);
+    assert(header.textContent.includes("9788234567896"), `header missing ISBN: ${header.textContent}`);
     assert(header.textContent.includes("Eksempelboken"), `header missing title: ${header.textContent}`);
   });
 
   test("identifiers section uses codelist labels", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const labels = $$(w, "#oxv-blocks details[data-oxv-onix-element='productidentifier'] summary .px-block-field-label")
       .map((s) => s.textContent);
     assert(labels.some((l) => l.includes("ISBN-13")), `no ISBN-13 label among ${labels}`);
   });
 
   test("identifiers and contributor roles include EDItEUR list links in the right pane", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const links = $$(w, "#oxv-blocks .px-codelist-link");
     const hrefs = links.map((a) => a.getAttribute("href"));
     assert(hrefs.includes("https://ns.editeur.org/onix/en/5"), `expected List 5 link, got ${hrefs}`);
@@ -1524,7 +2323,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("contributors render expandable entries with role labels (inside Block 1)", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const contribs = $$(w, "#oxv-blocks .px-block-section[data-oxv-block-name='descriptivedetail'] .px-block-contributor");
     assert(contribs.length >= 1, "expected ≥1 contributor block inside Descriptive Detail");
     const summary = contribs[0].querySelector("summary");
@@ -1533,7 +2332,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("renders a card when the document root is itself <Product>", () => {
-    const w = render("onix-3.1-standalone-product.xml");
+    const w = renderWithBlocks("onix-3.1-standalone-product.xml");
     const cards = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)");
     assert(cards.length === 1, `expected 1 card, got ${cards.length}`);
     const header = cards[0].querySelector(".px-block-product-header");
@@ -1545,7 +2344,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("clicking a list link opens the codelist popup with all entries", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const link = $$(w, "#oxv-blocks .px-codelist-link").find(
       (a) => a.getAttribute("href") === "https://ns.editeur.org/onix/en/5"
     );
@@ -1584,7 +2383,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("popup preserves the codelist's declared order (no integer reorder)", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     // NameIDType (List 44) mixes canonical-numeric strings ("13", "21") with
     // zero-padded ones ("01", "02"). A plain object would reorder canonical
     // numerics ahead of strings; a Map iterates in insertion order. Verify
@@ -1602,7 +2401,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("Esc closes the popup", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const link = $$(w, "#oxv-blocks .px-codelist-link")[0];
     link.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
     const overlay = w.document.querySelector(".px-popup-overlay");
@@ -1613,7 +2412,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("multi-product feed: cards start closed, mirroring the auto-collapsed tree", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const cards = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)");
     assert(cards.length >= 2, "expected ≥2 cards for multi-product fixture");
     for (const card of cards) {
@@ -1622,14 +2421,14 @@ describe("ONIX blocks pane", () => {
   });
 
   test("single-product feed: card stays open, mirroring the expanded tree", () => {
-    const w = render("onix-3.1-standalone-product.xml");
+    const w = renderWithBlocks("onix-3.1-standalone-product.xml");
     const cards = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)");
     assert(cards.length === 1, `expected 1 card, got ${cards.length}`);
     assert(cards[0].open, "single-product card should stay open");
   });
 
   test("toggling a sub-block item propagates to its tree row", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     // The first product card and its first ProductIdentifier <details>.
     const firstCard = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)")[0];
     const firstPiDetails = firstCard.querySelector(
@@ -1664,7 +2463,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("toggling a block section propagates to its block row in the tree", () => {
-    const w = render("onix-3.1-standalone-product.xml");
+    const w = renderWithBlocks("onix-3.1-standalone-product.xml");
     // Find the DescriptiveDetail tree row + matching section.
     const blockRow = $$(w, "#oxv-root .px-row.px-collapsible").find((r) => {
       const tags = r.querySelectorAll(".px-tag");
@@ -1686,7 +2485,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("toggling a card propagates to its Product row in the tree", () => {
-    const w = render("onix-3.0-reference.xml");
+    const w = renderWithBlocks("onix-3.0-reference.xml");
     const cards = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header)");
     const productRows = $$(w, "#oxv-root .px-row.px-collapsible").filter((r) => {
       const tags = r.querySelectorAll(".px-tag");
@@ -1709,7 +2508,7 @@ describe("ONIX blocks pane", () => {
   });
 
   test("works for short-tag dialect (b036 → name, b035 → role)", () => {
-    const w = render("onix-3.0-short.xml");
+    const w = renderWithBlocks("onix-3.0-short.xml");
     const header = $$(w, "#oxv-blocks .px-block-product:not(.px-message-header) .px-block-product-header")[0];
     assert(header, "missing product header (short)");
     assert(header.textContent.includes("Kortform-eksempel"), `short title missing: ${header.textContent}`);
@@ -1767,7 +2566,12 @@ describe("View mode toggle", () => {
 
 // ---- summary ---------------------------------------------------------------
 
-console.log(`\n${passed} passed, ${failed} failed`);
+const filterNote = FILTER ? `, ${skipped} skipped by filter "${FILTER}"` : "";
+console.log(`\n${passed} passed, ${failed} failed${filterNote}`);
+if (FILTER && passed + failed === 0) {
+  console.log(`No test matched "${FILTER}".`);
+  process.exit(1);
+}
 if (failed > 0) {
   console.log("\nFailures:");
   for (const f of failures) console.log(`  - ${f.name}: ${f.err.message}`);

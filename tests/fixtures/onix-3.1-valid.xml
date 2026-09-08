@@ -22,7 +22,8 @@
         <TitleType>01</TitleType>
         <TitleElement>
           <TitleElementLevel>01</TitleElementLevel>
-          <TitleText>Den gyldige boken</TitleText>
+          <NoPrefix/>
+          <TitleWithoutPrefix>Den gyldige boken</TitleWithoutPrefix>
         </TitleElement>
       </TitleDetail>
       <Contributor>

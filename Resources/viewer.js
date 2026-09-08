@@ -19,8 +19,8 @@
     ? window.OnixViewerOnix.blockNames
     : new Set();
 
-  // Named here so "Collapse blocks" is inert on non-ONIX documents, where the
-  // ONIX module isn't consulted at all.
+  // Named here so Collapse's ONIX-shaped steps are skipped on non-ONIX
+  // documents, where the ONIX module isn't consulted at all.
   const isProductElement = window.OnixViewerOnix
     ? window.OnixViewerOnix.isProductElement
     : () => false;
@@ -65,6 +65,25 @@
     search: [
       ["circle", { cx: "7", cy: "7", r: "4.3", "stroke-width": "1.8" }],
       ["path", { d: "M10.3 10.3l3.3 3.3", "stroke-width": "1.8" }],
+    ],
+    // Chevrons pointing apart / together — the fold direction, matching the
+    // row chevrons the buttons act on.
+    // Two chevrons the same way up, not pointing at each other: an inward
+    // pair reads as a ✕ at 14px however far apart the apexes are pushed, and ✕
+    // already means "close". Down opens and up folds, matching the row
+    // chevrons (▾ open, ▸ closed); doubling them says "a level at a time".
+    expand: [
+      ["path", { d: "M4.6 4.2L8 7.2l3.4-3", "stroke-width": "1.7" }],
+      ["path", { d: "M4.6 8.8L8 11.8l3.4-3", "stroke-width": "1.7" }],
+    ],
+    collapse: [
+      ["path", { d: "M4.6 7.2L8 4.2l3.4 3", "stroke-width": "1.7" }],
+      ["path", { d: "M4.6 11.8L8 8.8l3.4 3", "stroke-width": "1.7" }],
+    ],
+    // Two sheets, one behind the other.
+    copy: [
+      ["rect", { x: "3.3", y: "5.3", width: "7.9", height: "8.4", rx: "1.2", "stroke-width": "1.5" }],
+      ["path", { d: "M5.8 5.3V3.5a1.2 1.2 0 011.2-1.2h5.7a1.2 1.2 0 011.2 1.2v6.6a1.2 1.2 0 01-1.2 1.2h-1.5", "stroke-width": "1.5" }],
     ],
     // An open arc: three quarters of the circle, spun by CSS.
     spinner: [["circle", {
@@ -167,44 +186,33 @@
   sourceDialect = onixCtx.dialect;
   displayDialect = preferredDialect();
 
-  // Render is iterative-via-recursion; XML trees are rarely deep enough to
-  // overflow the JS stack (the standard browser limit is ~10k frames).
-  renderNode(doc, root, 0);
+  renderTree(doc, root, 0);
 
   const sizeKB = (SOURCE.length / 1024).toFixed(1);
 
   // Right pane: ONIX blocks. Hidden entirely when the document isn't ONIX,
-  // so non-ONIX XML keeps a single full-width tree.
+  // so non-ONIX XML keeps a single full-width tree. Its cards are built by
+  // renderBlocksPane() the first time the pane is actually shown — the pane
+  // is hidden today (see setupViewMode), and building it eagerly cost every
+  // ONIX page a full second pass that was then thrown away: 43k discarded
+  // DOM nodes on a 300-product feed, 144k on a 1000-product one.
   const blocksContainer = document.getElementById("oxv-blocks");
-  let productCount = 0;
-  if (onixCtx.isOnix && window.OnixViewerBlocks && blocksContainer) {
-    productCount = window.OnixViewerBlocks.render(doc, blocksContainer, onixCtx) || 0;
-  } else {
-    document.body.classList.add("px-no-onix");
-  }
+  let blocksRendered = false;
+  if (!onixCtx.isOnix) document.body.classList.add("px-no-onix");
 
-  let metaText = `${sizeKB} KB`;
+  // The meta pill's count comes straight from the parsed document rather than
+  // from the pane's return value, so the label doesn't depend on a disabled
+  // feature having run.
+  const productCount = onixCtx.isOnix
+    ? window.OnixViewerOnix.productElements(doc).length
+    : 0;
+
   if (onixCtx.isOnix) {
-    // Version is unknown for un-namespaced standalone <Product> records (there's
-    // no namespace to read it from) — omit it rather than show "ONIX ?".
-    const versionPart = onixCtx.version ? ` ${onixCtx.version}` : "";
-    if (onixCtx.messageType === "acknowledgement") {
-      // Acknowledgement <Product> blocks are record statuses, not product
-      // records — label the count "records" to match.
-      const recordsLabel = productCount === 1 ? "1 record" : `${productCount} records`;
-      metaText = `ONIX Acknowledgement${versionPart} (${recordsLabel}) · ` + metaText;
-    } else {
-      const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
-      const dialectPart = onixCtx.dialect === "short" ? " short tags" : "";
-      metaText = `ONIX${versionPart}${dialectPart} (${productsLabel}) · ` + metaText;
-    }
     // Auto-collapse Product blocks for big ONIX feeds — otherwise scrolling
     // through 50,000 products is hostile.
     autoCollapseProducts();
   }
-  meta.textContent = "";
-  meta.append(icon("file"), document.createTextNode(metaText));
-  showBlockList();
+  fillMetaPill(sizeKB, productCount);
 
   setupToolbar();
   setupDialectToggle();
@@ -212,14 +220,40 @@
   setupSearch();
   setupKeyboard();
   setupDivider();
-  setupBlockSync();
   setupClickHandlers();
   setupNodeMenu();
   setupFindingsLabel();
 
   // ---- rendering helpers ----------------------------------------------------
 
-  function renderNode(node, parent, depth) {
+  // An explicit stack rather than recursion, for the same reason the validator
+  // walks that way: one JS frame per nesting level put the whole render at the
+  // mercy of the engine's stack limit. When it blew, the throw escaped
+  // mid-render and everything after it — the meta pill, validation, the search
+  // and click handlers — never ran, leaving a silently truncated tree that
+  // looked like a complete document. Depth now costs an array entry.
+  //
+  // Tasks pop LIFO, so children are pushed in reverse to come out in document
+  // order, and an element's close row is pushed *before* its children so it
+  // lands after them.
+  function renderTree(rootNode, rootParent, rootDepth) {
+    const stack = [{ node: rootNode, parent: rootParent, depth: rootDepth }];
+    while (stack.length) {
+      const task = stack.pop();
+      if (task.close) {
+        const closeRow = appendRow(task.parent, task.depth, false, (row) => {
+          writeCloseTag(row, task.close);
+        });
+        closeRow.classList.add("px-close-row");
+      } else {
+        renderNode(task.node, task.parent, task.depth, stack);
+      }
+    }
+  }
+
+  // Pushes onto `stack` where it used to recurse. Everything else about a row
+  // is written here and now, so the output is identical either way.
+  function renderNode(node, parent, depth, stack) {
     switch (node.nodeType) {
       case Node.DOCUMENT_NODE:
         // Preserve XML declaration if present in source. The DOM doesn't expose
@@ -236,7 +270,7 @@
           }
         }
         // Doctype, processing instructions, comments before root, then root.
-        for (const child of node.childNodes) renderNode(child, parent, depth);
+        pushChildren(stack, node.childNodes, parent, depth);
         break;
 
       case Node.DOCUMENT_TYPE_NODE: {
@@ -272,7 +306,7 @@
         break;
 
       case Node.ELEMENT_NODE:
-        renderElement(node, parent, depth);
+        renderElement(node, parent, depth, stack);
         break;
 
       case Node.TEXT_NODE: {
@@ -304,7 +338,7 @@
     }
   }
 
-  function renderElement(el, parent, depth) {
+  function renderElement(el, parent, depth, stack) {
     const elementChildren = Array.from(el.childNodes).filter(
       (n) => n.nodeType !== Node.TEXT_NODE || n.nodeValue.trim().length > 0
     );
@@ -422,16 +456,20 @@
     const childrenContainer = document.createElement("div");
     childrenContainer.className = "px-children";
     parent.appendChild(childrenContainer);
-    for (const c of el.childNodes) renderNode(c, childrenContainer, depth + 1);
-
-    const closeRow = appendRow(parent, depth, false, (row) => {
-      writeCloseTag(row, el);
-    });
-    closeRow.classList.add("px-close-row");
+    // The close row belongs to `parent`, after the container — pushed first so
+    // it is handled once every child has been.
+    stack.push({ close: el, parent, depth });
+    pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
 
     // Fold/highlight handling is delegated on #oxv-root in setupClickHandlers
     // — clicking the chevron toggles, clicking elsewhere highlights the
     // matching right-pane element.
+  }
+
+  function pushChildren(stack, childNodes, parent, depth) {
+    for (let i = childNodes.length - 1; i >= 0; i--) {
+      stack.push({ node: childNodes[i], parent, depth });
+    }
   }
 
   function writeOpenTag(row, el, selfClose) {
@@ -668,18 +706,24 @@
   // ---- toolbar --------------------------------------------------------------
 
   function setupToolbar() {
+    // Icons are prepended here rather than written into the shell: content.js
+    // builds that shell as a string, and these come from the same table the
+    // severity chips and the spinner use, so they stay one set.
+    for (const [action, name] of [["expand", "expand"], ["collapse", "collapse"],
+                                  ["copy-xml", "copy"]]) {
+      const button = document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
+      if (button && !button.querySelector("svg")) button.prepend(icon(name));
+    }
+
     document.getElementById("oxv-toolbar").addEventListener("click", (ev) => {
       const btn = ev.target.closest("button[data-action]");
       if (!btn) return;
       switch (btn.dataset.action) {
-        case "expand-all":
-          for (const r of root.querySelectorAll(".px-folded")) r.classList.remove("px-folded");
+        case "expand":
+          expandStep();
           break;
-        case "collapse-all":
-          for (const r of root.querySelectorAll(".px-collapsible")) r.classList.add("px-folded");
-          break;
-        case "collapse-blocks":
-          collapseBlocks();
+        case "collapse":
+          collapseStep();
           break;
         case "dialect-toggle":
           applyDialect(otherDialect(displayDialect));
@@ -714,41 +758,183 @@
 
   // "Blocks: 1, 4, 6" in the toolbar — only meaningful for a document with
   // exactly one Product, so it stays empty (and hidden) otherwise.
-  function showBlockList() {
-    const pill = document.getElementById("oxv-block-list");
-    const numbers = window.OnixViewerOnix && pill
+  // One pill describing the document: a file icon, then what it is, which
+  // blocks it carries, and how big it is, "·"-separated —
+  //
+  //   [icon] ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB
+  //
+  // The blocks segment used to be a pill of its own; it says something about
+  // this document rather than about the viewer, so it reads better as part of
+  // the same sentence. It stays a separate element so #oxv-block-list keeps
+  // its id, and #oxv-block-list:empty hides it when there are none.
+  function fillMetaPill(sizeKB, productCount) {
+    const blockList = document.getElementById("oxv-block-list");
+    const blocks = blockListText();
+    if (blockList) {
+      blockList.textContent = blocks;
+      if (blocks) blockList.title = "ONIX blocks present in this Product";
+    }
+
+    const segments = [];
+    const documentLabel = onixDocumentLabel(productCount);
+    if (documentLabel) segments.push(document.createTextNode(documentLabel));
+    if (blockList && blocks) segments.push(blockList);
+    segments.push(document.createTextNode(`${sizeKB} KB`));
+
+    // The segments go in one inline wrapper rather than straight into the
+    // pill: #oxv-meta is a flex row, and flex turns each bare text node into
+    // an item, so the gap that spaces the icon would also stretch every "·".
+    const label = document.createElement("span");
+    label.className = "px-meta-label";
+    segments.forEach((segment, index) => {
+      if (index) label.append(document.createTextNode(" · "));
+      label.append(segment);
+    });
+    // Keep the element in the document even with nothing to say, so callers
+    // can always find it; :empty keeps it out of sight.
+    if (blockList && !blocks) label.append(blockList);
+
+    meta.textContent = "";
+    meta.append(icon("file"), label);
+  }
+
+  // "ONIX 3.1 short tags (2 products)", or "" for non-ONIX XML, where the
+  // size alone is all the pill can honestly claim.
+  function onixDocumentLabel(productCount) {
+    if (!onixCtx.isOnix) return "";
+    // Version is unknown for un-namespaced standalone <Product> records (there's
+    // no namespace to read it from) — omit it rather than show "ONIX ?".
+    const versionPart = onixCtx.version ? ` ${onixCtx.version}` : "";
+    if (onixCtx.messageType === "acknowledgement") {
+      // Acknowledgement <Product> blocks are record statuses, not product
+      // records — label the count "records" to match.
+      const recordsLabel = productCount === 1 ? "1 record" : `${productCount} records`;
+      return `ONIX Acknowledgement${versionPart} (${recordsLabel})`;
+    }
+    const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
+    const dialectPart = onixCtx.dialect === "short" ? " short tags" : "";
+    return `ONIX${versionPart}${dialectPart} (${productsLabel})`;
+  }
+
+  function blockListText() {
+    const numbers = window.OnixViewerOnix
       ? window.OnixViewerOnix.singleProductBlocks(doc, onixCtx)
       : null;
-    if (numbers && numbers.length) {
-      pill.textContent = `Blocks: ${numbers.join(", ")}`;
-      pill.title = "ONIX blocks present in this Product";
+    return numbers && numbers.length ? `Blocks: ${numbers.join(", ")}` : "";
+  }
+
+  // ---- stepped expand / collapse --------------------------------------------
+
+  // Both buttons work a level at a time, and both read the tree rather than
+  // counting clicks — so they still do the sensible thing after the reader has
+  // folded or unfolded rows by hand, and there is no counter to get out of
+  // step with what is on screen.
+
+  // Reveal one more level: unfold every folded row at the shallowest depth
+  // that still has one.
+  function expandStep() {
+    const folded = collapsibleRows().filter(isFolded);
+    if (!folded.length) return;
+    const shallowest = Math.min(...folded.map(rowDepth));
+    for (const row of folded) {
+      if (rowDepth(row) === shallowest) row.classList.remove("px-folded");
     }
   }
 
-  // ---- collapse blocks ------------------------------------------------------
+  // Hide one more layer. For ONIX the first two steps follow the shape of a
+  // message rather than raw depth, because that is how the document is read:
+  //
+  //   1. everything inside each <Product>, plus the message's other children
+  //      (<Header>) — each record reads as one line per composite;
+  //   2. the <Product> rows themselves — the message reads as one line per
+  //      top-level element;
+  //   3. and from there, the deepest level still on screen, which is the root.
+  //
+  // Non-ONIX XML has no such shape, so it uses step 3 throughout and zips up
+  // from the leaves — the mirror of what Expand does.
+  function collapseStep() {
+    if (onixCtx.isOnix) {
+      if (foldRows(unfolded(collapsibleRows().filter(isOutlineRow)), { reveal: true })) return;
+      if (foldRows(unfolded(collapsibleRows().filter(isProductRow)))) return;
+    }
+    foldDeepestVisibleLevel();
+  }
 
-  // Fold every composite inside each <Product> and make sure each is visible
-  // by unfolding its ancestors, so a feed reads as a list of Products with
-  // one row per child.
-  function collapseBlocks() {
-    for (const row of root.querySelectorAll(".px-row.px-collapsible")) {
-      if (isProductChildRow(row)) {
-        unfoldAncestors(row);
-        row.classList.add("px-folded");
+  // Only rows the reader can actually see are candidates, so no press is spent
+  // folding something hidden inside an already-folded ancestor.
+  function foldDeepestVisibleLevel() {
+    const open = unfolded(collapsibleRows()).filter(isRowVisible);
+    if (!open.length) return false;
+    const deepest = Math.max(...open.map(rowDepth));
+    return foldRows(open.filter((row) => rowDepth(row) === deepest));
+  }
+
+  // `reveal` unfolds each row's ancestors as it goes, which is what makes step
+  // 1 read as "one line per composite" on a feed whose Products are
+  // auto-collapsed. The later steps must not do it — they are folding things
+  // up, and reopening an ancestor would undo the step before.
+  function foldRows(rows, options) {
+    for (const row of rows) {
+      if (options && options.reveal) unfoldAncestors(row);
+      row.classList.add("px-folded");
+    }
+    return rows.length > 0;
+  }
+
+  function collapsibleRows() {
+    return [...root.querySelectorAll(".px-row.px-collapsible")];
+  }
+
+  function unfolded(rows) {
+    return rows.filter((row) => !isFolded(row));
+  }
+
+  function isFolded(row) {
+    return row.classList.contains("px-folded");
+  }
+
+  // On screen, i.e. no folded row above it. The shallowest *folded* row is
+  // always visible by definition, which is why Expand needs no such check.
+  function isRowVisible(row) {
+    let parent = row.parentElement;
+    while (parent && parent !== root) {
+      if (parent.classList.contains("px-children")) {
+        const opener = parent.previousElementSibling;
+        if (opener && isFolded(opener)) return false;
       }
+      parent = parent.parentElement;
     }
+    return true;
   }
 
-  // Every composite sitting directly inside a <Product>: the seven ONIX
-  // blocks plus the block-0 composites (ProductIdentifier,
-  // RecordSourceIdentifier, Barcode), so a collapsed record reads as one line
-  // per child instead of leaving those three sprawling. Keying on the parent
-  // rather than a list of names covers both dialects and needs no upkeep as
-  // ONIX gains elements — BLOCK_NUMBERS stays behind to drive the Block N
-  // badge only.
-  function isProductChildRow(row) {
+  function rowDepth(row) {
+    return Number(row.style.getPropertyValue("--depth")) || 0;
+  }
+
+  function isProductRow(row) {
+    return isProductElement(rowElements.get(row));
+  }
+
+  // Step 1 of Collapse: the rows whose folding leaves each record readable as
+  // one line per composite.
+  //
+  //   1. Everything sitting directly inside a <Product> — the seven ONIX
+  //      blocks plus the block-0 composites (ProductIdentifier,
+  //      RecordSourceIdentifier, Barcode), which would otherwise sprawl.
+  //   2. The message's own children other than <Product> — <Header> above
+  //      all. It is a sibling of the products, so rule 1 never reached it.
+  //
+  // The <Product> rows themselves are step 2, not this one: seeing one line
+  // per block inside each record is the point of stopping here.
+  //
+  // Keying on the parent rather than a list of names covers both dialects and
+  // needs no upkeep as ONIX gains elements — BLOCK_NUMBERS stays behind to
+  // drive the Block N badge only.
+  function isOutlineRow(row) {
     const element = rowElements.get(row);
-    return !!element && isProductElement(element.parentNode);
+    if (!element || !onixCtx.isOnix) return false;
+    if (isProductElement(element.parentNode)) return true;
+    return element.parentNode === doc.documentElement && !isProductElement(element);
   }
 
   // Unfold every folded open-row above `node` so it becomes visible. Works
@@ -943,6 +1129,10 @@
   // Reuses the code-list popup's shell styling; the behaviour is its own,
   // because these entries link back into the tree.
   let findingsModal = null;
+  // Where focus was before the findings list took it, so closing puts the
+  // reader back where they were rather than at the top of a 17,000-row tree.
+  // onix-popup.js does the same for the code-list modal.
+  let findingsLastFocus = null;
 
   function setupFindingsLabel() {
     const status = document.getElementById("oxv-validation");
@@ -970,6 +1160,7 @@
     overlay.querySelector(".px-popup-footer").textContent = lastValidation.truncated
       ? `Showing the first ${lastValidation.findings.length} of ${lastValidation.total}.`
       : "";
+    findingsLastFocus = document.activeElement;
     overlay.hidden = false;
     const closeButton = overlay.querySelector(".px-popup-close");
     if (closeButton) closeButton.focus();
@@ -1002,11 +1193,22 @@
 
     item.append(badge, where, text);
     item.addEventListener("click", () => {
+      // Dragging across the message to copy it ends in a click on this button,
+      // which would otherwise close the list and jump the page out from under
+      // the selection. Keyboard activation leaves the selection collapsed, so
+      // Enter and Space still navigate.
+      if (hasSelectionInside(item)) return;
       const row = finding.node && elementRows.get(finding.node);
       closeFindings();
       if (row) revealRow(row);
     });
     return item;
+  }
+
+  function hasSelectionInside(element) {
+    const selection = window.getSelection ? window.getSelection() : null;
+    return !!selection && !selection.isCollapsed && selection.toString().trim() !== "" &&
+      !!selection.anchorNode && element.contains(selection.anchorNode);
   }
 
   function ensureFindingsModal() {
@@ -1020,6 +1222,9 @@
     dialog.className = "px-popup";
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
+    // Its own id, not the code-list popup's — both live in this document, and
+    // aria-labelledby resolves by id.
+    dialog.setAttribute("aria-labelledby", "oxv-findings-title");
 
     const header = document.createElement("div");
     header.className = "px-popup-header";
@@ -1028,6 +1233,7 @@
     const eyebrow = document.createElement("div");
     eyebrow.className = "px-popup-eyebrow";
     const title = document.createElement("div");
+    title.id = "oxv-findings-title";
     title.className = "px-popup-title";
     titleWrap.append(eyebrow, title);
     const closeButton = document.createElement("button");
@@ -1049,6 +1255,20 @@
 
     dialog.append(header, body, footer);
     overlay.appendChild(dialog);
+    // aria-modal="true" tells assistive tech nothing outside is reachable, so
+    // Tab must actually stay inside. The list can be long, hence querying the
+    // focusables on each Tab rather than caching them.
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const focusable = [...dialog.querySelectorAll("button:not([disabled])")];
+      if (!focusable.length) return;
+      const edge = event.shiftKey ? focusable[0] : focusable[focusable.length - 1];
+      if (document.activeElement === edge) {
+        event.preventDefault();
+        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
+      }
+    });
+
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) closeFindings();
     });
@@ -1058,7 +1278,12 @@
   }
 
   function closeFindings() {
-    if (findingsModal) findingsModal.hidden = true;
+    if (!findingsModal || findingsModal.hidden) return;
+    findingsModal.hidden = true;
+    if (findingsLastFocus && typeof findingsLastFocus.focus === "function") {
+      try { findingsLastFocus.focus(); } catch (_) {}
+    }
+    findingsLastFocus = null;
   }
 
   // ---- copy raw XML ---------------------------------------------------------
@@ -1317,6 +1542,7 @@
   function applyViewMode(mode, opts) {
     if (!VIEW_MODES.includes(mode)) return;
     const persist = !opts || opts.persist !== false;
+    if (mode !== "xml") renderBlocksPane();
     for (const m of VIEW_MODES) document.body.classList.remove(`oxv-view-${m}`);
     document.body.classList.add(`oxv-view-${mode}`);
     for (const btn of document.querySelectorAll('#oxv-toolbar [data-action^="view-"]')) {
@@ -1326,6 +1552,19 @@
     if (persist) {
       try { localStorage.setItem(VIEW_STORAGE_KEY, mode); } catch (_) {}
     }
+  }
+
+  // Build the right pane's cards, once, on first reveal. Rendering it is a
+  // second full pass over the document, so it waits until a view mode that
+  // shows the pane asks for it.
+  function renderBlocksPane() {
+    if (blocksRendered) return;
+    if (!onixCtx.isOnix || !window.OnixViewerBlocks || !blocksContainer) return;
+    blocksRendered = true;
+    window.OnixViewerBlocks.render(doc, blocksContainer, onixCtx);
+    // The collapse-sync pairs tree rows with the pane's cards, so it can only
+    // be wired once those cards exist.
+    setupBlockSync();
   }
 
   // ---- search ---------------------------------------------------------------
@@ -1356,11 +1595,22 @@
         closeSearch();
       }
     });
-    search.addEventListener("blur", () => {
+    search.addEventListener("blur", (event) => {
       // Leave it open while it holds a query, so the match counter and the
-      // highlights stay put when focus moves to the tree.
+      // highlights stay put when focus moves to the tree. And leave the state
+      // alone when focus is heading for the toggle: that button's own click is
+      // what decides, and closing here first would make it reopen.
+      if (event.relatedTarget === button) return;
       if (!search.value.trim()) closeSearch();
     });
+
+    // The same problem via the mouse, where relatedTarget can't help because
+    // the sequence is blur-then-click: mousedown on the toggle blurred the
+    // field, blur closed the search, and the click that followed found it
+    // closed and opened it straight back up — so pressing the button while
+    // the field was open and empty appeared to do nothing. Keeping focus in
+    // the field means no blur fires and the click is the only decision.
+    if (button) button.addEventListener("mousedown", (event) => event.preventDefault());
   }
 
   function toggleSearch() {
@@ -1377,6 +1627,7 @@
   }
 
   function closeSearch() {
+    const wasFocused = document.activeElement === search;
     search.value = "";
     runSearch();
     document.body.classList.remove("px-search-open");
@@ -1384,6 +1635,14 @@
     // Out of the tab order while collapsed: the button is the way in.
     search.setAttribute("tabindex", "-1");
     search.blur();
+    // Hand focus to the toggle rather than dropping it on <body>: the field
+    // is now zero-width and untabbable, and a bare blur would send the next
+    // Tab back to the top of the document. The button is where the reader
+    // just was, and where they would go to reopen.
+    if (wasFocused) {
+      const button = document.querySelector('#oxv-toolbar [data-action="search"]');
+      if (button) button.focus();
+    }
   }
 
   function setSearchExpanded(open) {
@@ -1392,12 +1651,7 @@
   }
 
   function runSearch() {
-    // Clear previous highlights.
-    for (const m of root.querySelectorAll(".px-match, .px-match-current")) {
-      m.classList.remove("px-match", "px-match-current");
-    }
-    matches = [];
-    matchIndex = -1;
+    clearMatches();
     const q = search.value.trim();
     if (!q) {
       status.textContent = "";
@@ -1422,6 +1676,18 @@
     }
     status.textContent = matches.length ? `1/${matches.length}` : "no matches";
     if (matches.length) gotoMatch(0);
+  }
+
+  // Clear from the match list, never by re-querying the tree: matches[] already
+  // holds exactly the highlighted elements, and a document-wide
+  // querySelectorAll costs more than the search itself on a large feed — 75 to
+  // 210 ms per keystroke on a 17,000-row document, against 42 to 110 ms for the
+  // walk. The dialect switch renames tags in place rather than re-rendering, so
+  // these element references stay live.
+  function clearMatches() {
+    for (const m of matches) m.classList.remove("px-match", "px-match-current");
+    matches = [];
+    matchIndex = -1;
   }
 
   function gotoMatch(i) {
@@ -1455,13 +1721,11 @@
           openSearch();
           break;
         case "e":
-          for (const r of root.querySelectorAll(".px-folded")) r.classList.remove("px-folded");
+          expandStep();
           break;
         case "c":
-          for (const r of root.querySelectorAll(".px-collapsible")) r.classList.add("px-folded");
-          break;
         case "b":
-          collapseBlocks();
+          collapseStep();
           break;
         case "w":
           document.body.classList.toggle("px-no-wrap");

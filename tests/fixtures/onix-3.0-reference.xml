@@ -7,11 +7,11 @@
     <SentDateTime>20260507T0930</SentDateTime>
   </Header>
   <Product>
-    <RecordReference>bokbasen-9788234567890</RecordReference>
+    <RecordReference>bokbasen-9788234567896</RecordReference>
     <NotificationType>03</NotificationType>
     <ProductIdentifier>
       <ProductIDType>15</ProductIDType>
-      <IDValue>9788234567890</IDValue>
+      <IDValue>9788234567896</IDValue>
     </ProductIdentifier>
     <DescriptiveDetail>
       <ProductForm>BB</ProductForm>
@@ -42,10 +42,10 @@
     </PublishingDetail>
   </Product>
   <Product>
-    <RecordReference>bokbasen-9788234567891</RecordReference>
+    <RecordReference>bokbasen-9788234567803</RecordReference>
     <ProductIdentifier>
       <ProductIDType>15</ProductIDType>
-      <IDValue>9788234567891</IDValue>
+      <IDValue>9788234567803</IDValue>
     </ProductIdentifier>
     <DescriptiveDetail>
       <ProductForm>EB</ProductForm>

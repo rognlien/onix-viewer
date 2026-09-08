@@ -127,7 +127,10 @@ body {
   flex: 0 0 auto;
   z-index: 10;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* minmax(0, 1fr), not 1fr: a bare 1fr track refuses to shrink below its
+     content's min-content width, which on a narrow window let the middle
+     column push into the right one. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
@@ -137,16 +140,43 @@ body {
   font-size: 12px;
 }
 
+/* A flex row, not a line of inline boxes. An inline-flex button takes its
+   baseline from its first flex item, so a button carrying an icon aligns on
+   the icon's bottom edge while a text-only button aligns on its text — which
+   left Expand, Collapse and Copy XML sitting a couple of pixels off from Soft
+   wrap and the dialect switch. Flex items are aligned by the container
+   instead, so the baseline never enters into it. */
+#oxv-toolbar .px-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 #oxv-toolbar button {
   appearance: none;
+  /* inline-flex so a button carrying an icon lines it up with its label
+     instead of sitting it on the text baseline. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 10px;
-  margin-right: 4px;
   color: var(--fg);
   font: inherit;
+  line-height: 1.35;
   cursor: pointer;
+}
+/* Slightly larger than the 12px chips: these sit beside 12px UI text at a
+   button's scale, where 12px reads as an afterthought. */
+#oxv-toolbar button > .px-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
 }
 #oxv-toolbar button:hover { background: var(--bg-hover); }
 #oxv-toolbar button[aria-pressed="true"] {
@@ -159,18 +189,18 @@ body {
 #oxv-toolbar .px-view-group {
   display: inline-flex;
   align-items: center;
-  margin-left: 8px;
+  gap: 4px;
+  margin-left: 4px;
   padding-left: 8px;
   border-left: 1px solid var(--border);
+  /* Match the buttons' box so the divider spans the same height as they do. */
+  align-self: stretch;
 }
+/* Icon-only: square-ish, and no text to set a width. Height is left to the
+   text buttons' own box so every control in the row is the same height. */
 #oxv-toolbar .px-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   padding: 4px;
   width: 28px;
-  height: 26px;
-  margin-right: 2px;
 }
 #oxv-toolbar .px-icon-btn svg {
   width: 16px;
@@ -178,11 +208,22 @@ body {
   display: block;
 }
 
+/* The document pill and the validation state, hugging the controls to their
+   left rather than centred — the pill describes what you are looking at, so it
+   reads as part of the same group. The 1fr column soaks up the remaining
+   width, which pushes the code-list pill in .px-right to the far edge. */
 #oxv-toolbar .px-center {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+#oxv-toolbar .px-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 /* Search collapses to its icon. The field is still in the DOM — it holds the
@@ -195,6 +236,10 @@ body {
   margin-left: 4px;
   padding-left: 8px;
   border-left: 1px solid var(--border);
+  /* An open field is 320px, which on a narrow window is the difference between
+     a toolbar that fits and one whose halves overlap. Let it give way: a
+     short search field still works, a collided toolbar does not. */
+  min-width: 0;
 }
 #oxv-toolbar .px-icon-btn[data-action="search"] {
   display: inline-flex;
@@ -212,6 +257,7 @@ body.px-search-open #oxv-toolbar .px-icon-btn[data-action="search"] {
 #oxv-search {
   appearance: none;
   width: 0;
+  min-width: 0;
   padding: 4px 0;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -245,18 +291,18 @@ body.px-search-open #oxv-search {
 }
 body:not(.px-search-open) #oxv-search-status { display: none; }
 
-#oxv-meta {
+/* The document pill: file icon, what the document is, which blocks it
+   carries, and its size — one bordered unit, matching the code-list pill at
+   the other end of the toolbar. */
+#oxv-meta,
+#oxv-schema {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-#oxv-schema,
-#oxv-block-list {
-  display: inline-block;
-  margin-right: 10px;
+  /* A flex item's min-width is its content by default, which would let the
+     document pill push past the code-list pill in its own column on a narrow
+     window instead of shortening. The label ellipsises once it has to. */
+  min-width: 0;
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -265,7 +311,34 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
   font-family: var(--ui);
   letter-spacing: 0.1px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
+/* Everything after the icon, in normal inline flow so the "·" separators keep
+   the spacing they are written with. */
+#oxv-meta .px-meta-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A segment of the document pill, not a pill of its own. */
+#oxv-block-list {
+  display: inline;
+  color: inherit;
+  font: inherit;
+}
+/* The code-list pill is reference material at a fixed width — it shortens for
+   nothing. Only the document pill gives way. */
+#oxv-schema { flex: 0 0 auto; }
+
+/* Past a point the document pill has shortened as far as it can and the
+   validation state — the one thing in the toolbar that says whether the file
+   is any good — would start to be clipped instead. Drop the pill rather than
+   the verdict: its facts are all recoverable (the size from the file, the
+   release and blocks from the tree), the verdict isn't. Two breakpoints
+   because an open search field costs 320px of the same row. */
+@media (max-width: 1100px) {
+  body.px-search-open #oxv-meta { display: none; }
+}
+@media (max-width: 760px) {
+  #oxv-meta { display: none; }
+}
+#oxv-meta:empty,
 #oxv-schema:empty,
 #oxv-block-list:empty { display: none; }
 
@@ -494,7 +567,8 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-right: 8px;
+  /* Short, and the one thing that must stay readable: never shrink it. */
+  flex: 0 0 auto;
   font-family: var(--ui);
   font-size: 12px;
   white-space: nowrap;
@@ -542,6 +616,11 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   font: inherit;
   text-align: left;
   cursor: pointer;
+  /* A <button> is unselectable by default, and these entries carry the whole
+     message — the one thing a reader wants to copy out of the list. The click
+     handler ignores a click that ends a selection, so selecting the text does
+     not also jump to the row. */
+  user-select: text;
 }
 .px-findings-item:hover,
 .px-findings-item:focus-visible { background: var(--bg-hover); outline: none; }

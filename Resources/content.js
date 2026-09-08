@@ -16,6 +16,10 @@
   function dlog(...args) { if (DEBUG) console.info(...args); }
   function dwarn(...args) { if (DEBUG) console.warn(...args); }
 
+  // The ONIX releases we bundle a validation content model for, newest first
+  // (a 3.1 document is the common case, so it matches on the first test).
+  const MODEL_VERSIONS = ["3.1", "3.0"];
+
   // We run at document_start. document.contentType is available immediately,
   // but the body may not be parsed yet. We check the type up front and bail
   // out fast for non-XML pages (the vast majority).
@@ -99,6 +103,31 @@
       return true;
     }
     return false;
+  }
+
+  // Which validation content model to inject. There is one file per ONIX
+  // release, ~51 KB each, and a message declares exactly one release — the
+  // schema restricts `release` to "3.0" or "3.1" and the revisions (3.0.8,
+  // 3.1.3, …) aren't declarable — so loading both means parsing 103 KB to use
+  // half of it. Read the release off the same head looksLikeOnix() sniffed and
+  // send only the matching model.
+  //
+  // When the release isn't readable there — ONIX 2.1, or a standalone
+  // <Product> with no namespace — both go in. No model can match those anyway,
+  // but the validator's "no content model bundled for X (bundled: …)" warning
+  // lists whatever loaded, so it would otherwise under-report what ships.
+  function contentModelURLs(xml) {
+    const head = (xml || "").slice(0, 2048);
+    for (const version of MODEL_VERSIONS) {
+      const namespaced = head.includes(`ns.editeur.org/onix/${version}/`);
+      const declared = new RegExp(`release\\s*=\\s*["']${version}["']`).test(head);
+      if (namespaced || declared) return [modelURL(version)];
+    }
+    return MODEL_VERSIONS.map(modelURL);
+  }
+
+  function modelURL(version) {
+    return browserAPI().runtime.getURL(`onix-content-model-${version}.js`);
   }
 
   function loadSource() {
@@ -187,9 +216,7 @@
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
-    // One content model per ONIX release; the registry in each file composes.
-    const model31URL = browserAPI().runtime.getURL("onix-content-model-3.1.js");
-    const model30URL = browserAPI().runtime.getURL("onix-content-model-3.0.js");
+    const modelURLs = contentModelURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
     const validateURL = browserAPI().runtime.getURL("onix-validate.js");
     const blocksURL = browserAPI().runtime.getURL("onix-blocks.js");
@@ -206,10 +233,11 @@
 <body class="oxv-view-xml">
 <div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
-    <button type="button" data-action="expand-all" title="Expand all (E)">Expand all</button>
-    <button type="button" data-action="collapse-all" title="Collapse all (C)">Collapse all</button>
-    <button type="button" data-action="collapse-blocks" title="Collapse the blocks and other composites inside each Product (B)">Collapse blocks</button>
-    <button type="button" data-action="toggle-wrap" title="Toggle line wrap (W)">Wrap</button>
+    <!-- Expand and Collapse both work a level at a time; viewer.js prepends
+         their icons. -->
+    <button type="button" data-action="expand" title="Expand one more level (E)">Expand</button>
+    <button type="button" data-action="collapse" title="Collapse a level: first each Product's contents, then the Products, then everything (C)">Collapse</button>
+    <button type="button" data-action="toggle-wrap" title="Toggle soft wrap (W)">Soft wrap</button>
     <span class="px-dialect-group">
       <!-- Label and title are filled in by viewer.js, which knows which
            dialect the document is written in. -->
@@ -243,12 +271,17 @@
     </span>
     -->
   </div>
-  <div class="px-center"></div>
-  <div class="px-right">
+  <!-- The document pill sits next to the controls, not out at the right edge:
+       it describes what you are looking at, so it belongs with the things that
+       act on it. viewer.js fills it in, including the nested #oxv-block-list
+       segment. The validation state follows it; the code-list issue is
+       reference material and goes to the far right. -->
+  <div class="px-center">
+    <span id="oxv-meta"><span id="oxv-block-list"></span></span>
     <span id="oxv-validation"></span>
-    <span id="oxv-block-list"></span>
+  </div>
+  <div class="px-right">
     <span id="oxv-schema"></span>
-    <span id="oxv-meta"></span>
   </div>
 </div>
 <div id="oxv-main">
@@ -285,9 +318,10 @@
     sourceHolder.textContent = xmlSource;
     document.body.appendChild(sourceHolder);
 
-    // Inject viewer scripts in order. async=false preserves insertion order
-    // across the three files.
-    [codelistsURL, model31URL, model30URL, onixURL, validateURL,
+    // Inject viewer scripts in order. async=false preserves insertion order,
+    // which matters: the data files must define their globals before onix.js
+    // and viewer.js read them.
+    [codelistsURL, ...modelURLs, onixURL, validateURL,
      blocksURL, popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);
