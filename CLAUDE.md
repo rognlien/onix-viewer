@@ -30,9 +30,9 @@ onix-viewer/
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
-│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~228 KB)
-│   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~51 KB)
-│   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~50 KB)
+│   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~231 KB)
+│   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~52 KB)
+│   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~52 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
@@ -54,11 +54,15 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (143 tests, ~1s)
+│   ├── run.js                      jsdom harness (187 tests, ~7s; takes a name filter)
 │   └── fixtures/                   XML samples per test category
-├── dist/                           build output (gitignored except listing/)
-│   └── listing/                    CWS upload assets (icon, promo tile, marquee, screenshots)
-└── .github/workflows/release.yml   tag-push → tests → zip → GitHub release
+├── dist/                           build output — gitignored in full
+│   └── listing/                    CWS upload assets, rebuilt locally: icon, promo
+│                                   tile and marquee (rsvg-convert from the SVGs at
+│                                   the repo root), plus store screenshots
+└── .github/workflows/
+    ├── test.yml                    push/PR → tests → generated-file drift check
+    └── release.yml                 tag-push → tests → zip → GitHub release
 ```
 
 ## Architecture: why we replace the document
@@ -72,7 +76,7 @@ The pattern is:
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
 4. Build a fresh HTML shell via `DOMParser`, then `document.replaceChild(newRoot, document.documentElement)` to swap roots.
-5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, `onix.js`, `onix-blocks.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
+5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-blocks.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
 6. Those scripts parse the original XML with `DOMParser` and render to plain DOM.
 
 When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), we fall back to `XMLSerializer().serializeToString(document)` — the browser has already parsed the XML for us, so reading the live document is a reliable second path. This means file:// works without any background script, at the cost of waiting for `DOMContentLoaded` before takeover instead of acting at `document_start`.
@@ -81,6 +85,22 @@ When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-sh
 
 Things that still won't work:
 - **Streaming huge XML**: we hold the full source in memory. Anything > ~10 MB causes a noticeable parse hang.
+
+### The renderer walks with an explicit stack
+
+`renderTree()` in `viewer.js` drives a stack of `{node, parent, depth}` tasks
+rather than recursing, for the same reason `stepPass` does in the validator:
+one JS frame per nesting level put the whole render at the mercy of the
+engine's stack limit. When it blew — measured at 2,000 levels of nesting — the
+throw escaped mid-render and **everything after it never ran**: the meta pill,
+validation, the search and click handlers. What was left was a tree truncated
+at 1,681 of 4,002 rows that looked like a complete document. Depth now costs
+an array entry.
+
+Tasks pop LIFO, so `pushChildren()` pushes in reverse to come out in document
+order, and an element's close row is pushed *before* its children so it lands
+after them. The conversion was verified by diffing the rendered
+`#oxv-root` HTML for every fixture and both `Onix/` samples: byte-identical.
 
 **Do not switch to `document.open()` + `document.write()`.** Per the HTML spec, `document.open()` throws `InvalidStateError` on a non-HTML document, and a raw XML page in WebKit is exactly that. Chromium has been lenient historically and let it through, which makes it a tempting "simpler" alternative — but it's a footgun if the extension is ever ported back to Safari/Firefox, and the current DOM-replacement path costs nothing extra.
 
@@ -101,7 +121,7 @@ Signals checked, in order:
 Reference vs. short tag matters because:
 - Reference dialect uses `<ProductIdentifier>`, `<ProductIDType>`, etc.
 - Short dialect uses `<ONIXmessage>`, `<productidentifier>`, `<b221>`, etc. Composites are the lower-cased reference name; data elements are opaque codes.
-- The codelist resolver handles both via `SHORT_TO_REFERENCE` in `onix.js`, which is **generated** from EDItEUR's short-tag schema (see below) — all 505 pairs, so every code-list-bound element resolves a label in short dialect. It was previously a hand-kept subset of ~30 tags, which left 145 of the 157 bound elements showing bare codes.
+- The codelist resolver handles both via `SHORT_TO_REFERENCE` in `onix.js`, which is **generated** from EDItEUR's short-tag schema (see below) — all 530 pairs, so every code-list-bound element resolves a label in short dialect. It was previously a hand-kept subset of ~30 tags, which left 145 of the 157 bound elements showing bare codes.
 
 ## Acknowledgement message support
 
@@ -110,6 +130,119 @@ The ONIX **Acknowledgement** message (EDItEUR's optional response format, root `
 Rather than feed a second schema to the generator, `onix.js` declares those bindings by hand in `ACK_CODELIST_ELEMENTS` (reference name, short tag, list number) and `registerAcknowledgementBindings()` folds them into the global lookup tables (`OnixViewerCodeLists`, `OnixViewerCodeListMeta`, `SHORT_TO_REFERENCE`) at load time — so `resolveCodelist`, `codelistMeta`, and the popup all work for them with no special-casing downstream. This sits alongside the other hand-maintained ONIX maps (`SHORT_TO_REFERENCE`, `ATTR_CODELISTS`) and keeps the generated `onix-codelists.js` untouched. To add more Acknowledgement code-list elements, extend that one array.
 
 The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the toolbar meta pill — "records" rather than "products", since the `<Product>` blocks here are record statuses, not product descriptions.
+
+## The toolbar's right-hand side
+
+`#oxv-toolbar` is a three-column grid (`auto 1fr auto`) over `.px-left`,
+`.px-center` and `.px-right`:
+
+```
+[ ⌄⌄ Expand   ⌃⌃ Collapse   Soft wrap   View as…   ⧉ Copy XML   🔍 ]
+        [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB]  [✓ Valid]
+                                                    … [ONIX 3.1, Issue 74]
+```
+
+- **`.px-center`** holds the **document pill** (`#oxv-meta`) and the
+  **validation state** (`#oxv-validation`), `justify-content: flex-start` so
+  they hug the controls. The pill describes what you are looking at, so it
+  reads as part of that group rather than as something stranded at the far
+  edge.
+- **`.px-left`** is a **flex row** (`align-items: center`), not a line of
+  inline boxes. This matters once a button carries an icon: an `inline-flex`
+  button takes its baseline from its first flex item, so `Expand`, `Collapse`
+  and `Copy XML` aligned on their icon's bottom edge while `Soft wrap` and the
+  dialect switch aligned on their text. Measured in Chrome, that spread the
+  row over three midlines 4.3px apart. As flex items they are aligned by the
+  container and the baseline never enters into it — every control now shares
+  one midline. `align-self: stretch` on the dialect and search groups keeps
+  their divider spanning the full button height.
+- **`.px-right`** holds the **code-list issue** (`#oxv-schema`) alone. It is
+  reference material — which EDItEUR issue the labels came from, not a fact
+  about this document — so it sits apart, pushed to the edge by the centre
+  column.
+
+**What gives way on a narrow window**, in order: the document pill's label
+ellipsises, then the search field shortens, then the pill is dropped
+altogether. `#oxv-validation` and `#oxv-schema` are `flex-shrink: 0` and never
+give way — the size and release are recoverable from the file and the tree,
+`103 errors` is not. Three things are needed to make that happen:
+
+- `grid-template-columns: auto minmax(0, 1fr) auto`. A bare `1fr` track will
+  not shrink below its content's min-content width, which let the centre
+  column push into the right one.
+- `min-width: 0` on `#oxv-meta` and `.px-search-group`. A flex item's default
+  `min-width: auto` is its content size, so neither would shrink either.
+- Two breakpoints dropping the pill — `max-width: 1100px` while the search
+  field is open (it costs 320px of the same row), `max-width: 760px`
+  regardless. Without them the verdict, being last in the group, is what gets
+  clipped.
+
+Measured in Chrome at 1912→700px with every block listed and a 4.8 MB feed:
+no toolbar overflow at any width, and the issue pill never covered.
+
+The document pill is one bordered unit built by `fillMetaPill()`: a file icon,
+then `·`-separated segments — what the document is, which blocks it carries,
+how big it is. Two details:
+
+- **The block list is a segment, not a pill.** `#oxv-block-list` is still its
+  own element (so it keeps its id and its `:empty` rule) but inside
+  `#oxv-meta`, styled `display: inline` with no border of its own. It says
+  something about this document rather than about the viewer, so it belongs in
+  the same sentence. When there is nothing to list — any document without
+  exactly one `<Product>` — it stays in the DOM, empty and hidden, and no
+  separator is emitted for it.
+- **The segments go in an inline wrapper** (`.px-meta-label`), not straight
+  into the pill. `#oxv-meta` is a flex row, and flex makes an anonymous item of
+  every bare text node, so the `gap` that spaces the icon would have stretched
+  every `·` as well.
+
+For a non-ONIX document the pill claims only the size — there is no version,
+count or dialect to state.
+
+## Stepped expand and collapse
+
+Two buttons, `Expand` (`e`) and `Collapse` (`c`, or `b`), each working **one
+level per press**. They replaced three all-or-nothing buttons (Expand all,
+Collapse all, Collapse blocks).
+
+Neither counts clicks. Each press reads the tree and decides from what is
+actually folded, so there is no counter to drift out of step with the display
+and both still behave sensibly after the reader folds rows by hand.
+
+**`expandStep()`** unfolds every folded row at the *shallowest* depth that
+still has one. (The shallowest folded row is always visible — if an ancestor
+were folded it would be shallower — so this needs no visibility check.)
+
+**`collapseStep()`** follows the shape of a message for its first two steps,
+because that is how the document is read, and falls back to depth after that:
+
+1. `isOutlineRow()` — everything directly inside a `<Product>` (the seven
+   blocks plus the block-0 composites `ProductIdentifier`,
+   `RecordSourceIdentifier`, `Barcode`) **plus** the message's own children
+   other than `<Product>`, i.e. `<Header>`. Each record now reads as one line
+   per composite.
+2. The `<Product>` rows. The message now reads as one line per top-level
+   element.
+3. `foldDeepestVisibleLevel()` — the deepest level still on screen, which by
+   now is the root.
+
+Non-ONIX XML has no such shape, so it uses step 3 throughout and zips up from
+the leaves: the exact mirror of Expand. Both rules in step 1 key on the
+**parent**, not on a list of names, so they cover both dialects and need no
+upkeep as ONIX gains elements (`BLOCK_NUMBERS` stays behind to drive the
+`Block N` badge only).
+
+Two details that took a second pass to get right:
+
+- **Only step 1 reveals as it folds.** `foldRows(rows, { reveal: true })`
+  unfolds each row's ancestors first, which is what makes step 1 read as "one
+  line per composite" on a feed whose Products are auto-collapsed. Doing it in
+  the later steps reopened what the previous press had just folded — press 3
+  visibly *expanded* the header and the products again.
+- **Step 3 only considers visible rows** (`isRowVisible()`). Without that,
+  after step 2 the deepest unfolded rows are ones buried inside a folded
+  `<Header>` or `<Product>`, so several presses in a row appear to do nothing
+  before the root finally folds.
 
 ## Collapsed-row summaries
 
@@ -153,10 +286,10 @@ state: **View as reference names** over a short-tag file, **View as short
 tags** over a reference file. The label doesn't flip when pressed, so the
 document's own dialect is always the unpressed state and the reader can't lose
 track of what they opened. `aria-pressed` means "you are looking at the
-translation". The toolbar meta pill — led by a file icon — names the source dialect only
-when it is the short one (`ONIX 3.1 short tags (1 product)`; reference names
-are the norm and go unsaid). It describes the file, so it doesn't change when
-the view does.
+translation". The toolbar's document pill — led by a file icon — names the source dialect
+only when it is the short one (`ONIX 3.1 short tags (1 product)`; reference
+names are the norm and go unsaid). It describes the file, so it doesn't change
+when the view does. See *The toolbar's right-hand side* below.
 
 `translatedName(nodeName, targetDialect)` in `onix.js` does the lookup, in both
 directions. Short → reference reads `SHORT_TO_REFERENCE`; reference → short
@@ -229,7 +362,7 @@ browser has none, and libxml2-via-WASM would add ~4 MB and needs
 `'wasm-unsafe-eval'`, which the viewer can't count on — its scripts run in the
 page's world under the page's CSP. Instead `tools/generate-content-model.js`
 compiles the structure XSD into `Resources/onix-content-model.js` (510
-elements, ~51 KB) and `Resources/onix-validate.js` interprets it.
+elements, ~52 KB) and `Resources/onix-validate.js` interprets it.
 
 That works because the ONIX schema is unusually regular: occurrence is only
 `minOccurs="0"` / `maxOccurs="unbounded"`, there is no `xs:any`, no
@@ -257,6 +390,17 @@ that fall out of favour are marked deprecated rather than removed (20 such in
 one — a document written for 3.0.2 validates against revision 8, which merely
 permits more than 3.0.2 did.
 
+**A standalone `<Product>` root is validated in full**, both dialects, message
+envelope or not — `<Product>` is in the model like any other element, so the
+structural rules check its own required children as well as everything below
+it. The release comes from the namespace, there being no `release` attribute
+outside an `<ONIXMessage>`.
+
+The one document that can't be checked structurally is a `<Product>` root with
+**no namespace either** (an export with both markers stripped): nothing says
+which release it targets, so there is no model to pick. It reports
+`model.missing` and has its code lists checked, which are release-independent.
+
 **Acknowledgement messages are exempt.** `<MessageStatus>`, `<RecordStatus>`
 and the rest live in a separate schema that isn't bundled, so a
 `messageType === "acknowledgement"` document skips the structural rules and
@@ -264,7 +408,7 @@ reports `model.acknowledgement`. Its code lists are still checked, which is the
 point of Acknowledgement support. Without this it reported every element as
 unknown.
 
-The **short-tag map merges both releases' short schemas** (529 pairs). It has
+The **short-tag map merges both releases' short schemas** (530 pairs). It has
 to: 3.0 keeps about twenty tags 3.1 dropped — `Conference*`, `Reissue*`,
 `Gender`, `EpubLicense`, `AudienceCode`, `CurrencyZone` — and 3.1 adds its own.
 No short tag means different things in the two releases, so the union is
@@ -308,8 +452,12 @@ so the same laxity applies here: duplicate `language` attributes on repeated
 ["c", min, ...parts]    choice, matched at most once
 ```
 
+Alongside `elements` and `datatypes`, each model carries a **`deprecated`**
+map — reference name → `{ since?, advice?, within? }` — compiled from the
+XSD's annotations (see *Deprecated elements* below).
+
 Leaves are `{list: N}` (code-list bound), `{text: "Type"}` (datatype),
-`{empty: 1}` or `{flow: 1}`. `flow` is the 27 `mixed="true"` elements that
+`{empty: 1}` or `{flow: 1}`. `flow` is the 28 `mixed="true"` elements that
 extend `Flow` from the XHTML subset schema — `<Text>`, `<BiographicalNote>`,
 … — whose content is markup rather than ONIX; the validator never looks
 inside them.
@@ -320,6 +468,20 @@ which halves the model and keeps one source of truth for the aliases. The two
 dialects of one record therefore produce identical findings — there's a test
 for exactly that, over the `Onix/` sample pair.
 
+**Findings are worded in the document's own dialect.** A short-tag file says
+`<b203>`, so a message naming `<TitleText>` would send the reader looking for a
+tag their file doesn't contain. Names read straight off a node need no help —
+`node.nodeName` is already the document's spelling — but the ones that come out
+of the model do, so `api.displayName()` translates them, and
+`api.displayPhrase()` does the same for element references embedded in prose
+(EDItEUR's deprecation advice, "use either `<TitlePrefix>` or `<NoPrefix/>`
+instead", becomes "use either `<b030>` or `<x501/>` instead"). Both are no-ops
+in reference dialect.
+
+This follows the source dialect, not the displayed one — like the toolbar's
+document pill, a finding describes the file, so switching the view doesn't
+reword it.
+
 ### The three extension points
 
 1. **`MESSAGES`** — one template per finding code, with `{placeholder}`s
@@ -327,21 +489,71 @@ for exactly that, over the `Onix/` sample pair.
    touching validation logic; the codes are the stable contract, not the prose.
 2. **`RULES`** — an ordered registry. The runner walks the document **once**
    and offers every element to every rule (`start` / `element` / `finish`), so
-   a new rule costs no extra traversal. `structure`, `codelist` and `datatype`
-   ship today.
+   a new rule costs no extra traversal. Five ship today: `structure`,
+   `codelist`, `datatype`, `deprecation` and `gtin`.
 3. **`OnixViewerContentModels`** — keyed by ONIX release. **Both releases
    since 3.0 ship**: `onix-content-model-3.0.js` and
-   `onix-content-model-3.1.js`, one generator run each, composed at load into
-   one registry. A document whose release has no model (ONIX 2.1, or a future
-   release) reports `model.missing` naming what *is* bundled, and skips the
-   structural rules rather than being judged against the wrong schema — its
-   code lists are still checked, since those are release-independent.
+   `onix-content-model-3.1.js`, one generator run each, each assigning into
+   the same registry.
 
-Two rules the shape is designed for but that aren't written: **xs:unique**
-(the schema carries 125 identity constraints, e.g. "no two `<Price>` with the
-same type, currency and territory" — collect keys in `element()`, report in
-`finish()`) and **GTIN-13 check digits** (an `element()`-only rule; there's a
-test that registers exactly this to prove the seam works).
+   **Only the matching one is injected.** A message declares exactly one
+   release, so `contentModelURLs()` in `content.js` reads it off the same 2 KB
+   head that `looksLikeOnix()` sniffed — from the namespace or the `release`
+   attribute — and sends that model alone. Loading both meant parsing 103 KB
+   to use half of it.
+
+   When the release isn't readable there (ONIX 2.1, or a standalone
+   `<Product>` with no namespace) **both** are injected instead. No model can
+   match those, but `model.missing` names what *is* bundled by listing the
+   registry, so shipping one would make the warning under-report what exists.
+   A document with no matching model skips the structural rules rather than
+   being judged against the wrong schema — its code lists are still checked,
+   since those are release-independent.
+
+   The property this rests on is tested directly: every ONIX fixture must
+   produce the same findings from its own model alone as it does from both.
+
+One rule the shape is designed for but that isn't written: **xs:unique** —
+the 3.1 schema carries 142 identity constraints (85 in 3.0), e.g. "no two `<Price>` with the
+same type, currency and territory". Collect keys in `element()`, report in
+`finish()`; there's a test that registers exactly that shape to prove the seam
+works.
+
+### Deprecated elements
+
+`deprecation` warns when a document uses an element EDItEUR has deprecated,
+naming the release it happened at and the replacement it advises —
+`<TitleText> is deprecated from release 3.1 — use either <TitlePrefix> or
+<NoPrefix/>, plus <TitleWithoutPrefix> instead`. **7 elements in 3.1, 18 in
+3.0**, compiled into the model's `deprecated` map from the XSD's own
+annotations, so the wording tracks the schema rather than a hand-kept list.
+
+Not every note saying "Deprecated" is about the element carrying it. Three
+describe their *children* instead — `<Header>` (its `Default*` children),
+`<TitleElement>` (`<TitleText>`) and `<SalesRestriction>` (P.21.11–21.18
+clauses) — and the first two appear in nearly every ONIX file, so treating
+them as deprecated buries a valid document in false warnings. The generator's
+discriminator: "Deprecated" followed immediately by an element reference or a
+P.x clause number is about something else; anything else is about the element
+itself. There's a test asserting those three stay unflagged.
+
+One deprecation is context-sensitive: `<TextSourceDescription>` is deprecated
+within `<TextContent>` but not within `<TextSource>`, so the model records
+`within` and the rule checks the parent.
+
+### Identifier check digits
+
+`gtin` checks ISBN-13 and GTIN-13 (`ProductIDType` 15 and 03, alternating
+1/3 weights mod 10) and ISBN-10 (type 02, weights 10…2 mod 11, remainder 10
+written `X`). The schema cannot see these — all three are just strings to it —
+and a wrong check digit is a common real defect. Deliberately silent on two
+things: schemes with no check digit (proprietary `01`, DOI `06`, …) and values
+of the wrong length, which the datatype rule already reports; adding a check
+digit complaint on top would only be noise.
+
+It found bad digits in 12 of the test fixtures on its first run, which is why
+they now carry valid ones. `onix-3.1-invalid.xml` keeps its bad digit
+deliberately — it's the defect catalogue.
 
 ### Two subtleties worth keeping
 
@@ -362,9 +574,17 @@ versus five with it.
 `icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table,
 declared at the top of the IIFE because the toolbar setup uses it before the
 sections further down have been reached —
-`error`, `warning`, `ok`, `spinner`, `search`, `file`, `close` — on a shared `0 0 16 16` grid, stroked in
-`currentColor` and sized to 12px by `.px-icon`, so one chip's colour carries
-its icon.
+`error`, `warning`, `ok`, `spinner`, `search`, `file`, `close`, `expand`,
+`collapse`, `copy` — on a shared `0 0 16 16` grid, stroked in `currentColor`
+and sized to 12px by `.px-icon`, so one chip's colour carries its icon.
+Toolbar buttons scale theirs to 14px: at 12px, beside a 12px label at a
+button's scale, an icon reads as an afterthought.
+
+`expand` and `collapse` are **two chevrons the same way up**, down and up
+respectively — not a pair pointing at each other. Inward-facing chevrons read
+as a ✕ at 14px however far apart the apexes are pushed (tried, and it did),
+and ✕ already means close. Down-opens/up-folds matches the row chevrons (`▾`
+open, `▸` closed), and doubling them says "a level at a time".
 
 They are SVG rather than characters for two reasons: `⚠` has an emoji
 presentation on several platforms, so it renders as a colour emoji inside a
@@ -420,6 +640,22 @@ of the row it concerns, makes it the active row and scrolls it into view.
 accent rather than its severity tint — the chip still carries the severity,
 which isn't worth an `!important` of its own.
 
+Findings entries are `<button>`s, which browsers make unselectable by
+default — and the entry carries the whole message, the one thing a reader wants
+to copy out. `.px-findings-item` opts back in with `user-select: text`, and the
+click handler bails when `hasSelectionInside()` says the click ended a
+selection, so dragging across the message doesn't also close the list and jump
+the page. Keyboard activation leaves the selection collapsed, so Enter and
+Space still navigate.
+
+Both modals follow the same focus contract: store `document.activeElement` on
+open, move focus to the close button, restore it on close, name the dialog with
+`aria-labelledby` pointing at its own title element (`oxv-findings-title` for
+the findings list, `px-popup-title` for the code-list popup — separate ids,
+since both live in one document), and keep Tab inside the dialog, which is what
+`aria-modal="true"` promises. The findings list gained all four; the code-list
+popup already had the first three.
+
 `options.maxFindings` (default 500) caps the findings array while `total`
 keeps counting.
 
@@ -461,6 +697,17 @@ it; the input stays in the DOM throughout because it holds the query and the
 match state. While collapsed it carries `tabindex="-1"` — a zero-width field
 should not be tabbable — and the button is the way in.
 
+Two things about the toggle that took a bug each to find:
+
+- **Its `mousedown` is prevented.** Otherwise clicking it blurred the field,
+  the blur handler closed the search, and the click that followed found it
+  closed and reopened it — so the button appeared dead. `blur` also ignores a
+  blur whose `relatedTarget` is the toggle, for the keyboard path.
+- **`closeSearch()` moves focus to the toggle** when the field had it. A bare
+  `blur()` left focus on `<body>`, so the next Tab went back to the top of the
+  document — and the field itself is untabbable by then. Focus is left where
+  it is when the reader had already moved it elsewhere.
+
 **Why it wasn't simply deleted.** It looks redundant next to the browser's own
 find, but `Ctrl+F` cannot see `display: none` content, and `<Product>` blocks
 are auto-collapsed on any multi-product feed — so on exactly the large files
@@ -470,6 +717,12 @@ match. There's a test for that: a contributor's name inside a folded Product
 is found and its Product unfolded. (The test deliberately searches a
 contributor rather than a title, because a title also appears in the folded
 row's own summary chip, where there would be nothing to unfold.)
+
+Highlights are cleared by `clearMatches()`, from the `matches` array — never by
+re-querying the tree. That query used to cost more than the search itself on a
+large feed: 74 ms per keystroke on a 17,500-row document for a typical query,
+against 0 ms from the array. The dialect switch renames tags in place rather
+than re-rendering, so the stored element references stay live.
 
 ## Per-node menu ("Copy node XML")
 
@@ -504,7 +757,9 @@ Adding another action is: append a `.px-node-menu-item` with a
 - `tools/data/ONIX_BookProduct_3.1_reference.xsd` — the official ONIX 3.1 reference schema, **release 3.1 revision 3 (ONIX 3.1.3, revised 2026-03-10)**. Used for element-name → list-number bindings, and by `generate-content-model.js` for the validation content model.
 - `tools/data/ONIX_BookProduct_3.1_short.xsd` — the official ONIX 3.1 short-tag schema, same revision, used **only** for short-tag → reference-name pairs. Each element there is declared under its short tag and names its reference form as the sole `refname` enumeration, e.g. `<xs:element name="b253">` → `LanguageRole`.
 
-All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 529 short-tag pairs (both releases merged) — about 230 KB unminified, ~58 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
+**Both XSDs are parsed as XML**, with the same `DOMParser` that `generate-content-model.js` uses — not scraped with regexes. That mattered: the regex this replaced required `name="x"` to be the declaration's last attribute, so `<xs:element name="x512" default="C">` (the one declaration in either short schema that carries an extra attribute) was skipped, and `CopyrightType` had no short tag at all. In a short-tag document that cost `<x512>` its code-list label, left the dialect switch unable to rename it, and made the validator report conformant ONIX as an unknown element. `parseShortTags()` now also throws if any declaration yields no `refname`, rather than emitting a map that is quietly a few pairs short.
+
+All three inputs are committed so the generator has no external dependencies. Output contains all 165 non-empty lists (4,791 code/label pairs), 158 element bindings and 530 short-tag pairs (both releases merged) — about 231 KB unminified, ~59 KB gzipped. Multiple element names that share a list reference the same `Map` instance. EDItEUR's JSON also carries List 88 (Religious text identifier), which has no codes at all; the generator emits only lists that have entries, so it is skipped.
 
 Short-tag keys are emitted **lower-cased**, because every consumer looks a tag up as `name.toLowerCase()` — the schema's one mixed-case tag, `ONIXmessage`, would otherwise be unreachable. `onix.js` layers two things on top of the generated map: `EXTRA_SHORT_TAGS` (ONIX 2.1-era codes such as `b005`/`b332` that the 3.1 schema doesn't contain, kept because the detector still recognises 2.1 documents, plus tolerance for feeds that lower-case a data element's reference name) and the Acknowledgement tags from `registerAcknowledgementBindings()`.
 
@@ -523,10 +778,16 @@ Two features are bundled and tested but hidden from the UI while the simpler tre
 
 - **Structure / Split view** — a right pane that renders ONIX Products as cards with sections per P.x block (DescriptiveDetail, CollateralDetail, …), with bidirectional collapse-sync to the tree pane and click-to-highlight. Lives in `Resources/onix-blocks.js`. To re-enable: uncomment the `.px-view-group` block in `content.js` and delete the early-return at the top of `setupViewMode()` in `viewer.js`.
 
+  **The pane's cards are built on first reveal, not at load.** `renderBlocksPane()` in `viewer.js` runs the first time `applyViewMode()` is given a mode other than `xml`, and wires `setupBlockSync()` immediately after — the collapse-sync pairs tree rows with cards, so it can only run once the cards exist. Rendering it eagerly while it was hidden cost every ONIX page a second full pass whose output was then thrown away: 43k discarded DOM nodes on a 300-product feed, 144k on a 1000-product one, and roughly half the load time.
+
+  The meta pill's product count therefore comes from `OnixViewerOnix.productElements(doc).length`, not from the pane's return value — the label must not depend on a disabled feature having run.
+
+  Tests that assert on the pane go through `renderWithBlocks()` in `tests/run.js`, which reveals it the way a reader would.
+
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks, blockNames)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
@@ -563,12 +824,20 @@ A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings;
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 143-test jsdom suite (~1s)
+npm test        # runs the 187-test jsdom suite (~7s)
+npm test -- x512          # just the tests matching "x512" (~0.2s)
+npm test -- validation    # a whole describe block
 ```
 
 The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
 
-The `test()` function is hand-rolled — there is no filter flag or `--grep`. To run a single test, comment out the other `test()` calls in `tests/run.js` (or temporarily `return` early from the surrounding `describe()` blocks) and revert before committing.
+`test()` is hand-rolled but takes an optional case-insensitive substring
+filter, matched against the test name *and* its `describe` label — so
+`node tests/run.js x512` runs one test and `node tests/run.js validation` runs a
+block. Skipped blocks print no heading, the summary says how many were filtered
+out, and a filter matching nothing exits non-zero rather than reporting success
+over an empty run. Filtering also cuts the run to ~0.2s, since only the matching
+tests build a jsdom window.
 
 ### Browser loop
 
@@ -585,6 +854,8 @@ For local-file testing: extension card → **Details** → enable **Allow access
 tools/release.sh 0.9.X
 git push origin main v0.9.X
 ```
+
+Every push and pull request runs `.github/workflows/test.yml` — the same suite, plus a check that the generated files still match `tools/data/` (it re-runs all three generators and requires no diff, so editing an XSD without regenerating fails there rather than shipping stale data).
 
 The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the zip is built, and a GitHub release is created with `onix-viewer-0.9.X.zip` attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
 
@@ -603,7 +874,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-short.xml` | Short-tag dialect: detection, styling, `SHORT_TO_REFERENCE` map |
 | `onix-short-no-namespace.xml` | `<ONIXmessage>` root with no namespace: dialect from the root spelling, version from `release` |
 | `onix-3.0-short-codelists.xml` | Short-tag code lists that the old hand-kept map missed (`b253`, `b252`, `x415`, `b394`, `x462`), and the `<price>` chip in short dialect |
-| `onix-3.1-standalone-product.xml` | Document root is `<Product>` (no `<ONIXMessage>` envelope) |
+| `onix-3.1-standalone-product.xml` | Document root is `<Product>` (no `<ONIXMessage>` envelope); also the clean baseline for validating a `<Product>` root, bar its deprecated `<TitleText>` |
 | `onix-3.0-multi-title.xml` | Multiple `<TitleDetail>` blocks → summary picks `<TitleType>01</TitleType>` |
 | `onix-3.0-gtin-only.xml` | Identifier preference order: GTIN-13 wins when ISBN-13 absent |
 | `onix-3.0-isbn10-only.xml` | ISBN-10 labelled as "ISBN" in the summary |
@@ -615,8 +886,8 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.0-title-without-prefix.xml` | Summary reads split-form titles: `<NoPrefix/>` + `<TitleWithoutPrefix>`, and `<TitlePrefix>` joined to the remainder |
 | `onix-3.0-title-without-prefix-short.xml` | Same in short dialect (`b030` + `b031`) |
 | `onix-3.0-single-product-blocks.xml` | One Product with blocks 1, 4, 6: `Block N` badges on block rows, `Blocks: 1, 4, 6` toolbar pill; also `RecordSourceIdentifier` and `Price` chips |
-| `onix-3.1-valid.xml` | A schema-valid ONIX 3.1 message: the validator's clean baseline |
-| `onix-3.1-invalid.xml` | One instance of each finding kind: unknown element, bad code, deprecated code, missing required element, out-of-range value |
+| `onix-3.1-valid.xml` | A schema-valid ONIX 3.1 message: the validator's clean baseline. Uses the split `<NoPrefix/>` + `<TitleWithoutPrefix>` title form, since `<TitleText>` is deprecated in 3.1 and "valid" here means zero findings |
+| `onix-3.1-invalid.xml` | One instance of each finding kind: unknown element, bad code, deprecated code, deprecated element, missing required element, out-of-range value, bad ISBN-10 check digit |
 | `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.

@@ -3,6 +3,136 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## 0.9.16 — 2026-09-08
+
+### Added
+- **Deprecated elements are now reported**, as warnings, naming the release it
+  happened at and the replacement EDItEUR advises: `<TitleText> is deprecated
+  from release 3.1 — use either <TitlePrefix> or <NoPrefix/>, plus
+  <TitleWithoutPrefix> instead`. 7 elements in 3.1, 18 in 3.0, compiled from
+  the schema's own annotations rather than a hand-kept list. Only deprecated
+  *codes* were reported before.
+
+  Three annotations that say "Deprecated" describe an element's **children**,
+  not itself — `<Header>`, `<TitleElement>` and `<SalesRestriction>` — and the
+  first two appear in nearly every ONIX file, so they are deliberately not
+  flagged. `<TextSourceDescription>` is deprecated only within
+  `<TextContent>`, so the parent decides.
+- **ISBN-13, GTIN-13 and ISBN-10 check digits are validated.** The schema
+  can't see these — all three are just strings to it — and a wrong one is a
+  common real defect. Schemes without a check digit (proprietary, DOI, …) and
+  values of the wrong length are left alone.
+- **Tests run on every push and pull request** (`.github/workflows/test.yml`),
+  not only on a release tag. The same job re-runs all three generators and
+  fails on a diff, so editing an input in `tools/data/` without regenerating
+  is caught instead of shipping stale data.
+- **The test runner takes a name filter** — `npm test -- x512` runs one test,
+  `npm test -- validation` a whole block, matched case-insensitively against
+  the test name and its `describe` label. A filter that matches nothing exits
+  non-zero. Replaces commenting out every other test, and cuts a single-test
+  run from ~7s to ~0.2s.
+- First tests for `content.js` — the ONIX sniff that decides whether a page is
+  taken over at all, and the release sniff that picks the content model. Both
+  are lifted out of the source, since the file is an IIFE that acts on load.
+
+### Changed
+- **Expand and Collapse now work a level at a time**, replacing the three
+  all-or-nothing buttons. **Expand** reveals one more level per press.
+  **Collapse** follows the shape of a message: first the `<Header>` and
+  everything inside each `<Product>`, then the `<Product>` rows, then the
+  root — and on non-ONIX XML it zips up from the leaves, the mirror of Expand.
+  Neither counts clicks: each press reads the tree, so they stay correct after
+  rows are folded by hand. `e` and `c` are unchanged, `b` is now a synonym
+  for `c`.
+- **Toolbar wording and icons:** "Expand all" → **Expand** and
+  "Collapse all"/"Collapse blocks" → **Collapse**, each with a stacked
+  double-chevron (down opens, up folds); "Wrap" → **Soft wrap**; **Copy XML**
+  gains a copy icon. The icons come from the same table as the severity chips
+  and the spinner.
+- **Fixed the toolbar's vertical alignment.** Adding icons to some buttons but
+  not others split the control row across three midlines 4.3px apart: an
+  `inline-flex` button takes its baseline from its first flex item, so an icon
+  button aligned on the icon's bottom edge and a text-only one on its text.
+  The row is a flex container now, so every control shares one midline.
+- **The toolbar degrades properly on a narrow window.** The document pill's
+  label ellipsises, then the search field shortens, then the pill is dropped —
+  the validation state and the code-list issue never give way. Measured from
+  1912px down to 700px with every block listed and a 4.8 MB feed: no overflow
+  at any width. (A bare `1fr` grid track will not shrink below its content, so
+  the middle column used to push into the right one.)
+- **The toolbar's right-hand side is reorganised.** The document pill moves in
+  beside the controls and becomes one unit — `📄 ONIX 3.1 (1 product) ·
+  Blocks: 1, 2, 4, 5, 6 · 17.9 KB` — absorbing what used to be a separate
+  `Blocks:` pill, since that describes the document rather than the viewer.
+  The validation state follows it. The code-list issue pill (`ONIX 3.1, Issue
+  74`) is reference material and now sits alone at the far right.
+- **Collapse blocks now folds the message `<Header>` too.** It is a sibling of
+  the products rather than a child, so the Product-child rule never reached it
+  — leaving it the one composite still sprawling after a collapse. The
+  `<Product>` rows themselves still stay open, and the button is still inert on
+  non-ONIX XML.
+- **The hidden Structure pane is no longer built on load.** Its cards were
+  rendered on every ONIX page even though the pane is disabled in the UI,
+  purely because the toolbar's product count read the return value — 43k DOM
+  nodes built and discarded on a 300-product feed, 144k on a 1000-product one.
+  The pane now renders on first reveal, and the count comes from the parsed
+  document. A 300-product feed goes from 2.0s to 1.1s to interactive.
+- **Only the content model for the document's own release is injected.** A
+  message declares exactly one release, so shipping both cost 103 KB of parse
+  to use half of it; `content.js` reads the release from the same head it
+  already sniffs. Where the release isn't readable there — ONIX 2.1, or a
+  standalone `<Product>` with no namespace — both still go in, so the "no
+  content model bundled" warning keeps naming everything that ships.
+
+### Fixed
+- `tests/fixtures/onix-3.1-standalone-product.xml` was missing a required
+  `<ProductComposition>`, so the one fixture with a `<Product>` root reported a
+  schema error. It is now a clean baseline for that shape.
+- **Findings on a short-tag document now name short tags.** The content model
+  is in reference names, so a message could tell the reader their `<TitleText>`
+  is deprecated when their file says `<b203>` — and mix the two inside one
+  message: `<descriptivedetail> is missing a required <ProductComposition>`.
+  Every element name in a finding is now written in the document's own
+  dialect, including the ones inside EDItEUR's deprecation advice, which
+  becomes "use either `<b030>` or `<x501/>`, plus `<b031>` instead". Reference
+  documents are unchanged.
+- **The findings list is selectable text.** Its entries are buttons, which
+  browsers make unselectable, so the message — the one thing worth copying out
+  — could not be. Selecting it no longer triggers the jump to that row either.
+- **The renderer no longer depends on the JS stack.** It walks with an
+  explicit stack, like the validator. Nesting past ~2,000 levels used to
+  overflow, and the throw escaped mid-render, so everything after it — the
+  toolbar's document pill, validation, search, the click handlers — never ran,
+  leaving a tree truncated at 1,681 of 4,002 rows that looked like a complete
+  document. Rendered output is byte-identical for every fixture and both
+  `Onix/` samples.
+- **Closing the search field hands focus to its toggle** instead of dropping
+  it on `<body>`. The field is untabbable while collapsed, so a bare blur sent
+  the next Tab back to the top of the document. Focus is left alone when the
+  reader had already moved it elsewhere.
+- **Search no longer rescans the tree to clear its highlights.** It clears from
+  the match list it already holds; the old document-wide query cost 74 ms per
+  keystroke on a 17,500-row feed, more than the search itself.
+- **The findings list returns focus where it found it** when closed, names its
+  dialog for assistive tech, and keeps Tab inside itself — which is what its
+  `aria-modal="true"` already claimed. The code-list popup, which had the
+  first two, gained the Tab trap.
+- Twelve test fixtures carried invalid ISBN check digits, found by the new
+  rule on its first run; they now carry valid ones. `onix-3.1-invalid.xml`
+  keeps its bad digit deliberately — it is the defect catalogue.
+- **`<x512>` (`CopyrightType`) was missing from the short-tag map**, so in a
+  short-tag document it resolved no code-list label, the dialect switch could
+  not rename it, and the validator reported conformant ONIX as an unknown
+  element. The cause was in the generator: `tools/generate-codelists.js`
+  scraped the schemas with regexes that required `name="x"` to be a
+  declaration's last attribute, and `<xs:element name="x512" default="C">` is
+  the one declaration in either short schema that carries another. Both
+  schemas are now parsed as XML with the same `DOMParser`
+  `generate-content-model.js` already used, which makes the whole class of
+  miss impossible; the map goes from 529 to 530 pairs and is otherwise
+  byte-identical. The generator now also throws if a declaration yields no
+  `refname`, rather than emitting a map that is quietly short a few pairs.
+
 ## 0.9.15 — 2026-09-07
 
 ### Changed
@@ -64,7 +194,7 @@ the main branch.
   There's no XML Schema processor involved — the browser has none, and
   libxml2-via-WASM would add roughly 4 MB and needs a CSP privilege the viewer
   can't rely on. Instead each ONIX structure schema is compiled at build time
-  into a ~50 KB content model that a small interpreter walks in one pass:
+  into a ~52 KB content model that a small interpreter walks in one pass:
   about 100 ms for a 4.8 MB feed with 135,000 elements, measured in Chrome.
 
   **Both ONIX releases since 3.0 are checked in full** — 3.0 (revision 8) and

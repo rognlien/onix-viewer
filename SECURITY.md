@@ -24,7 +24,9 @@ This document explains how ONIX Viewer handles page content, what permissions it
     "js": ["content.js"]
   }],
   "web_accessible_resources": [{
-    "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js","onix-blocks.js","onix-popup.js"],
+    "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js",
+                  "onix-content-model-3.1.js","onix-content-model-3.0.js",
+                  "onix-validate.js","onix-blocks.js","onix-popup.js"],
     "matches": ["<all_urls>"]
   }]
 }
@@ -35,7 +37,7 @@ That's the full surface. Specifically:
 - **No `host_permissions`** — the extension cannot fetch arbitrary cross-origin URLs. Any attempt to `fetch("https://attacker.example/...")` from inside the extension would be subject to the page's CORS rules and would be blocked by the browser, not just by absent code.
 - **No `permissions`** — no `tabs`, `storage`, `webRequest`, `cookies`, `history`, `bookmarks`, `clipboardWrite`, `downloads`, or any other Chrome API permission. The clipboard "Copy XML" button uses the standard, unprivileged `navigator.clipboard.writeText` (which requires a user gesture and goes to the local clipboard, not the network).
 - **No background service worker.** No persistent runtime, no data buffer that outlives a tab.
-- **`content_scripts.matches: ["<all_urls>"]`** is needed so the content script *runs* on any page (XML can be served from any URL). It bails immediately on the first 10 lines of `content.js` for any page whose Content-Type isn't `application/xml`, `text/xml`, or `application/onix+xml`. It then bails again unless the XML body contains the EDItEUR ONIX namespace or an `<ONIXMessage>` root. On every other page it does nothing.
+- **`content_scripts.matches: ["<all_urls>"]`** is needed so the content script *runs* on any page (XML can be served from any URL). It bails immediately on the first 10 lines of `content.js` for any page whose Content-Type isn't `application/xml`, `text/xml`, or `application/onix+xml`. It then bails again unless the XML body contains the EDItEUR ONIX namespace, an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. On every other page it does nothing.
 
 ## What's the one network call?
 
@@ -59,7 +61,7 @@ When you click the **List N** chip and then click the link in the popup footer, 
 
 ## How can I verify all this?
 
-1. **Read the source.** The whole bundle is small — under 200 KB of hand-written code (the bulk of the bundle is the auto-generated EDItEUR codelists JSON, which has no executable parts). Look at `Resources/content.js` for the network call, then grep for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `eval`, `Function(` in the whole tree. There should be exactly the one fetch above.
+1. **Read the source.** The whole bundle is small — about 220 KB of hand-written code, plus roughly 330 KB of auto-generated data: the EDItEUR code lists and the two compiled content models, all three of which are tables rather than logic. Look at `Resources/content.js` for the network call, then grep for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `eval`, `Function(` in the whole tree. There should be exactly the one fetch above.
 
 2. **Inspect the installed extension.** Open `chrome://extensions`, enable Developer mode, click **Details** on ONIX Viewer, then **Inspect views: service worker** (there isn't one — that's intentional) and the **Source** view. The files there are the same files in this repo.
 

@@ -37,9 +37,9 @@
     <circle cx="552" cy="350" r="5" fill="#2DD4FF"/>
     <text x="570" y="357">Syntax-highlighted, collapsible XML tree</text>
     <circle cx="552" cy="390" r="5" fill="#F4A35C"/>
-    <text x="570" y="397">Inline EDItEUR code-list resolution (Issue 73)</text>
+    <text x="570" y="397">Inline EDItEUR code-list resolution (Issue 74)</text>
     <circle cx="552" cy="430" r="5" fill="#63FF9B"/>
-    <text x="570" y="437">One-click popup with every code in a list</text>
+    <text x="570" y="437">Automatic ONIX 3.0 / 3.1 validation</text>
   </g>
 
   <!-- Accent badges -->
