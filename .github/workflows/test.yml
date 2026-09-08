@@ -1,0 +1,43 @@
+# Run the test suite on every push and pull request.
+#
+# release.yml also runs the tests, but only on a tag push — by which point a
+# regression has been on main for a while and it is the *release* that fails.
+# This is the same suite, run early enough to be useful.
+
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - run: npm ci
+
+      - run: npm test
+
+      # Resources/onix-codelists.js and the two content models are generated
+      # from the XSDs and JSON in tools/data/. Editing an input without
+      # re-running the generator leaves the extension shipping stale data that
+      # nothing else would catch, so regenerate and require no diff.
+      - name: Generated files are in sync with tools/data
+        run: |
+          node tools/generate-codelists.js
+          node tools/generate-content-model.js --version=3.1
+          node tools/generate-content-model.js --version=3.0
+          GENERATED="Resources/onix-codelists.js \
+            Resources/onix-content-model-3.1.js \
+            Resources/onix-content-model-3.0.js"
+          if ! git diff --exit-code --stat -- $GENERATED; then
+            echo "::error::Generated files are stale — run the generators in tools/ and commit the result"
+            exit 1
+          fi
