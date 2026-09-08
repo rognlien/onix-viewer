@@ -25,7 +25,7 @@
 // The short XSD supplies the short-tag → reference-name map. Short tags are
 // opaque codes (b253, x415), so without that map a short-tag document
 // resolves almost no code-list labels. Deriving it beats hand-maintaining it:
-// the schema carries all 505 pairs and never drifts.
+// the schemas carry all 530 pairs and never drift.
 //
 // Why JSON for codelist data: EDItEUR publishes it as a clean structured
 // feed, and it's the authoritative source. The XSD only encodes codes as
@@ -38,6 +38,9 @@
 
 const fs = require("fs");
 const path = require("path");
+const { JSDOM } = require("jsdom");
+
+const XS = "http://www.w3.org/2001/XMLSchema";
 
 const JSON_PATH = parseArg("--json=") ||
   path.join(__dirname, "data", "onix-codelists.json");
@@ -58,15 +61,15 @@ main();
 
 function main() {
   const codelistsJson = JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
-  const referenceXsd = fs.readFileSync(XSD_PATH, "utf8");
-  const shortXsds = SHORT_XSD_PATHS.map((file) => fs.readFileSync(file.trim(), "utf8"));
+  const referenceXsd = parseXsd(XSD_PATH);
+  const shortXsds = SHORT_XSD_PATHS.map((file) => parseXsd(file.trim()));
 
   const { lists, schemaInfo } = parseLists(codelistsJson);
   const elementToList = parseElementMappings(referenceXsd);
   // Earlier files win, so the newer release's spelling is authoritative.
   const shortToReference = Object.create(null);
-  for (const xml of shortXsds) {
-    const pairs = parseShortTags(xml);
+  for (const doc of shortXsds) {
+    const pairs = parseShortTags(doc);
     for (const tag of Object.keys(pairs)) {
       if (shortToReference[tag] == null) shortToReference[tag] = pairs[tag];
     }
@@ -127,22 +130,33 @@ function parseLists(doc) {
 // Reference XSD: element name → list number (binding stable across issues)
 // --------------------------------------------------------------------------
 
-function parseElementMappings(xml) {
+// A binding is spelled either way round: on the declaration itself
+// (`<xs:element name="x" type="List5"/>`) or on a restriction/extension
+// inside it (`<xs:extension base="List5">`). Elements with no List type are
+// composites or free text and simply don't appear in the map.
+function parseElementMappings(doc) {
   const mapping = Object.create(null);
-  const elementRegex = /<xs:element\s+name="([A-Za-z][A-Za-z0-9]*)"([\s\S]*?)<\/xs:element>/g;
-  let m;
-  while ((m = elementRegex.exec(xml))) {
-    const elementName = m[1];
-    if (mapping[elementName] != null) continue;
-    const body = m[2];
-    const baseMatch = body.match(/(?:base|type)="List(\d+)"/);
-    if (baseMatch) mapping[elementName] = parseInt(baseMatch[1], 10);
-  }
-  const selfClosingRegex = /<xs:element\s+name="([A-Za-z][A-Za-z0-9]*)"\s+type="List(\d+)"\s*\/>/g;
-  while ((m = selfClosingRegex.exec(xml))) {
-    if (mapping[m[1]] == null) mapping[m[1]] = parseInt(m[2], 10);
+  for (const element of topLevelElements(doc)) {
+    const name = element.getAttribute("name");
+    const listNumber = listNumberOf(element);
+    if (listNumber != null && mapping[name] == null) mapping[name] = listNumber;
   }
   return mapping;
+}
+
+function listNumberOf(element) {
+  const own = listNumber(element.getAttribute("type"));
+  if (own != null) return own;
+  for (const node of descendants(element, "extension", "restriction")) {
+    const base = listNumber(node.getAttribute("base"));
+    if (base != null) return base;
+  }
+  return null;
+}
+
+function listNumber(value) {
+  const m = value && value.match(/^List(\d+)$/);
+  return m ? parseInt(m[1], 10) : null;
 }
 
 // --------------------------------------------------------------------------
@@ -159,17 +173,38 @@ function parseElementMappings(xml) {
 // Keys are lower-cased because every consumer looks the tag up as
 // `name.toLowerCase()` — the schema's one mixed-case tag (ONIXmessage) would
 // otherwise be unreachable.
-function parseShortTags(xml) {
+// Every element in the short-tag schema declares a refname, so a tag without
+// one means we misread the schema rather than that the schema omitted it.
+// Throw instead of emitting a map that's quietly short a few tags: a missing
+// pair costs the reader a code-list label, leaves the dialect switch unable to
+// rename the tag, and makes the validator call conformant ONIX unknown.
+function parseShortTags(doc) {
   const mapping = Object.create(null);
-  const elementRegex = /<xs:element\s+name="([A-Za-z][A-Za-z0-9]*)">([\s\S]*?)(?=<xs:element\s+name="|$)/g;
-  let m;
-  while ((m = elementRegex.exec(xml))) {
-    const shortTag = m[1].toLowerCase();
-    if (mapping[shortTag] != null) continue;
-    const refname = m[2].match(/name="refname"[\s\S]*?<xs:enumeration\s+value="([A-Za-z]+)"/);
-    if (refname) mapping[shortTag] = refname[1];
+  const missing = [];
+  for (const element of topLevelElements(doc)) {
+    const shortTag = element.getAttribute("name").toLowerCase();
+    const refname = refnameOf(element);
+    if (!refname) {
+      missing.push(shortTag);
+    } else if (mapping[shortTag] == null) {
+      mapping[shortTag] = refname;
+    }
+  }
+  if (missing.length) {
+    throw new Error(
+      `${missing.length} short tag(s) declare no refname enumeration: ` +
+      `${missing.join(", ")} — the short-tag schema changed shape.`);
   }
   return mapping;
+}
+
+function refnameOf(element) {
+  for (const attribute of descendants(element, "attribute")) {
+    if (attribute.getAttribute("name") !== "refname") continue;
+    const enumeration = descendants(attribute, "enumeration")[0];
+    if (enumeration) return enumeration.getAttribute("value");
+  }
+  return null;
 }
 
 // --------------------------------------------------------------------------
@@ -260,6 +295,27 @@ function render(lists, elementToList, shortToReference, schemaInfo) {
 
 function jsString(s) {
   return JSON.stringify(s);
+}
+
+function parseXsd(file) {
+  return new (new JSDOM().window.DOMParser)()
+    .parseFromString(fs.readFileSync(file, "utf8"), "application/xml");
+}
+
+// Only declarations that are children of <xs:schema>. Elements nested inside a
+// content model are references or local declarations, not the definitions the
+// maps are keyed on.
+function topLevelElements(doc) {
+  const schema = doc.documentElement;
+  return descendants(doc, "element")
+    .filter((element) => element.parentNode === schema && element.getAttribute("name"));
+}
+
+// getElementsByTagNameNS is on both Document and Element, so this reads a
+// whole schema or one declaration's subtree with the same call.
+function descendants(node, ...localNames) {
+  return localNames.flatMap((localName) =>
+    [...node.getElementsByTagNameNS(XS, localName)]);
 }
 
 function parseArg(prefix) {

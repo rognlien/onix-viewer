@@ -10,6 +10,10 @@
 //   ["c", min, ...parts]   choice, matched at most once
 // Leaves are { list: N } (code list), { text: "Type" } (datatype),
 // { empty: 1 } (no content) or { flow: 1 } (XHTML — never inspected).
+//
+// `deprecated` names the elements EDItEUR has deprecated, with the release or
+// revision it happened at, the replacement it advises, and — for the one
+// context-sensitive case — the parent the deprecation is limited to.
 // 510 elements: 143 composite, 159 code-list, 169 typed, 11 empty, 28 flow.
 
 (function () {
@@ -17,6 +21,15 @@
   window.OnixViewerContentModels["3.1"] = {
     version: "3.1",
     datatypes: {"DateOrDateTime":{"union":1},"PositiveDecimalOrZero":{"min":0},"PositiveDecimal":{"gt":0},"PercentDecimal":{"min":0,"max":100},"NonEmptyString":{"re":".*\\S.*"},"EmailString":{"re":"[A-Za-z0-9_]+([\\-+.'][A-Za-z0-9_]+)*@[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*\\.[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*"},"RomanNumeralString":{"re":"([MDCLXVI]+|[mdclxvi]+)"},"NonEmptyURI":{"re":"\\S+"},"TimeOrDuration":{"re":"[0-9]{3}[0-5][0-9][0-5][0-9]([0-9]{2})?"},"Year":{"re":"(1[0-9]{3}|20[0-9]{2})"},"YearOrYearRange":{"re":"(1[0-9]{3}|20[0-9]{2})(-(1[0-9]{3}|20[0-9]{2}))?"},"MultiLevelNumber":{"re":"[1-9][0-9]*(\\.[1-9][0-9]*)*"},"MultiLevelNumberOrHyphen":{"re":"([1-9][0-9]*|-)(\\.([1-9][0-9]*|-))*"}},
+    deprecated: {
+      "DefaultCurrencyCode": {"since":"release 3.1","advice":"use explicit <CurrencyCode> instead"},
+      "DefaultLanguageOfText": {"since":"release 3.1","advice":"use explicit <Language> with role 01 instead"},
+      "DefaultPriceType": {"since":"release 3.1","advice":"use explicit <PriceType> instead"},
+      "TextAuthor": {"since":"revision 3.1.3"},
+      "TextSourceCorporate": {"since":"revision 3.1.3"},
+      "TextSourceDescription": {"since":"revision 3.1.3","within":"TextContent"},
+      "TitleText": {"since":"release 3.1","advice":"use either <TitlePrefix> or <NoPrefix/>, plus <TitleWithoutPrefix> instead"},
+    },
     elements: {
       "AVDuration": {"text":"TimeOrDuration"},
       "AVItem": {"c":["s",1,["e","AVItemType",1,1],["e","AVItemIdentifier",0,0],["e","TimeRun",0,0],["e","AVDuration",0,1]]},

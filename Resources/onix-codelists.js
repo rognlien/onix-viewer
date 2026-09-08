@@ -6266,6 +6266,7 @@
   window.OnixViewerShortTags["x509"] = "EpubLicenseExpressionTypeName";
   window.OnixViewerShortTags["x510"] = "EpubLicenseExpressionLink";
   window.OnixViewerShortTags["x511"] = "EpubLicenseName";
+  window.OnixViewerShortTags["x512"] = "CopyrightType";
   window.OnixViewerShortTags["x513"] = "SupplierCodeTypeName";
   window.OnixViewerShortTags["x514"] = "ToQuantity";
   window.OnixViewerShortTags["x515"] = "EventRole";

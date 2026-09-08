@@ -10,6 +10,10 @@
 //   ["c", min, ...parts]   choice, matched at most once
 // Leaves are { list: N } (code list), { text: "Type" } (datatype),
 // { empty: 1 } (no content) or { flow: 1 } (XHTML — never inspected).
+//
+// `deprecated` names the elements EDItEUR has deprecated, with the release or
+// revision it happened at, the replacement it advises, and — for the one
+// context-sensitive case — the parent the deprecation is limited to.
 // 512 elements: 144 composite, 160 code-list, 169 typed, 10 empty, 29 flow.
 
 (function () {
@@ -17,6 +21,26 @@
   window.OnixViewerContentModels["3.0"] = {
     version: "3.0",
     datatypes: {"DateOrDateTime":{"union":1},"PositiveDecimal":{"min":0},"StrictPositiveDecimal":{"gt":0},"PercentDecimal":{"min":0,"max":100},"NonEmptyString":{"re":".*\\S.*"},"EmailString":{"re":"[A-Za-z0-9_]+([\\-+.'][A-Za-z0-9_]+)*@[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*\\.[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*"},"RomanNumeralString":{"re":"([MDCLXVI]+|[mdclxvi]+)"},"NonEmptyURI":{"re":"\\S+"},"Year":{"re":"(1[0-9]{3}|20[0-9]{2})"},"TimeOrDuration":{"re":"[0-9]{3}[0-5][0-9][0-5][0-9]([0-9]{2})?"},"YearOrYearRange":{"re":"(1[0-9]{3}|20[0-9]{2})(-(1[0-9]{3}|20[0-9]{2}))?"},"MultiLevelNumber":{"re":"\\d+(\\.\\d+)*"},"MultiLevelNumberOrHyphen":{"re":"(\\d+|-)(\\.(\\d+|-))*"}},
+    deprecated: {
+      "AudienceCode": {"advice":"use <Audience> instead"},
+      "Conference": {"advice":"use <Event> instead"},
+      "ConferenceAcronym": {"advice":"use <Event> instead of <Conference>"},
+      "ConferenceDate": {"advice":"use <Event> instead of <Conference>"},
+      "ConferenceName": {"advice":"use <Event> instead of <Conference>"},
+      "ConferenceNumber": {"advice":"use <Event> instead of <Conference>"},
+      "ConferencePlace": {"advice":"use <Event> instead of <Conference>"},
+      "ConferenceRole": {"advice":"use <Event> instead of <Conference>"},
+      "ConferenceSponsor": {"advice":"use <EventSponsor> instead"},
+      "ConferenceSponsorIDType": {"advice":"use <EventSponsorIdentifier> instead"},
+      "ConferenceSponsorIdentifier": {"advice":"use <EventSponsorIdentifier> instead"},
+      "ConferenceTheme": {"advice":"use <Event> instead of <Conference>"},
+      "CurrencyZone": {"advice":"use <Territory> instead"},
+      "DateFormat": {"advice":"use dateformat attribute instead"},
+      "PromotionContact": {"advice":"use <ProductContact> instead"},
+      "Reissue": {"advice":"use start and end dates in <Price>, <TextContent>, <SupportingResource> etc instead"},
+      "ReissueDate": {"advice":"use <PublishingDate> or <SupplyDate> instead"},
+      "ReissueDescription": {"advice":"use <TextContent> with start and end dates instead"},
+    },
     elements: {
       "AVDuration": {"text":"TimeOrDuration"},
       "AVItem": {"c":["s",1,["e","AVItemType",1,1],["e","AVItemIdentifier",0,0],["e","TimeRun",0,0],["e","AVDuration",0,1]]},

@@ -61,6 +61,7 @@ function main() {
 
   const datatypes = parseDatatypes(doc);
   const model = Object.create(null);
+  const deprecated = Object.create(null);
   const counts = { composite: 0, list: 0, text: 0, empty: 0, flow: 0 };
 
   for (const element of elements(doc, "element")) {
@@ -70,16 +71,19 @@ function main() {
     const compiled = compileElement(element, groups);
     model[name] = compiled;
     counts[kindOf(compiled)]++;
+    const note = deprecationOf(element);
+    if (note) deprecated[name] = note;
   }
 
-  const output = render(model, datatypes, counts);
+  const output = render(model, datatypes, deprecated, counts);
   fs.writeFileSync(OUT_FILE, output);
   console.log(`generated ${OUT_FILE}`);
   console.log(`  ONIX ${VERSION} content model from ${path.basename(XSD_PATH)}`);
   console.log(`  ${Object.keys(model).length} elements ` +
     `(${counts.composite} composite, ${counts.list} code-list, ${counts.text} typed, ` +
     `${counts.empty} empty, ${counts.flow} XHTML flow)`);
-  console.log(`  ${Object.keys(datatypes).length} datatypes, ${(output.length / 1024).toFixed(1)} KB`);
+  console.log(`  ${Object.keys(datatypes).length} datatypes, ` +
+    `${Object.keys(deprecated).length} deprecated elements, ${(output.length / 1024).toFixed(1)} KB`);
 }
 
 function kindOf(compiled) {
@@ -159,6 +163,55 @@ function childParticles(node, groups, depth) {
     .map((c) => particle(c, groups, depth + 1));
 }
 
+// ---- deprecation -----------------------------------------------------------
+
+// EDItEUR marks a deprecated element in its annotation, and usually names the
+// replacement. Four spellings appear across the two releases:
+//
+//   ● Deprecated from release 3.1 – use explicit <CurrencyCode> instead
+//   ● Deprecated from revision 3.1.3
+//   ● Deprecated within <TextContent> (but not within <TextSource>) at revision 3.1.3
+//   ● Deprecated – use <Audience> instead                              (3.0 style)
+//
+// Not every note that says "Deprecated" is about the element carrying it —
+// three describe their *children* instead:
+//
+//   <Header>           ● Deprecated <DefaultLanguageOfText>, <DefaultPriceType> …
+//   <TitleElement>     ● Deprecated <TitleText> at release 3.1
+//   <SalesRestriction> ● Deprecated P.21.11–21.18 at revision 3.0.2 …
+//
+// Those must not be flagged: <Header> and <TitleElement> are in nearly every
+// ONIX file, so treating them as deprecated would bury a valid document in
+// false warnings. "Deprecated" followed straight away by an element reference
+// or a P.x clause number is about something else; anything else is about the
+// element itself.
+function deprecationOf(element) {
+  for (const documentation of descendantsOf(element, "documentation")) {
+    const note = (documentation.textContent || "").replace(/^[●\s]+/, "").trim();
+    if (!/^Deprecated\b/.test(note)) continue;
+    if (/^Deprecated\s+(?:<|P\.)/.test(note)) continue;   // about a child, not this element
+
+    const parsed = {};
+    const since = note.match(/^Deprecated\s+(?:from|at|in)\s+((?:release|revision)\s+[\d.]+)/);
+    const within = note.match(/^Deprecated\s+within\s+<([A-Za-z0-9]+)>/);
+    const at = note.match(/\bat\s+((?:release|revision)\s+[\d.]+)/);
+    const advice = note.match(/[–-]\s*(use\s.+?)\.?$/);
+
+    if (since) parsed.since = since[1];
+    else if (at) parsed.since = at[1];
+    if (within) parsed.within = within[1];
+    if (advice) parsed.advice = advice[1].replace(/\s+/g, " ");
+    return parsed;
+  }
+  return null;
+}
+
+// An element's own annotation, not a nested one — declarations don't nest here,
+// but scoping to the subtree keeps that true if the schema ever changes.
+function descendantsOf(node, localName) {
+  return [...node.getElementsByTagNameNS(XS, localName)];
+}
+
 // ---- datatypes -------------------------------------------------------------
 
 // Only the facets the runtime can act on. Everything else is a string.
@@ -191,7 +244,7 @@ function parseDatatypes(doc) {
 
 // ---- output ----------------------------------------------------------------
 
-function render(model, datatypes, counts) {
+function render(model, datatypes, deprecated, counts) {
   const out = [];
   out.push("// onix-content-model.js — AUTO-GENERATED. Do not edit by hand.");
   out.push("//");
@@ -205,6 +258,10 @@ function render(model, datatypes, counts) {
   out.push("//   [\"c\", min, ...parts]   choice, matched at most once");
   out.push("// Leaves are { list: N } (code list), { text: \"Type\" } (datatype),");
   out.push("// { empty: 1 } (no content) or { flow: 1 } (XHTML — never inspected).");
+  out.push("//");
+  out.push("// `deprecated` names the elements EDItEUR has deprecated, with the release or");
+  out.push("// revision it happened at, the replacement it advises, and — for the one");
+  out.push("// context-sensitive case — the parent the deprecation is limited to.");
   out.push(`// ${Object.keys(model).length} elements: ${counts.composite} composite, ` +
     `${counts.list} code-list, ${counts.text} typed, ${counts.empty} empty, ${counts.flow} flow.`);
   out.push("");
@@ -213,6 +270,11 @@ function render(model, datatypes, counts) {
   out.push(`  window.OnixViewerContentModels[${JSON.stringify(VERSION)}] = {`);
   out.push(`    version: ${JSON.stringify(VERSION)},`);
   out.push(`    datatypes: ${JSON.stringify(datatypes)},`);
+  out.push("    deprecated: {");
+  for (const name of Object.keys(deprecated).sort()) {
+    out.push(`      ${JSON.stringify(name)}: ${JSON.stringify(deprecated[name])},`);
+  }
+  out.push("    },");
   out.push("    elements: {");
   for (const name of Object.keys(model).sort()) {
     out.push(`      ${JSON.stringify(name)}: ${JSON.stringify(model[name])},`);
