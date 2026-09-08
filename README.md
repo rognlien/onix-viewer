@@ -40,14 +40,14 @@ While the Chrome Web Store review is pending you can sideload the extension as a
 2. Open Chrome and go to `chrome://extensions`.
 3. Toggle **Developer mode** (top-right).
 4. Click **Load unpacked** (top-left), navigate to the unzipped folder, and select it.
-6. The "ONIX Viewer" card appears. Click **Details** → enable **Allow access to file URLs** to open local `.xml` files.
+5. The "ONIX Viewer" card appears. Click **Details** → enable **Allow access to file URLs** to open local `.xml` files.
 
 **Caveats**
 
 - Chrome shows a persistent "Disable developer mode extensions" banner on every restart. Dismissable but recurring. It goes away once the Web Store version is installed.
 - **No auto-updates.** When a new version ships, send the new zip; recipients delete-and-reinstall, or replace the folder contents and click the reload arrow on the extension card.
 
-For Workspace-managed Macs, IT can bypass all of the above by force-installing the packed `.crx` via the `ExtensionInstallForcelist` Chrome policy — gold-standard internal distribution, but needs an admin.
+If your company centrally manages its Macs, IT can skip all of the above and install the extension for everyone silently, with automatic updates, via Chrome's `ExtensionInstallForcelist` policy. That needs someone with admin access to the fleet's management tooling, plus a private signing key and somewhere to host the packed `.crx` — worth it for a managed fleet, overkill for a few colleagues.
 
 ## Test it
 
