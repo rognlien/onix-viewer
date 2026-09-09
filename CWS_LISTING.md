@@ -7,10 +7,13 @@ number when you regenerate the zip via `tools/package-extension.sh`.
 
 ```bash
 tools/package-extension.sh
-# → dist/onix-viewer-0.9.16.zip
+# → dist/onix-viewer-<version>.zip, the version being whatever
+#   Resources/manifest.json declares
 ```
 
-Upload that file at https://chrome.google.com/webstore/devconsole.
+Upload that file at https://chrome.google.com/webstore/devconsole. The tag
+push also builds the same zip and attaches it to the GitHub release, so the
+one from https://github.com/rognlien/onix-viewer/releases is equally good.
 
 ## Item details
 
@@ -198,9 +201,10 @@ Activation gate (both must pass, or the page is left untouched):
 
 Source and verification:
   The full source is public at https://github.com/rognlien/onix-viewer,
-  tagged v0.9.16 for this submission. The uploaded zip is the contents of
-  Resources/ at that tag, built by tools/package-extension.sh, so it can be
-  diffed against the tag directly. SECURITY.md in the repo documents the
+  tagged v<version> for this submission, where <version> is the one in the
+  uploaded manifest. The zip is the contents of Resources/ at that tag,
+  built by tools/package-extension.sh, so it can be diffed against the tag
+  directly. SECURITY.md in the repo documents the
   threat model and lists what to grep for.
 
 Test pages:
