@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.18 — 2026-09-09
 
 ### Changed
 - **Finding markers are pills now.** The solid red and amber blocks with a
