@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- XSD-INVALID ONIX 3.1 Message: breaks as many XSD rules as possible -->
+<!-- 104 numbered violations. Constructs marked LEGAL are valid ONIX 3.1 that reads like a violation.
+     Those marked WARNING are schema-valid but deprecated, so the validator warns rather than errors -->
+<!-- Based on the Editeur sample message -->
+<ONIXMessage release="9.9" xmlns="http://ns.editeur.org/onix/3.1/reference" xmlns:bogus="http://example.com/fake">
+    <!-- VIOLATION 1: release="9.9" is not a valid enumeration value (must be "3.0" or "3.1") -->
+
+    <!-- VIOLATION 2: Header must come before Product, but let's put Product first (sequence order) -->
+    <Product>
+        <!-- VIOLATION 3: RecordReference is required but missing -->
+        <!-- VIOLATION 4: NotificationType is required but missing -->
+
+        <!-- VIOLATION 5: Unexpected element - "Bogus" does not exist in schema -->
+        <Bogus>This element does not exist</Bogus>
+
+        <!-- VIOLATION 6: RecordSourceType without required RecordReference/NotificationType before it -->
+        <RecordSourceType>99</RecordSourceType>
+        <!-- VIOLATION 7: "99" is not a valid RecordSourceType code (List 3) -->
+
+        <RecordSourceIdentifier>
+            <!-- VIOLATION 8: RecordSourceIDType is required but missing -->
+            <IDValue>0614141800001</IDValue>
+        </RecordSourceIdentifier>
+        <RecordSourceName>Global Bookinfo</RecordSourceName>
+
+        <ProductIdentifier>
+            <ProductIDType>03</ProductIDType>
+            <!-- VIOLATION 9: IDValue is required but missing -->
+        </ProductIdentifier>
+        <ProductIdentifier>
+            <!-- VIOLATION 10: ProductIDType is required but missing -->
+            <IDValue>9780007232833</IDValue>
+        </ProductIdentifier>
+        <ProductIdentifier>
+            <ProductIDType>02</ProductIDType>
+            <!-- VIOLATION 96 (WARNING): ProductIDType "02" (ISBN-10) is a deprecated code in List 5 -->
+            <IDValue>0007232837</IDValue>
+            <!-- LEGAL: the ISBN-10 check digit is correct, so only the deprecation is reported -->
+        </ProductIdentifier>
+
+        <!-- VIOLATION 11: DescriptiveDetail contains elements in wrong order -->
+        <DescriptiveDetail>
+            <!-- VIOLATION 12: TitleDetail before ProductComposition (wrong sequence order) -->
+            <TitleDetail>
+                <TitleType>01</TitleType>
+                <TitleElement>
+                    <SequenceNumber>1</SequenceNumber>
+                    <TitleElementLevel>01</TitleElementLevel>
+                    <NoPrefix/>
+                    <TitleWithoutPrefix textcase="01">Roseanna</TitleWithoutPrefix>
+                </TitleElement>
+            </TitleDetail>
+
+            <!-- VIOLATION 13: ProductComposition should come first in sequence -->
+            <ProductComposition>ZZ</ProductComposition>
+            <!-- VIOLATION 14: "ZZ" is not a valid code list value for ProductComposition (List 2) -->
+
+            <!-- VIOLATION 15: ProductForm should come right after ProductComposition -->
+            <!-- VIOLATION 16: Putting ProductForm after TitleDetail breaks sequence -->
+            <ProductForm>XX</ProductForm>
+            <!-- VIOLATION 17: "XX" is not a valid code for ProductForm (List 150) -->
+
+            <!-- VIOLATION 18: ProductFormDetail with invalid code -->
+            <ProductFormDetail>ZZZZZ</ProductFormDetail>
+
+            <!-- VIOLATION 19: Measure with missing required children -->
+            <Measure>
+                <MeasureType>01</MeasureType>
+                <!-- VIOLATION 20: Measurement is required but missing -->
+                <!-- VIOLATION 21: MeasureUnitCode is required but missing -->
+            </Measure>
+
+            <!-- VIOLATION 22: Measure with wrong data type -->
+            <Measure>
+                <MeasureType>not-a-number</MeasureType>
+                <!-- VIOLATION 23: MeasureType expects a code list value, not free text -->
+                <Measurement>not-numeric</Measurement>
+                <!-- VIOLATION 24: Measurement should be numeric -->
+                <MeasureUnitCode>bananas</MeasureUnitCode>
+                <!-- VIOLATION 25: "bananas" is not a valid unit code (List 50) -->
+            </Measure>
+
+            <CountryOfManufacture>NEVERLAND</CountryOfManufacture>
+            <!-- VIOLATION 26: Country code must be ISO 3166-1 (2 letters), "NEVERLAND" is too long -->
+
+            <ProductClassification>
+                <ProductClassificationType>03</ProductClassificationType>
+                <ProductClassificationCode>49019900</ProductClassificationCode>
+                <!-- VIOLATION 27: Unexpected extra element inside ProductClassification -->
+                <Bogus>Not allowed here</Bogus>
+            </ProductClassification>
+
+            <Collection>
+                <!-- VIOLATION 28: CollectionType is required but missing -->
+                <TitleDetail>
+                    <TitleType>01</TitleType>
+                    <TitleElement>
+                        <SequenceNumber>2</SequenceNumber>
+                        <TitleElementLevel>02</TitleElementLevel>
+                        <TitlePrefix textcase="01">The</TitlePrefix>
+                        <TitleWithoutPrefix textcase="01">Martin Beck series</TitleWithoutPrefix>
+                    </TitleElement>
+                </TitleDetail>
+            </Collection>
+
+            <TitleDetail>
+                <TitleType>05</TitleType>
+                <TitleElement>
+                    <TitleElementLevel>01</TitleElementLevel>
+                    <TitleText>Roseanna</TitleText>
+                    <!-- VIOLATION 97 (WARNING): TitleText is deprecated from release 3.1 — use TitlePrefix/NoPrefix plus TitleWithoutPrefix -->
+                </TitleElement>
+            </TitleDetail>
+            <!-- (This TitleDetail also picks up a position error, because VIOLATION 12 has already derailed the sequence) -->
+
+            <!-- VIOLATION 29: Contributor with children in wrong order -->
+            <Contributor>
+                <KeyNames>Sjöwall</KeyNames>
+                <!-- VIOLATION 30: KeyNames should come after ContributorRole, not before -->
+                <SequenceNumber>not-a-number</SequenceNumber>
+                <!-- VIOLATION 31: SequenceNumber should be an integer -->
+                <ContributorRole>ZZZ</ContributorRole>
+                <!-- VIOLATION 32: "ZZZ" is not a valid ContributorRole code (List 17) -->
+                <NameIdentifier>
+                    <!-- VIOLATION 33: NameIDType is required but missing -->
+                    <IDValue>7421</IDValue>
+                </NameIdentifier>
+                <NamesBeforeKey>Maj</NamesBeforeKey>
+                <!-- VIOLATION 34: Invalid textformat attribute value -->
+                <BiographicalNote textformat="99">Some biography</BiographicalNote>
+            </Contributor>
+
+            <!-- VIOLATION 35: ContributorStatement before all Contributors are listed breaks sequence -->
+            <ContributorStatement>By someone</ContributorStatement>
+
+            <!-- VIOLATION 36: Another Contributor after ContributorStatement (wrong order) -->
+            <Contributor>
+                <SequenceNumber>2</SequenceNumber>
+                <ContributorRole>A01</ContributorRole>
+                <NamesBeforeKey>Per</NamesBeforeKey>
+                <KeyNames>Wahlöö</KeyNames>
+            </Contributor>
+
+            <Language>
+                <!-- VIOLATION 37: LanguageRole is required but missing -->
+                <LanguageCode>xyz</LanguageCode>
+                <!-- VIOLATION 38: "xyz" is not a valid ISO 639 language code -->
+            </Language>
+
+            <Extent>
+                <ExtentType>00</ExtentType>
+                <ExtentValue>-5</ExtentValue>
+                <!-- VIOLATION 39: "-5" is out of range for PositiveDecimal -->
+                <!-- VIOLATION 40: ExtentUnit is required but missing -->
+            </Extent>
+
+            <Subject>
+                <MainSubject/>
+                <!-- VIOLATION 41: SubjectSchemeIdentifier is required but missing -->
+                <!-- VIOLATION 42: Must have SubjectCode or SubjectHeadingText, neither present -->
+            </Subject>
+
+            <!-- VIOLATION 43: Audience with empty required element -->
+            <Audience>
+                <AudienceCodeType></AudienceCodeType>
+                <!-- VIOLATION 44: Empty element where content is required -->
+                <AudienceCodeValue></AudienceCodeValue>
+                <!-- VIOLATION 45: Empty element where content is required -->
+            </Audience>
+        </DescriptiveDetail>
+
+        <!-- VIOLATION 46: CollateralDetail elements in wrong order -->
+        <CollateralDetail>
+            <!-- VIOLATION 47: SupportingResource before TextContent (wrong sequence order) -->
+            <SupportingResource>
+                <!-- VIOLATION 48: ResourceContentType is required but missing -->
+                <ContentAudience>00</ContentAudience>
+                <!-- VIOLATION 49: ResourceMode is required but missing -->
+                <ResourceVersion>
+                    <!-- VIOLATION 50: ResourceForm is required but missing -->
+                    <!-- VIOLATION 51: ResourceLink is required but missing -->
+                </ResourceVersion>
+            </SupportingResource>
+
+            <TextContent>
+                <!-- VIOLATION 52: TextType is required but missing -->
+                <ContentAudience>99</ContentAudience>
+                <!-- VIOLATION 53: "99" is not a valid ContentAudience code (List 154) -->
+                <Text textformat="99">Some text</Text>
+                <!-- VIOLATION 54: "99" is not a valid textformat attribute (List 34) -->
+                <Text language="scr">Neki tekst</Text>
+                <!-- VIOLATION 98 (WARNING): language="scr" (Croatian) is a deprecated code in List 74 -->
+                <TextAuthor>Someone</TextAuthor>
+                <!-- VIOLATION 99 (WARNING): TextAuthor is deprecated from revision 3.1.3 -->
+                <TextSourceCorporate>Some Corporation</TextSourceCorporate>
+                <!-- VIOLATION 100 (WARNING): TextSourceCorporate is deprecated from revision 3.1.3 -->
+                <TextSourceDescription>A description of the source</TextSourceDescription>
+                <!-- VIOLATION 101 (WARNING): TextSourceDescription is deprecated within TextContent from revision 3.1.3 -->
+            </TextContent>
+
+            <CitedContent>
+                <CitedContentType>03</CitedContentType>
+                <!-- LEGAL: CitedContent needs neither ContentAudience nor SourceType -->
+                <SourceTitle>Observer Magazine</SourceTitle>
+                <ContentDate>
+                    <!-- VIOLATION 55: ContentDateRole is required but missing -->
+                    <Date dateformat="99">not-a-date</Date>
+                    <!-- VIOLATION 56: "99" is not a valid dateformat (List 55) -->
+                    <!-- LEGAL: Date content is dt.NonEmptyString, so the schema takes any non-empty text -->
+                </ContentDate>
+            </CitedContent>
+        </CollateralDetail>
+
+        <!-- VIOLATION 57: PublishingDetail with wrong element order -->
+        <PublishingDetail>
+            <!-- VIOLATION 58: PublishingStatus before Imprint/Publisher (wrong sequence) -->
+            <PublishingStatus>99</PublishingStatus>
+            <!-- VIOLATION 59: "99" is not a valid PublishingStatus (List 64) -->
+
+            <Imprint>
+                <!-- VIOLATION 60: ImprintName is required (unless ImprintIdentifier present) but missing -->
+            </Imprint>
+
+            <Publisher>
+                <!-- VIOLATION 61: PublishingRole is required but missing -->
+                <!-- VIOLATION 62: PublisherName is required (unless PublisherIdentifier present) but missing -->
+            </Publisher>
+
+            <CityOfPublication>London</CityOfPublication>
+            <CountryOfPublication>ZZZZ</CountryOfPublication>
+            <!-- VIOLATION 63: Must be ISO 3166-1 two-letter code -->
+
+            <PublishingDate>
+                <!-- VIOLATION 64: PublishingDateRole is required but missing -->
+                <Date>20060807</Date>
+                <!-- LEGAL: dateformat is optional and defaults to 00 -->
+            </PublishingDate>
+
+            <PublishingDate>
+                <PublishingDateRole>01</PublishingDateRole>
+                <PublishingDateRole>02</PublishingDateRole>
+                <!-- VIOLATION 65: PublishingDateRole should appear exactly once -->
+                <Date dateformat="00">20060807</Date>
+            </PublishingDate>
+
+            <SalesRights>
+                <!-- VIOLATION 66: SalesRightsType is required but missing -->
+                <Territory>
+                    <!-- VIOLATION 67: Must have at least one of CountriesIncluded/RegionsIncluded -->
+                </Territory>
+            </SalesRights>
+
+            <SalesRights>
+                <SalesRightsType>01</SalesRightsType>
+                <!-- VIOLATION 68: Territory is required but missing -->
+            </SalesRights>
+        </PublishingDetail>
+
+        <!-- VIOLATION 69: RelatedMaterial with missing required content -->
+        <RelatedMaterial>
+            <RelatedWork>
+                <!-- VIOLATION 70: WorkRelationCode is required but missing -->
+                <WorkIdentifier>
+                    <!-- VIOLATION 71: WorkIDType is required but missing -->
+                    <IDValue>A0220090000154FA</IDValue>
+                </WorkIdentifier>
+            </RelatedWork>
+            <RelatedProduct>
+                <!-- VIOLATION 72: ProductRelationCode is required but missing -->
+                <ProductIdentifier>
+                    <ProductIDType>03</ProductIDType>
+                    <IDValue>9780007324378</IDValue>
+                </ProductIdentifier>
+            </RelatedProduct>
+        </RelatedMaterial>
+
+        <ProductSupply>
+            <!-- VIOLATION 73: Market and SupplyDetail both have required children missing -->
+            <Market>
+                <!-- VIOLATION 74: Territory is required but missing -->
+            </Market>
+            <MarketPublishingDetail>
+                <!-- VIOLATION 75: MarketPublishingStatus is required but missing -->
+            </MarketPublishingDetail>
+            <SupplyDetail>
+                <Supplier>
+                    <!-- VIOLATION 76: SupplierRole is required but missing -->
+                    <!-- VIOLATION 77: SupplierName or SupplierIdentifier required but missing -->
+                </Supplier>
+
+                <!-- VIOLATION 78: ProductAvailability is required but missing -->
+
+                <Price>
+                    <!-- LEGAL: PriceType is optional; the message default applies when it is absent -->
+                    <PriceAmount>not-a-number</PriceAmount>
+                    <!-- VIOLATION 79: PriceAmount must be a decimal number -->
+                    <Tax>
+                        <TaxRateCode>INVALID</TaxRateCode>
+                        <!-- VIOLATION 80: Not a valid TaxRateCode (List 62) -->
+                        <TaxableAmount></TaxableAmount>
+                        <!-- VIOLATION 81: Empty where decimal required -->
+                        <TaxAmount>-100</TaxAmount>
+                    </Tax>
+                    <CurrencyCode>MONOPOLY</CurrencyCode>
+                    <!-- VIOLATION 82: Must be ISO 4217 three-letter code -->
+                    <Territory>
+                        <CountriesIncluded>XX</CountriesIncluded>
+                        <!-- VIOLATION 83: "XX" is not a valid ISO 3166-1 country code -->
+                    </Territory>
+                </Price>
+            </SupplyDetail>
+        </ProductSupply>
+
+        <!-- VIOLATION 84: DescriptiveDetail appearing twice (maxOccurs=1) -->
+        <DescriptiveDetail>
+            <ProductComposition>00</ProductComposition>
+            <ProductForm>BC</ProductForm>
+        </DescriptiveDetail>
+
+        <!-- VIOLATION 85: Blocks appearing out of order (DescriptiveDetail after ProductSupply) -->
+
+        <!-- VIOLATION 86: Element from wrong namespace -->
+        <bogus:ForeignElement>Not in ONIX namespace</bogus:ForeignElement>
+
+    </Product>
+
+    <!-- VIOLATION 87: Header after Product (must come first) -->
+    <Header>
+        <Sender>
+            <!-- VIOLATION 88: SenderName or SenderIdentifier required but missing -->
+        </Sender>
+        <!-- VIOLATION 89: Sender appears twice (maxOccurs=1) -->
+        <Sender>
+            <SenderName>Duplicate Sender</SenderName>
+        </Sender>
+        <Addressee>
+            <!-- VIOLATION 90: AddresseeName or AddresseeIdentifier required but missing -->
+        </Addressee>
+        <MessageNumber>not-an-integer</MessageNumber>
+        <!-- VIOLATION 91: MessageNumber must be an integer -->
+        <SentDateTime>YESTERDAY</SentDateTime>
+        <!-- VIOLATION 92: SentDateTime must match date/time format pattern -->
+        <MessageNote>This header comes after the Product, breaking sequence order</MessageNote>
+        <!-- LEGAL: MessageNote became repeatable in ONIX 3.1 -->
+        <MessageNote>Second note, which 3.1 allows</MessageNote>
+        <DefaultLanguageOfText>eng</DefaultLanguageOfText>
+        <!-- VIOLATION 102 (WARNING): DefaultLanguageOfText is deprecated from release 3.1 — use an explicit Language with role 01 -->
+        <DefaultPriceType>01</DefaultPriceType>
+        <!-- VIOLATION 103 (WARNING): DefaultPriceType is deprecated from release 3.1 — use an explicit PriceType -->
+        <DefaultCurrencyCode>GBP</DefaultCurrencyCode>
+        <!-- VIOLATION 104 (WARNING): DefaultCurrencyCode is deprecated from release 3.1 — use an explicit CurrencyCode -->
+    </Header>
+
+    <!-- VIOLATION 93: Second Header element (maxOccurs=1) -->
+    <Header>
+        <Sender>
+            <SenderName>Second header not allowed</SenderName>
+        </Sender>
+    </Header>
+
+    <!-- VIOLATION 94: Random text content in ONIXMessage (not allowed - element-only content) -->
+    This text should not be here between elements.
+
+    <!-- VIOLATION 95: Unknown element at message level -->
+    <NotAnOnixElement>This does not belong here</NotAnOnixElement>
+
+</ONIXMessage>
