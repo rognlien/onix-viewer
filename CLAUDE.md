@@ -839,10 +839,22 @@ skipping the whole value.
 `gtin` checks ISBN-13 and GTIN-13 (`ProductIDType` 15 and 03, alternating
 1/3 weights mod 10) and ISBN-10 (type 02, weights 10…2 mod 11, remainder 10
 written `X`). The schema cannot see these — all three are just strings to it —
-and a wrong check digit is a common real defect. Deliberately silent on two
-things: schemes with no check digit (proprietary `01`, DOI `06`, …) and values
-of the wrong length, which the datatype rule already reports; adding a check
-digit complaint on top would only be noise.
+and a wrong check digit is a common real defect.
+
+**It also owns the length**, which an earlier version of this note got wrong: it
+claimed a wrong-length value was "left to the datatype rule". That rule cannot
+see it. `<IDValue>` is typed `dt.NonEmptyString` — pattern `.*\S.*` — so the
+schema constrains neither length nor alphabet, and there is no facet for
+anything to catch. The result was that under `ProductIDType` 15 both
+`978-82-345-6789-6` (hyphenated, which real feeds do send) and `97882345`
+(truncated) passed in silence. `gtin.length` now reports them, and it reports
+before the check digit, since a digit cannot be computed for a value of the
+wrong shape.
+
+Deliberately silent on two things: schemes with no check digit (proprietary
+`01`, DOI `06`, …), and a lower-case `x` in an ISBN-10's check position — the
+standard writes it upper case, but the schema constrains neither, and rejecting
+it would fail feeds that are otherwise correct.
 
 It found bad digits in 12 of the test fixtures on its first run, which is why
 they now carry valid ones. `onix-3.1-invalid.xml` keeps its bad digit

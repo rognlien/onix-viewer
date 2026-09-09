@@ -91,6 +91,15 @@ the main branch.
   by no rule.
 
 ### Fixed
+- **A wrong-length identifier went unchecked.** Under `ProductIDType` 15 both
+  `978-82-345-6789-6` (hyphenated, which real feeds do send) and `97882345`
+  (truncated) passed in silence. A comment claimed the length was "left to the
+  datatype rule" — it cannot be: `<IDValue>` is typed `dt.NonEmptyString`,
+  pattern `.*\S.*`, so the schema constrains neither length nor alphabet and
+  there is no facet to catch it with. The `gtin` rule now owns the length for
+  the three schemes it knows, reporting `gtin.length` before any check digit,
+  since a digit cannot be computed for a value of the wrong shape. A lower-case
+  `x` in an ISBN-10's check position stays accepted on purpose.
 - **An empty attribute value went unchecked.** `language=""`, `datestamp=""`
   and `collationkey=""` were all accepted: the attribute rule bailed out on a
   falsy value before reaching any check. No ONIX attribute has a legal empty

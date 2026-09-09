@@ -2246,6 +2246,45 @@ describe("Identifier check digits", () => {
     assert(checkDigitFindings(w, "15", "978823456789").length === 0, "too short");
     assert(checkDigitFindings(w, "15", "97882345678966").length === 0, "too long");
   });
+  test("a wrong-length identifier is reported, not silently skipped", () => {
+    // <IDValue> is dt.NonEmptyString, so the schema constrains neither length
+    // nor alphabet — a hyphenated or truncated ISBN is schema-valid and no
+    // other rule can see it. This rule owns the length for the schemes it
+    // knows, and reports it instead of the check digit, which cannot be
+    // computed for a value of the wrong shape.
+    const w = render("onix-3.1-valid.xml");
+    const lengthFindings = (type, value) =>
+      findingsFor(w, record(type, value)).findings
+        .filter((f) => f.code === "gtin.length")
+        .map((f) => w.OnixViewerValidation.message(f));
+
+    for (const [type, value] of [["15", "978-82-345-6789-6"], ["15", "97882345"],
+                                 ["03", "978823456789"], ["02", "03854908"]]) {
+      const found = lengthFindings(type, value);
+      assert(found.length === 1, `${type}/${value} should report its length; got: ${found.join("; ") || "nothing"}`);
+      assert(checkDigitFindings(w, type, value).length === 0,
+        `${type}/${value} must not also complain about the check digit`);
+    }
+
+    // A correct-length value still gets its digit checked, and a scheme with
+    // no check digit stays silent whatever its length.
+    assert(lengthFindings("15", "9788234567896").length === 0, "a valid ISBN-13 passes");
+    assert(checkDigitFindings(w, "15", "9788234567890").length === 1,
+      "a correct-length ISBN-13 with a bad digit is still reported");
+    assert(lengthFindings("01", "ABC-123").length === 0,
+      "a proprietary identifier has no length to enforce");
+  });
+
+  test("a lower-case x is accepted in an ISBN-10 check position", () => {
+    // Deliberate tolerance: the standard writes X upper case, but the schema
+    // constrains neither, and rejecting it would fail otherwise-correct feeds.
+    const w = render("onix-3.1-valid.xml");
+    for (const value of ["038549081X", "038549081x"]) {
+      assert(checkDigitFindings(w, "02", value).length === 0,
+        `${value} should pass; got: ${checkDigitFindings(w, "02", value).join("; ")}`);
+    }
+  });
+
 });
 
 describe("Copying the displayed dialect", () => {

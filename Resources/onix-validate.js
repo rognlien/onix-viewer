@@ -51,6 +51,7 @@
     // not the revision, a 3.1 one often the reverse. One code with optional
     // detail beats two codes for one defect.
     "element.deprecated": "<{name}> is deprecated{since}{advice}",
+    "gtin.length": "\"{value}\" is not a valid {scheme}: expected {length} digits",
     "gtin.checkdigit": "\"{value}\" has an invalid check digit for {scheme} (expected {expected})",
     "model.missing": "No content model bundled for ONIX {version} (bundled: {available}); structure was not checked",
     "model.acknowledgement": "Acknowledgement messages have their own schema, which isn't bundled; structure was not checked",
@@ -876,21 +877,36 @@
     element(node, api) {
       if (api.referenceName(node) === "IDValue") {
         const scheme = IDENTIFIER_SCHEMES[api.siblingValue(node, "ProductIDType")];
-        const value = api.textOf(node).trim();
-        if (scheme && scheme.length === value.length && /^[0-9Xx]+$/.test(value)) {
-          const expected = scheme.checkDigit(value);
-          if (expected !== null && expected !== value.slice(-1).toUpperCase()) {
-            api.report("gtin.checkdigit", node, { value, scheme: scheme.label, expected });
-          }
-        }
+        if (scheme) checkIdentifier(node, api.textOf(node).trim(), scheme, api);
       }
       return true;
     },
   });
 
+  // The schema types <IDValue> as dt.NonEmptyString — pattern `.*\S.*` — so it
+  // constrains neither length nor alphabet: under ProductIDType 15, both
+  // "978-82-345-6789-6" and "97882345" are schema-valid. An earlier note here
+  // said a length mismatch was "left to the datatype rule", which was wrong —
+  // there is no facet for that rule to catch it with, so nothing reported it
+  // at all. This rule owns both checks now, and reports the length first
+  // because a check digit cannot be computed for a value of the wrong shape.
+  //
+  // A lowercase "x" in an ISBN-10's check position is accepted deliberately.
+  // The standard writes it upper case, but the schema constrains neither, and
+  // rejecting it would fail feeds that are otherwise correct.
+  function checkIdentifier(node, value, scheme, api) {
+    if (value.length !== scheme.length || !/^[0-9Xx]+$/.test(value)) {
+      api.report("gtin.length", node,
+        { value, scheme: scheme.label, length: scheme.length });
+      return;
+    }
+    const expected = scheme.checkDigit(value);
+    if (expected !== null && expected !== value.slice(-1).toUpperCase()) {
+      api.report("gtin.checkdigit", node, { value, scheme: scheme.label, expected });
+    }
+  }
+
   // Keyed by ProductIDType (List 5): 03 GTIN-13, 15 ISBN-13, 02 ISBN-10.
-  // A length mismatch is left to the datatype rule — reporting a check digit
-  // for a value that isn't the right length would only add noise.
   const IDENTIFIER_SCHEMES = Object.assign(Object.create(null), {
     "02": { label: "ISBN-10", length: 10, checkDigit: isbn10CheckDigit },
     "03": { label: "GTIN-13", length: 13, checkDigit: gtin13CheckDigit },
