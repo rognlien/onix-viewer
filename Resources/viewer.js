@@ -1350,13 +1350,28 @@
   }
 
   function flashButton(btn, msg) {
-    const original = btn.textContent;
-    btn.textContent = msg;
+    const label = labelNode(btn);
+    const original = label.nodeValue;
+    label.nodeValue = msg;
     btn.setAttribute("disabled", "");
     setTimeout(() => {
-      btn.textContent = original;
+      label.nodeValue = original;
       btn.removeAttribute("disabled");
     }, 1200);
+  }
+
+  // The button's own text, as a node: the toolbar buttons carry an icon ahead
+  // of their label, and writing textContent would take the icon with it.
+  function labelNode(btn) {
+    let node = null;
+    for (const child of btn.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) node = child;
+    }
+    if (!node) {
+      node = document.createTextNode("");
+      btn.appendChild(node);
+    }
+    return node;
   }
 
   // ---- per-node menu --------------------------------------------------------

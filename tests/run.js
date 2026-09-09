@@ -778,6 +778,22 @@ describe("Stepped collapse and expand", () => {
       assert(glyph.classList.contains("px-icon"), "and be sized by the shared class");
     }
   });
+
+  test("Copy XML keeps its icon through the Copied flash", () => {
+    // flashButton used to write the button's textContent, which took the
+    // prepended icon with it: after the first copy the button was text only.
+    // The harness is synchronous, so take the execCommand path, which flashes
+    // in the same tick; the verdict it flashes is beside the point.
+    const w = render("onix-3.0-reference.xml");
+    Object.defineProperty(w.navigator, "clipboard", { configurable: true, value: undefined });
+    w.document.execCommand = () => true;
+    const button = w.document.querySelector('[data-action="copy-xml"]');
+    button.textContent = "Copy XML";
+    button.prepend(w.document.querySelector('[data-action="expand"] svg').cloneNode(true));
+    button.click();
+    assert(button.querySelector("svg"), "the icon should survive the flash");
+    assert(button.textContent === "Copied", `the label should flash, got: ${button.textContent}`);
+  });
 });
 
 describe("ONIX blocks", () => {
