@@ -153,6 +153,21 @@ body {
   min-width: 0;
 }
 
+/* The brand mark. Its own gap to the right of it, so it reads as a mark rather
+   than the first item in the button row.
+
+   28px, which is exactly the toolbar's content height: measured, 24px was the
+   ceiling while the artwork needed a 2px chip to hide its baked background, and
+   with a transparent asset the padding goes and the owl itself takes the full
+   28. Above that the toolbar starts to grow (45.6px to 47px at 30). */
+#oxv-logo {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-right: 6px;
+  display: block;
+}
+
 #oxv-toolbar button {
   appearance: none;
   /* inline-flex so a button carrying an icon lines it up with its label

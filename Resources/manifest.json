@@ -37,7 +37,8 @@
         "onix-content-model-3.0.js",
         "onix-validate.js",
         "onix-blocks.js",
-        "onix-popup.js"
+        "onix-popup.js",
+        "icons/icon-48.png"
       ],
       "matches": ["<all_urls>"]
     }

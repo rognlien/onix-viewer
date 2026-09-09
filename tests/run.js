@@ -106,6 +106,7 @@ function renderSource(xml, label, beforeScripts, models) {
 <body class="oxv-view-xml">
   <div id="oxv-toolbar">
     <div class="px-left">
+      <img id="oxv-logo" src="icons/icon-48.png" width="28" height="28" alt="ONIX Viewer">
       <button data-action="expand"></button>
       <button data-action="collapse"></button>
       <button data-action="toggle-wrap"></button>
@@ -765,9 +766,26 @@ describe("Stepped collapse and expand", () => {
     assert(style.alignItems === "center", `expected centred items, got "${style.alignItems}"`);
   });
 
-  test("Expand and Collapse carry icons", () => {
+  test("the toolbar carries the extension's mark, and drops it if blocked", () => {
     const w = render("onix-3.0-reference.xml");
-    for (const action of ["expand", "collapse", "copy-xml"]) {
+    const logo = w.document.getElementById("oxv-logo");
+    assert(logo, "the toolbar should carry the mark");
+    assert(logo.getAttribute("alt") === "ONIX Viewer",
+      "a mark with no text beside it needs an accessible name");
+    assert(logo.getAttribute("width") === "28" && logo.getAttribute("height") === "28",
+      "28px is the toolbar's content height — the largest that does not make it taller");
+    assert(logo.closest(".px-left"), "it belongs with the controls, at the left");
+    assert(logo === logo.parentElement.firstElementChild, "and leads them");
+
+    // A page whose img-src CSP refuses chrome-extension:// URLs must not be
+    // left with a broken-image glyph in the toolbar.
+    logo.dispatchEvent(new w.Event("error"));
+    assert(!w.document.getElementById("oxv-logo"), "a blocked mark should be removed");
+  });
+
+  test("the labelled toolbar buttons carry icons", () => {
+    const w = render("onix-3.0-reference.xml");
+    for (const action of ["expand", "collapse", "toggle-wrap", "copy-xml"]) {
       const button = w.document.querySelector(`[data-action="${action}"]`);
       const glyph = button.querySelector("svg");
       assert(glyph, `${action} should carry an icon`);
@@ -1145,6 +1163,192 @@ describe("Validation", () => {
       `the warning should name both bundled releases, got: ${text}`);
   });
 
+  // An element declared by a named complexType rather than an inline one.
+  // Five declarations in 3.1 are shaped that way and all five are
+  // <EpubLicense>; compiling only inline types left it out of the model, so
+  // valid 3.1 reported it as unknown and nothing inside it was checked.
+  describe("elements declared by a named complexType", () => {
+    // EpubLicense sits between <ProductForm> and <TitleDetail> in
+    // DescriptiveDetail, and between <PriceType> and <PriceAmount> in Price.
+    const licence = (body) =>
+      `<EpubLicense><EpubLicenseName>CC BY 4.0</EpubLicenseName>${body}</EpubLicense>`;
+    const licenceDate =
+      "<EpubLicenseDate><EpubLicenseDateRole>24</EpubLicenseDateRole>" +
+      "<Date>20260101</Date></EpubLicenseDate>";
+    const message = (inDescriptive, inPrice) =>
+      '<?xml version="1.0"?><ONIXMessage release="3.1" ' +
+      'xmlns="http://ns.editeur.org/onix/3.1/reference">' +
+      "<Header><Sender><SenderName>S</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header>" +
+      "<Product><RecordReference>r1</RecordReference><NotificationType>03</NotificationType>" +
+      "<ProductIdentifier><ProductIDType>15</ProductIDType>" +
+      "<IDValue>9788234567896</IDValue></ProductIdentifier>" +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      `<ProductForm>BC</ProductForm>${inDescriptive}` +
+      "<TitleDetail><TitleType>01</TitleType><TitleElement>" +
+      "<TitleElementLevel>01</TitleElementLevel><NoPrefix/>" +
+      "<TitleWithoutPrefix>T</TitleWithoutPrefix></TitleElement></TitleDetail>" +
+      "</DescriptiveDetail>" +
+      (inPrice
+        ? "<ProductSupply><Market><Territory>" +
+          "<CountriesIncluded>NO</CountriesIncluded></Territory></Market>" +
+          "<SupplyDetail><Supplier><SupplierRole>01</SupplierRole>" +
+          "<SupplierName>X</SupplierName></Supplier>" +
+          "<ProductAvailability>20</ProductAvailability>" +
+          `<Price><PriceType>02</PriceType>${inPrice}` +
+          "<PriceAmount>10.00</PriceAmount></Price></SupplyDetail></ProductSupply>"
+        : "") +
+      "</Product></ONIXMessage>";
+
+    test("<EpubLicense> is a known element and its children are checked", () => {
+      const w = render("onix-3.1-valid.xml");
+      assert(w.OnixViewerContentModels["3.1"].elements.EpubLicense,
+        "EpubLicense must be in the 3.1 model");
+      const clean = findingsFor(w, message(licence(""), null));
+      assert(clean.total === 0, `expected clean, got: ${codes(clean).join(", ")}`);
+
+      const missingName = findingsFor(w, message("<EpubLicense/>", null));
+      assert(codes(missingName).includes("structure.missing"),
+        `a required <EpubLicenseName> should be demanded; got: ${codes(missingName).join(", ")}`);
+    });
+
+    test("its content model follows the parent it sits in", () => {
+      // EpubLicenseWithDateType adds <EpubLicenseDate> and applies everywhere
+      // except inside <Price>, which keeps the plain EpubLicenseType.
+      const w = render("onix-3.1-valid.xml");
+      const allowed = findingsFor(w, message(licence(licenceDate), null));
+      assert(allowed.total === 0,
+        `<EpubLicenseDate> is legal under <DescriptiveDetail>; got: ${codes(allowed).join(", ")}`);
+
+      const refused = findingsFor(w, message("", licence(licenceDate)));
+      assert(codes(refused).join() === "structure.unexpected",
+        `and illegal under <Price>; got: ${codes(refused).join(", ")}`);
+
+      const plain = findingsFor(w, message("", licence("")));
+      assert(plain.total === 0,
+        `<EpubLicense> itself is fine under <Price>; got: ${codes(plain).join(", ")}`);
+    });
+  });
+
+  test("a finite maxOccurs is enforced, not just unbounded", () => {
+    // <OrderQuantityMinimum> is the one particle in either release with a
+    // finite bound above one (maxOccurs="2"), so it is the only thing keeping
+    // the matcher's third occurrence check honest.
+    const w = render("onix-3.1-valid.xml");
+    const supply = (minimums) =>
+      '<?xml version="1.0"?><ONIXMessage release="3.1" ' +
+      'xmlns="http://ns.editeur.org/onix/3.1/reference">' +
+      "<Header><Sender><SenderName>S</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header>" +
+      "<Product><RecordReference>r1</RecordReference><NotificationType>03</NotificationType>" +
+      "<ProductIdentifier><ProductIDType>15</ProductIDType>" +
+      "<IDValue>9788234567896</IDValue></ProductIdentifier>" +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      "<ProductForm>BC</ProductForm><TitleDetail><TitleType>01</TitleType><TitleElement>" +
+      "<TitleElementLevel>01</TitleElementLevel><NoPrefix/>" +
+      "<TitleWithoutPrefix>T</TitleWithoutPrefix></TitleElement></TitleDetail>" +
+      "</DescriptiveDetail><ProductSupply><Market><Territory>" +
+      "<CountriesIncluded>NO</CountriesIncluded></Territory></Market>" +
+      "<SupplyDetail><Supplier><SupplierRole>01</SupplierRole>" +
+      "<SupplierName>X</SupplierName></Supplier>" +
+      "<ProductAvailability>20</ProductAvailability>" +
+      minimums.map((q) => `<OrderQuantityMinimum>${q}</OrderQuantityMinimum>`).join("") +
+      "<UnpricedItemType>01</UnpricedItemType>" +
+      "</SupplyDetail></ProductSupply></Product></ONIXMessage>";
+
+    assert(findingsFor(w, supply([1, 2])).total === 0, "two is the declared maximum");
+    const tooMany = findingsFor(w, supply([1, 2, 3]));
+    assert(codes(tooMany).join() === "structure.repeated",
+      `a third must be reported; got: ${codes(tooMany).join(", ")}`);
+    const message = w.OnixViewerValidation.message(tooMany.findings[0]);
+    assert(message.includes("at most 2"), `the limit should be named; got: ${message}`);
+  });
+
+  test("an XSD element default makes an empty element valid", () => {
+    // <CopyrightType default="C"> means an empty <CopyrightType/> carries "C",
+    // so demanding a value there is a false positive. Three declarations
+    // across the two releases carry a default; nothing else may skip the check.
+    const w = render("onix-3.1-valid.xml");
+    const statement = (body) =>
+      '<?xml version="1.0"?><ONIXMessage release="3.1" ' +
+      'xmlns="http://ns.editeur.org/onix/3.1/reference">' +
+      "<Header><Sender><SenderName>S</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header>" +
+      "<Product><RecordReference>r1</RecordReference><NotificationType>03</NotificationType>" +
+      "<ProductIdentifier><ProductIDType>15</ProductIDType>" +
+      "<IDValue>9788234567896</IDValue></ProductIdentifier>" +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      "<ProductForm>BC</ProductForm><TitleDetail><TitleType>01</TitleType><TitleElement>" +
+      "<TitleElementLevel>01</TitleElementLevel><NoPrefix/>" +
+      "<TitleWithoutPrefix>T</TitleWithoutPrefix></TitleElement></TitleDetail>" +
+      "</DescriptiveDetail><PublishingDetail><Imprint><ImprintName>I</ImprintName></Imprint>" +
+      `<CopyrightStatement>${body}</CopyrightStatement>` +
+      "</PublishingDetail></Product></ONIXMessage>";
+
+    const empty = findingsFor(w, statement("<CopyrightType/><CopyrightYear>2026</CopyrightYear>"));
+    assert(empty.total === 0,
+      `an empty <CopyrightType/> defaults to "C"; got: ${codes(empty).join(", ")}`);
+    const missing = findingsFor(w, statement("<CopyrightYear></CopyrightYear>"));
+    assert(codes(missing).join() === "structure.missing-value",
+      `an element without a default still needs one; got: ${codes(missing).join(", ")}`);
+  });
+
+  test("ONIX 3.0's own names for its attribute code lists resolve", () => {
+    // 3.0 types three attributes after the list rather than numbering it —
+    // SourceTypeCode where 3.1 says List3 — and those definitions live in the
+    // CodeLists XSD we don't commit. Unmapped, all three went unchecked.
+    const w = render("onix-3.0-reference.xml");
+    const specs = w.OnixViewerContentModels["3.0"].attributes;
+    assert(specs.sourcetype.list === 3 && specs.textcase.list === 14 &&
+      specs.textformat.list === 34,
+      `expected the three to be code-list bound, got: ${JSON.stringify(specs)}`);
+
+    const text = (attributes) =>
+      '<?xml version="1.0"?><ONIXMessage release="3.0" ' +
+      'xmlns="http://ns.editeur.org/onix/3.0/reference">' +
+      "<Header><Sender><SenderName>S</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header>" +
+      "<Product><RecordReference>r1</RecordReference><NotificationType>03</NotificationType>" +
+      "<ProductIdentifier><ProductIDType>15</ProductIDType>" +
+      "<IDValue>9788234567896</IDValue></ProductIdentifier>" +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      "<ProductForm>BC</ProductForm><TitleDetail><TitleType>01</TitleType><TitleElement>" +
+      "<TitleElementLevel>01</TitleElementLevel><TitleText>T</TitleText>" +
+      "</TitleElement></TitleDetail></DescriptiveDetail>" +
+      "<CollateralDetail><TextContent><TextType>03</TextType>" +
+      `<ContentAudience>00</ContentAudience><Text ${attributes}>B</Text>` +
+      "</TextContent></CollateralDetail></Product></ONIXMessage>";
+
+    assert(codes(findingsFor(w, text('textformat="05"'))).join() === "",
+      "a valid List 34 code passes");
+    assert(codes(findingsFor(w, text('textformat="99"'))).join() === "attribute.code",
+      `and an invalid one is reported; got: ${codes(findingsFor(w, text('textformat="99"'))).join(", ")}`);
+  });
+
+  test("every datatype the models name is one they compiled", () => {
+    // A shape naming a datatype the generator never compiled is skipped in
+    // silence — the element or attribute simply goes unchecked, which is how
+    // 3.0's textformat slipped through. The generator asserts this too; this
+    // guards the shipped files.
+    const w = render("onix-3.1-valid.xml");
+    const unresolved = [];
+    for (const [release, model] of Object.entries(w.OnixViewerContentModels)) {
+      const check = (label, named) => {
+        if (typeof named === "string" && !model.datatypes[named]) {
+          unresolved.push(`${release} ${label} -> ${named}`);
+        }
+      };
+      for (const [name, shape] of Object.entries(model.elements)) {
+        check(`<${name}>`, shape.text);
+        for (const [parent, variant] of Object.entries(shape.in || {})) {
+          check(`<${name}> in <${parent}>`, variant.text);
+        }
+      }
+      for (const [name, spec] of Object.entries(model.attributes)) check(`@${name}`, spec.text);
+    }
+    assert(unresolved.length === 0, `unchecked datatypes: ${unresolved.join(", ")}`);
+  });
+
   test("a schema-valid ONIX 3.1 message reports nothing", () => {
     const w = render("onix-3.1-valid.xml");
     const result = findings(w);
@@ -1505,41 +1709,246 @@ describe("Validation", () => {
   });
 
   test("a new rule can be registered without touching the walk", () => {
-    // The shape the remaining unwritten rule — xs:unique — would take: collect
-    // keys as elements go past, report the clashes once the walk is over. The
-    // schema carries 125 of these, e.g. no two <Price> with the same type,
-    // currency and territory.
+    // Every rule the schema implies now ships, so the seam is demonstrated with
+    // a house rule instead: something no schema can express. Here, that this
+    // publisher's ISBNs must sit in its own prefix range.
     const w = render("onix-3.1-valid.xml");
     const validation = w.OnixViewerValidation;
-    validation.messages["unique.duplicate"] = "<{parent}> repeats {field} {value}";
+    validation.messages["house.prefix"] = "{value} is outside our 978-82 prefix";
+    validation.severities["house.prefix"] = "warning";
     validation.registerRule({
-      name: "unique",
-      start(api) { api.seenIdentifiers = new Map(); },
+      name: "house-prefix",
       element(node, api) {
         if (api.referenceName(node) === "IDValue") {
           const value = api.textOf(node).trim();
-          const first = api.seenIdentifiers.get(value);
-          if (first) api.report("unique.duplicate", node, { parent: api.parentName(node), field: "IDValue", value });
-          else api.seenIdentifiers.set(value, node);
+          const type = api.siblingValue(node, "ProductIDType");
+          if (type === "15" && !value.startsWith("97882")) {
+            api.report("house.prefix", node, { value });
+          }
         }
         return true;
       },
     });
     const valid = fsv.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
     assert(findingsFor(w, valid).total === 0,
-      `one identifier each should pass; got: ${codes(findingsFor(w, valid)).join(", ")}`);
+      `9788234567896 is in range; got: ${codes(findingsFor(w, valid)).join(", ")}`);
 
-    // Give the product a second identifier carrying the same value.
-    const duplicated = valid.replace(
-      "</ProductIdentifier>",
-      "</ProductIdentifier>\n      <ProductIdentifier><ProductIDType>01</ProductIDType>" +
-      "<IDTypeName>Internal</IDTypeName><IDValue>9788234567896</IDValue></ProductIdentifier>");
-    const after = findingsFor(w, duplicated);
-    assert(codes(after).includes("unique.duplicate"),
+    const foreign = valid.replace("<IDValue>9788234567896</IDValue>",
+      "<IDValue>9780306406157</IDValue>");
+    const after = findingsFor(w, foreign);
+    assert(codes(after).includes("house.prefix"),
       `the registered rule should fire; got: ${codes(after).join(", ")}`);
-    const finding = after.findings.find((f) => f.code === "unique.duplicate");
-    assert(validation.message(finding) === "<ProductIdentifier> repeats IDValue 9788234567896",
-      `and use its own message template; got: ${validation.message(finding)}`);
+    const finding = after.findings.find((f) => f.code === "house.prefix");
+    assert(validation.message(finding) === "9780306406157 is outside our 978-82 prefix",
+      `and use its own template; got: ${validation.message(finding)}`);
+    assert(finding.severity === "warning", "and its own severity");
+  });
+});
+
+describe("Identity constraints (xs:unique)", () => {
+  const fsu = require("fs");
+  function findingsFor(window, xml) {
+    const doc = new window.DOMParser().parseFromString(xml, "application/xml");
+    return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
+  }
+  function duplicates(window, xml) {
+    return findingsFor(window, xml).findings
+      .filter((f) => f.code === "unique.duplicate")
+      .map((f) => window.OnixViewerValidation.message(f));
+  }
+  // The valid fixture with extra children spliced into <DescriptiveDetail>,
+  // after <ProductForm> where the schema's sequence expects them.
+  function withDescriptiveDetail(extra) {
+    const valid = fsu.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+    return valid.replace("<ProductForm>BC</ProductForm>",
+      "<ProductForm>BC</ProductForm>\n      " + extra);
+  }
+
+  test("the schema's constraints are compiled, all of them", () => {
+    const w = render("onix-3.1-valid.xml");
+    const count = (version) => Object.values(w.OnixViewerContentModels[version].elements)
+      .reduce((total, shape) => total + (shape.u ? shape.u.length : 0), 0);
+    // Counted straight out of the XSDs: 142 <xs:unique> in 3.1, 85 in 3.0.
+    assert(count("3.1") === 142, `expected 142 constraints in 3.1, got ${count("3.1")}`);
+    assert(count("3.0") === 85, `expected 85 in 3.0, got ${count("3.0")}`);
+  });
+
+  test("two <Product> with the same RecordReference are reported", () => {
+    const w = render("onix-3.1-valid.xml");
+    const valid = fsu.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+    const product = valid.match(/<Product>[\s\S]*<\/Product>/)[0];
+    const twice = valid.replace(product, product + "\n" + product);
+    const found = duplicates(w, twice);
+    assert(found.length === 1 &&
+      found[0] === "<ONIXMessage> repeats <Product> with the same RecordReference",
+      `got: ${found.join("; ")}`);
+    // Distinct references are fine.
+    const distinct = valid.replace(product,
+      product + "\n" + product.replace("<RecordReference>valid-9788234567896</RecordReference>",
+        "<RecordReference>valid-other</RecordReference>"));
+    assert(duplicates(w, distinct).length === 0,
+      `distinct references should pass; got: ${duplicates(w, distinct).join("; ")}`);
+  });
+
+  test("a two-field key needs both parts to match", () => {
+    const w = render("onix-3.1-valid.xml");
+    const measure = (type, unit) => "<Measure><MeasureType>" + type +
+      "</MeasureType><Measurement>10</Measurement><MeasureUnitCode>" + unit +
+      "</MeasureUnitCode></Measure>";
+    const clash = duplicates(w, withDescriptiveDetail(measure("01", "mm") + measure("01", "mm")));
+    assert(clash.length === 1 &&
+      clash[0] === "<DescriptiveDetail> repeats <Measure> with the same MeasureType and MeasureUnitCode",
+      `got: ${clash.join("; ")}`);
+    // Differing in either field is legal.
+    assert(duplicates(w, withDescriptiveDetail(measure("01", "mm") + measure("01", "cm"))).length === 0,
+      "a different unit is a different key");
+    assert(duplicates(w, withDescriptiveDetail(measure("01", "mm") + measure("02", "mm"))).length === 0,
+      "a different type is a different key");
+  });
+
+  test("an incomplete key falls outside the constraint", () => {
+    // XSD semantics: xs:unique only compares nodes whose *every* field is
+    // present. <Text>'s key is (@language, @textscript) — both — which is the
+    // Specification's multilingual rule. So two <Text language="eng"> with no
+    // textscript have an incomplete key and are legal; add the same textscript
+    // to both and they clash.
+    const w = render("onix-3.1-valid.xml");
+    const collateral = (inner) => {
+      const valid = fsu.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+      return valid.replace("</DescriptiveDetail>",
+        "</DescriptiveDetail>\n    <CollateralDetail><TextContent>" +
+        "<TextType>03</TextType><ContentAudience>00</ContentAudience>" +
+        inner + "</TextContent></CollateralDetail>");
+    };
+
+    const languageOnly = collateral('<Text language="eng">A</Text><Text language="eng">B</Text>');
+    assert(duplicates(w, languageOnly).length === 0,
+      `language alone is an incomplete key; got: ${duplicates(w, languageOnly).join("; ")}`);
+
+    const both = collateral('<Text language="eng" textscript="Latn">A</Text>' +
+      '<Text language="eng" textscript="Latn">B</Text>');
+    const clash = duplicates(w, both);
+    assert(clash.length === 1 &&
+      clash[0] === "<TextContent> repeats <Text> with the same language and textscript",
+      `got: ${clash.join("; ")}`);
+
+    const differing = collateral('<Text language="eng" textscript="Latn">A</Text>' +
+      '<Text language="nob" textscript="Latn">B</Text>');
+    assert(duplicates(w, differing).length === 0,
+      `distinct languages should pass; got: ${duplicates(w, differing).join("; ")}`);
+  });
+
+  test("a single-attribute key clashes on that attribute alone", () => {
+    const w = render("onix-3.1-valid.xml");
+    const collateral = (inner) => {
+      const valid = fsu.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+      return valid.replace("</DescriptiveDetail>",
+        "</DescriptiveDetail>\n    <CollateralDetail><TextContent>" +
+        "<TextType>03</TextType><ContentAudience>00</ContentAudience><Text>T</Text>" +
+        inner + "</TextContent></CollateralDetail>");
+    };
+    // <SourceTitle>'s key is @language on its own.
+    const clash = duplicates(w, collateral('<SourceTitle language="eng">A</SourceTitle>' +
+      '<SourceTitle language="eng">B</SourceTitle>'));
+    assert(clash.some((f) => f === "<TextContent> repeats <SourceTitle> with the same language"),
+      `got: ${clash.join("; ")}`);
+    assert(duplicates(w, collateral('<SourceTitle language="eng">A</SourceTitle>' +
+      '<SourceTitle language="nob">B</SourceTitle>')).length === 0, "distinct languages pass");
+  });
+
+  test("a self-valued key compares the element's own text", () => {
+    const w = render("onix-3.1-valid.xml");
+    const detail = "<ProductFormDetail>B206</ProductFormDetail>";
+    const found = duplicates(w, withDescriptiveDetail(detail + detail));
+    assert(found.length === 1 && found[0].includes("with the same value"), `got: ${found.join("; ")}`);
+    assert(duplicates(w, withDescriptiveDetail(detail +
+      "<ProductFormDetail>B221</ProductFormDetail>")).length === 0, "distinct values pass");
+  });
+
+  test("no fixture or EDItEUR sample gains a duplicate finding", () => {
+    // The constraints must not fire on conformant documents — this is the check
+    // that would have caught a mis-compiled selector.
+    const w = render("onix-3.1-valid.xml");
+    const wrong = [];
+    const dir = path.join(__dirname, "fixtures");
+    const samples = fsu.readdirSync(dir).filter((f) => f.startsWith("onix-"))
+      .map((f) => path.join(dir, f))
+      .concat(["onix-3.1-refnames.xml", "onix-3.1-shorttags.xml"]
+        .map((f) => path.join(__dirname, "..", "Onix", f)));
+    for (const file of samples) {
+      const found = duplicates(w, fsu.readFileSync(file, "utf8"));
+      if (found.length) wrong.push(`${path.basename(file)}: ${found.join(", ")}`);
+    }
+    assert(wrong.length === 0, wrong.join("; "));
+  });
+});
+
+describe("Datatype lexical space", () => {
+  const fsd = require("fs");
+  function findingsFor(window, xml) {
+    const doc = new window.DOMParser().parseFromString(xml, "application/xml");
+    return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
+  }
+  function messagesFor(window, xml, prefix) {
+    return findingsFor(window, xml).findings
+      .filter((f) => f.code.startsWith(prefix))
+      .map((f) => window.OnixViewerValidation.message(f));
+  }
+  function withDescriptiveDetail(extra) {
+    const valid = fsd.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+    return valid.replace("<ProductForm>BC</ProductForm>",
+      "<ProductForm>BC</ProductForm>\n      " + extra);
+  }
+
+  test("every datatype the schema names is compiled", () => {
+    const w = render("onix-3.1-valid.xml");
+    const datatypes = w.OnixViewerContentModels["3.1"].datatypes;
+    // Four of these carry no facets at all — only a base type — and were
+    // therefore unchecked until the base was recorded.
+    for (const name of ["Decimal", "Integer", "PositiveInteger", "PositiveIntegerOrZero"]) {
+      assert(datatypes[name] && datatypes[name].base,
+        `${name} needs its base type recorded, got ${JSON.stringify(datatypes[name])}`);
+    }
+    assert(Object.keys(datatypes).length === 19,
+      `expected all 19 dt.* types, got ${Object.keys(datatypes).length}`);
+  });
+
+  test("a value outside its base type's lexical space is reported", () => {
+    const w = render("onix-3.1-valid.xml");
+    const edition = (value) => "<EditionNumber>" + value + "</EditionNumber>";
+    assert(messagesFor(w, withDescriptiveDetail(edition("2")), "datatype.").length === 0,
+      "2 is a positive integer");
+    for (const [value, why] of [["abc", "not numeric"], ["2.5", "not an integer"],
+                                ["0", "not positive"], ["-1", "negative"]]) {
+      const found = messagesFor(w, withDescriptiveDetail(edition(value)), "datatype.lexical");
+      assert(found.length === 1 && found[0] === `"${value}" is not a positive integer`,
+        `${value} (${why}) should be reported; got: ${found.join("; ")}`);
+    }
+  });
+
+  test("a decimal-based type rejects non-numbers", () => {
+    const w = render("onix-3.1-valid.xml");
+    const extent = (value) => "<Extent><ExtentType>00</ExtentType><ExtentValue>" + value +
+      "</ExtentValue><ExtentUnit>03</ExtentUnit></Extent>";
+    assert(messagesFor(w, withDescriptiveDetail(extent("12.5")), "datatype.").length === 0,
+      "12.5 is a decimal");
+    const found = messagesFor(w, withDescriptiveDetail(extent("abc")), "datatype.lexical");
+    assert(found.length === 1 && found[0] === '"abc" is not a decimal number', `got: ${found.join("; ")}`);
+  });
+
+  test("space-separated code lists have their members checked", () => {
+    const w = render("onix-3.1-valid.xml");
+    const territory = (codes) => {
+      const valid = fsd.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
+      return valid.replace("</PublishingDetail>",
+        "<SalesRights><SalesRightsType>01</SalesRightsType><Territory><CountriesIncluded>" +
+        codes + "</CountriesIncluded></Territory></SalesRights></PublishingDetail>");
+    };
+    assert(messagesFor(w, territory("NO SE DK"), "datatype.").length === 0,
+      "three real country codes should pass");
+    const bad = messagesFor(w, territory("NO XX DK"), "datatype.list-member");
+    assert(bad.length === 1 && bad[0] === '"XX" is not in List 91 (Country – based on ISO 3166-1)',
+      `got: ${bad.join("; ")}`);
   });
 });
 
@@ -1601,6 +2010,141 @@ describe("Deprecated elements", () => {
     // 3.1 dropped these entirely, so they are unknown there rather than deprecated.
     assert(!w.OnixViewerContentModels["3.1"].elements.ConferenceName,
       "<ConferenceName> should not exist in the 3.1 model at all");
+  });
+});
+
+describe("Attributes", () => {
+  function findingsFor(window, xml) {
+    const doc = new window.DOMParser().parseFromString(xml, "application/xml");
+    return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
+  }
+  const NS = 'xmlns="http://ns.editeur.org/onix/3.1/reference"';
+  // A minimal valid 3.1 message, with hooks to break one attribute at a time.
+  function message(opts) {
+    const o = opts || {};
+    return '<?xml version="1.0"?><ONIXMessage ' + (o.rootNs || NS) + " " +
+      (o.release === undefined ? 'release="3.1"' : o.release) + ">" +
+      "<Header><Sender><SenderName>T</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header><Product>" +
+      "<RecordReference>r</RecordReference><NotificationType>03</NotificationType>" +
+      "<ProductIdentifier><ProductIDType>15</ProductIDType>" +
+      "<IDValue>9788234567896</IDValue></ProductIdentifier>" +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      "<ProductForm" + (o.formAttrs || "") + ">BB</ProductForm>" +
+      "<TitleDetail><TitleType>01</TitleType><TitleElement>" +
+      "<TitleElementLevel>01</TitleElementLevel><NoPrefix/>" +
+      "<TitleWithoutPrefix" + (o.titleAttrs || "") + ">T</TitleWithoutPrefix>" +
+      "</TitleElement></TitleDetail></DescriptiveDetail></Product></ONIXMessage>";
+  }
+  function attributeFindings(window, xml) {
+    return findingsFor(window, xml).findings
+      .filter((f) => f.code.startsWith("attribute."))
+      .map((f) => `${f.code}: ${window.OnixViewerValidation.message(f)}`);
+  }
+
+  test("the baseline message has no attribute findings", () => {
+    const w = render("onix-3.1-valid.xml");
+    assert(findingsFor(w, message()).total === 0,
+      `expected a clean baseline, got: ${attributeFindings(w, message()).join("; ")}`);
+  });
+
+  test("legal attribute values pass", () => {
+    const w = render("onix-3.1-valid.xml");
+    const found = attributeFindings(w, message({
+      titleAttrs: ' language="nob" textcase="02" collationkey="T" datestamp="20260101"',
+      formAttrs: ' sourcename="Bokbasen" sourcetype="01"',
+    }));
+    assert(found.length === 0, `expected none, got: ${found.join("; ")}`);
+  });
+
+  test("an attribute that does not belong to the element is reported", () => {
+    const w = render("onix-3.1-valid.xml");
+    const found = attributeFindings(w, message({ formAttrs: ' colour="red"' }));
+    assert(found.length === 1 && found[0].includes("colour is not an attribute of <ProductForm>"),
+      `got: ${found.join("; ")}`);
+    // language is a real ONIX attribute, but not on <ProductForm>.
+    const wrongPlace = attributeFindings(w, message({ formAttrs: ' language="nob"' }));
+    assert(wrongPlace.length === 1 && wrongPlace[0].includes("language is not an attribute"),
+      `a real attribute in the wrong place should still be reported; got: ${wrongPlace.join("; ")}`);
+  });
+
+  test("a bad code in an attribute is reported, and the list is named", () => {
+    const w = render("onix-3.1-valid.xml");
+    const found = attributeFindings(w, message({ titleAttrs: ' textcase="99"' }));
+    // List 14 is bound to an attribute, not to any element, so naming it
+    // needs the by-number titles rather than the element meta.
+    assert(found.length === 1 && found[0] ===
+      'attribute.code: textcase="99" is not in List 14 (Text case flag)', `got: ${found.join("; ")}`);
+  });
+
+  test("a deprecated code in an attribute is a warning, not an error", () => {
+    const w = render("onix-3.1-valid.xml");
+    const result = findingsFor(w, message({ titleAttrs: ' language="scr"' }));
+    const finding = result.findings.find((f) => f.code === "attribute.deprecated");
+    assert(finding, `expected a deprecation; got: ${result.findings.map((f) => f.code).join(", ")}`);
+    assert(finding.severity === "warning", "valid ONIX that shouldn't be sent");
+  });
+
+  test("an attribute that breaks its datatype is reported", () => {
+    const w = render("onix-3.1-valid.xml");
+    const found = attributeFindings(w, message({ formAttrs: ' datestamp="not-a-date"' }));
+    assert(found.length === 1 && found[0].includes("is not a valid DateOrDateTime"),
+      `got: ${found.join("; ")}`);
+    // A well-formed datestamp passes.
+    assert(attributeFindings(w, message({ formAttrs: ' datestamp="20260101"' })).length === 0,
+      "a valid date should pass");
+  });
+
+  test("release is required on the message root, and must say 3.1", () => {
+    const w = render("onix-3.1-valid.xml");
+    const missing = attributeFindings(w, message({ release: "" }));
+    assert(missing.some((f) => f.includes("missing its required release attribute")),
+      `got: ${missing.join("; ")}`);
+    const wrong = attributeFindings(w, message({ release: 'release="3.2"' }));
+    assert(wrong.some((f) => f.includes('release must be "3.1", not "3.2"')),
+      `got: ${wrong.join("; ")}`);
+  });
+
+  test("refname and shortname must match the element they sit on", () => {
+    const w = render("onix-3.1-valid.xml");
+    // Correct in both dialects — the short tag comes from the generated map.
+    assert(attributeFindings(w, message({
+      formAttrs: ' refname="ProductForm" shortname="b012"' })).length === 0,
+      "the element's own names should pass");
+    const wrong = attributeFindings(w, message({ formAttrs: ' refname="ProductFrom"' }));
+    assert(wrong.length === 1 && wrong[0].includes('refname must be "ProductForm"'),
+      `got: ${wrong.join("; ")}`);
+    const wrongShort = attributeFindings(w, message({ formAttrs: ' shortname="b999"' }));
+    assert(wrongShort.length === 1 && wrongShort[0].includes('shortname must be "b012"'),
+      `got: ${wrongShort.join("; ")}`);
+  });
+
+  test("namespace, xsi and xml attributes are not ONIX's to judge", () => {
+    const w = render("onix-3.1-valid.xml");
+    const xml = message({
+      rootNs: NS + ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="a b"',
+      titleAttrs: ' xml:lang="nb"',
+    });
+    const found = attributeFindings(w, xml);
+    assert(found.length === 0,
+      `xmlns/xsi/xml:lang are legal and not ONIX's; got: ${found.join("; ")}`);
+  });
+
+  test("short-tag documents use the same attribute names", () => {
+    // Only element names shorten; language stays language.
+    const short = '<?xml version="1.0"?>' +
+      '<ONIXmessage xmlns="http://ns.editeur.org/onix/3.1/short" release="3.1">' +
+      "<header><x298><x299>T</x299></x298><m182>20260101</m182></header><product>" +
+      "<a001>r</a001><a002>03</a002>" +
+      "<productidentifier><b221>15</b221><b244>9788234567896</b244></productidentifier>" +
+      "<descriptivedetail><x314>00</x314><b012>BB</b012>" +
+      "<titledetail><b202>01</b202><titleelement><x409>01</x409><x501/>" +
+      '<b031 textcase="99">T</b031></titleelement></titledetail>' +
+      "</descriptivedetail></product></ONIXmessage>";
+    const w = render("onix-3.1-valid.xml");
+    const found = attributeFindings(w, short);
+    assert(found.length === 1 && found[0].includes("textcase=\"99\""),
+      `the same attribute check should apply in short tags; got: ${found.join("; ")}`);
   });
 });
 

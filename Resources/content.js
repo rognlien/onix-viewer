@@ -215,6 +215,7 @@
     // Instead, build a fresh <html> via DOMParser and swap document roots.
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
+    const logoURL = browserAPI().runtime.getURL("icons/icon-48.png");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
     const modelURLs = contentModelURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
@@ -233,6 +234,11 @@
 <body class="oxv-view-xml">
 <div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
+    <!-- The mark says which extension took the page over — a raw XML URL gives
+         no other clue. It is the app icon's own 48px size — no separate copy to
+         keep in step — shown at 28px. If the page's own img-src CSP blocks extension
+         URLs, viewer.js removes it rather than leave a broken-image glyph. -->
+    <img id="oxv-logo" src="${logoURL}" width="28" height="28" alt="ONIX Viewer">
     <!-- Expand and Collapse both work a level at a time; viewer.js prepends
          their icons. -->
     <button type="button" data-action="expand" title="Expand one more level (E)">Expand</button>

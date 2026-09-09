@@ -80,6 +80,14 @@
       ["path", { d: "M4.6 7.2L8 4.2l3.4 3", "stroke-width": "1.7" }],
       ["path", { d: "M4.6 11.8L8 8.8l3.4 3", "stroke-width": "1.7" }],
     ],
+    // The return arrow, using the full box: two strokes, both bold. Earlier
+    // attempts drew a text rule plus a wrapping line, which needs an arc and
+    // an arrowhead inside about 10px — more detail than 14px holds, and both
+    // versions read as a bar with a nub.
+    wrap: [
+      ["path", { d: "M12.6 3.4v5.1a2.2 2.2 0 01-2.2 2.2H4.6", "stroke-width": "1.7" }],
+      ["path", { d: "M7.3 8L4.5 10.7l2.8 2.7", "stroke-width": "1.7" }],
+    ],
     // Two sheets, one behind the other.
     copy: [
       ["rect", { x: "3.3", y: "5.3", width: "7.9", height: "8.4", rx: "1.2", "stroke-width": "1.5" }],
@@ -706,11 +714,17 @@
   // ---- toolbar --------------------------------------------------------------
 
   function setupToolbar() {
+    // A page with a restrictive img-src CSP can refuse a chrome-extension://
+    // image even though the stylesheet loaded — they are separate directives.
+    // Drop the mark rather than leave a broken-image glyph next to the buttons.
+    const logo = document.getElementById("oxv-logo");
+    if (logo) logo.addEventListener("error", () => logo.remove());
+
     // Icons are prepended here rather than written into the shell: content.js
     // builds that shell as a string, and these come from the same table the
     // severity chips and the spinner use, so they stay one set.
     for (const [action, name] of [["expand", "expand"], ["collapse", "collapse"],
-                                  ["copy-xml", "copy"]]) {
+                                  ["toggle-wrap", "wrap"], ["copy-xml", "copy"]]) {
       const button = document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
       if (button && !button.querySelector("svg")) button.prepend(icon(name));
     }
