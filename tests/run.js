@@ -2956,15 +2956,15 @@ describe("Reviewability", () => {
     }
   });
 
-  test("untrusted markup is never assigned to innerHTML", () => {
+  test("nothing is ever assigned to innerHTML", () => {
     // The XML source reaches the page as textContent on an inert data block
-    // and is rendered to DOM nodes. The only innerHTML write clears the tree.
+    // and is rendered to DOM nodes; the shipped scripts never write markup.
     for (const file of SHIPPED) {
-      for (const m of sourceOf(file).matchAll(/\.(inner|outer)HTML\s*=\s*([^;]*)/g)) {
-        assert(/^""|^''|^``/.test(m[2].trim()),
-          `${file} assigns to ${m[1]}HTML: ${m[2].trim()} — must only ever clear`);
+      const code = sourceOf(file).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+      for (const m of code.matchAll(/\.(inner|outer)HTML\s*=/g)) {
+        assert(false, `${file} assigns to ${m[1]}HTML`);
       }
-      assert(!/insertAdjacentHTML/.test(sourceOf(file)), `${file} must not use insertAdjacentHTML`);
+      assert(!/insertAdjacentHTML/.test(code), `${file} must not use insertAdjacentHTML`);
     }
   });
 

@@ -1722,7 +1722,6 @@
   // ---- error UI -------------------------------------------------------------
 
   function showParseError(errEl) {
-    root.innerHTML = "";
     const box = document.createElement("div");
     box.className = "px-error";
     const h = document.createElement("h2");

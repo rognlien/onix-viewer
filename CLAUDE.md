@@ -1211,7 +1211,7 @@ hand. `describe("Reviewability")` in `tests/run.js` checks:
 |---|---|
 | "No remote code" | no `eval`, `new Function` or `document.write` in any shipped script, and no string in the code referencing a remote `.js` |
 | "One network call" | exactly one `fetch(` across the shipped scripts, and its argument must be `document.location.href` |
-| No HTML injection | every `innerHTML`/`outerHTML` assignment must be a literal empty string (the one write clears the tree), and `insertAdjacentHTML` is banned |
+| No HTML injection | no `innerHTML`/`outerHTML` assignment at all in the shipped scripts, and `insertAdjacentHTML` is banned |
 | "Zero permissions" | `permissions` is `[]`, and `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent |
 | `SECURITY.md` is accurate | its fenced manifest excerpt is parsed as JSON and compared field-by-field with the real manifest |
 | Injection actually works | every resource `content.js` builds a `getURL()` for is both web-accessible and present on disk |
