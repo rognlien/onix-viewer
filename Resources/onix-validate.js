@@ -30,6 +30,18 @@
     "structure.not-empty": "<{found}> must be empty",
     "structure.missing-value": "<{found}> must carry a value",
     "datatype.pattern": "\"{value}\" is not a valid {type}",
+    "datatype.lexical": "\"{value}\" is not {article} {base}",
+    "datatype.empty-list": "<{found}> must list at least one code",
+    "datatype.list-member": "\"{member}\" is not in List {list} ({title})",
+    "unique.duplicate": "<{parent}> repeats <{selector}> with the same {fields}",
+    "attribute.unknown": "{name} is not an attribute of <{element}>",
+    "attribute.missing": "<{element}> is missing its required {name} attribute",
+    "attribute.value": "{name} must be {expected}, not \"{value}\"",
+    "attribute.code": "{name}=\"{value}\" is not in List {list} ({title})",
+    "attribute.deprecated": "{name}=\"{value}\" ({label}) was deprecated in List {list} at issue {issue}",
+    "attribute.pattern": "{name}=\"{value}\" is not a valid {type}",
+    "attribute.lexical": "{name}=\"{value}\" is not {article} {base}",
+    "attribute.range": "{name}=\"{value}\" is out of range for {type}",
     "datatype.range": "\"{value}\" is out of range for {type}",
     "codelist.unknown": "\"{value}\" is not in List {list} ({title})",
     "codelist.deprecated": "\"{value}\" ({label}) was deprecated in List {list} at issue {issue}",
@@ -51,6 +63,7 @@
     "codelist.deprecated": "warning",
     // Still valid ONIX — the schema accepts it, EDItEUR asks you to stop.
     "element.deprecated": "warning",
+    "attribute.deprecated": "warning",
     "model.missing": "warning",
     "model.acknowledgement": "warning",
   });
@@ -154,6 +167,20 @@
         if (findings.length < limit) findings.push(finding);
       },
       referenceName,
+      // An element's effective shape. Five declarations in ONIX 3.1 name a
+      // complexType rather than carrying an inline one, which makes
+      // <EpubLicense>'s content depend on where it sits: EpubLicenseType
+      // inside <Price>, EpubLicenseWithDateType elsewhere. The model records
+      // the exceptions as `in`, keyed by parent reference name, so every rule
+      // must reach an element's shape through here rather than indexing
+      // `elements` directly.
+      shapeOf(node) {
+        const shape = model && model.elements[referenceName(node)];
+        if (!shape || !shape.in) return shape;
+        const parent = node.parentNode;
+        const variant = parent && parent.nodeType === 1 && shape.in[referenceName(parent)];
+        return variant || shape;
+      },
       displayName: (name) => nameInDialect(name, onixCtx.dialect),
       displayPhrase: (text) => phraseInDialect(text, onixCtx.dialect),
       parentName,
@@ -308,7 +335,7 @@
     element(node, api) {
       if (!api.model) return true;
       const name = api.referenceName(node);
-      const shape = api.model.elements[name];
+      const shape = api.shapeOf(node);
 
       if (!shape) {
         api.report("structure.unknown", node, { found: node.nodeName, version: api.model.version });
@@ -329,7 +356,10 @@
       const value = api.textOf(node);
       if (shape.empty) {
         if (value) api.report("structure.not-empty", node, { found: node.nodeName });
-      } else if (!value) {
+      } else if (!value && shape.d == null) {
+        // `d` is an XSD default, which applies precisely when the element is
+        // left empty — so <CopyrightType/> carries "C" and is not missing a
+        // value at all.
         api.report("structure.missing-value", node, { found: node.nodeName });
       }
       return false;
@@ -346,7 +376,7 @@
     // sibling "not allowed at this position". Elements that ARE known but
     // misplaced stay in — that mismatch is the finding worth showing.
     const children = api.childElements(node)
-      .filter((child) => api.model.elements[api.referenceName(child)]);
+      .filter((child) => api.shapeOf(child));
     const names = children.map((child) => api.referenceName(child));
     const state = { children, names, pos: 0, parentName, node };
     matchParticle(particle, state, api);
@@ -470,19 +500,16 @@
       if (!value) return true;
 
       const listNumber = meta && meta[name] ? meta[name].listNumber : null;
-      if (!list.has(value)) {
+      const problem = codeProblem(value, listNumber, list);
+      if (!problem) return true;
+      if (problem.kind === "unknown") {
         api.report("codelist.unknown", node, {
           value, list: listNumber,
           title: meta && meta[name] ? meta[name].title : name,
         });
-        return true;
-      }
-      const deprecated = window.OnixViewerDeprecatedCodes;
-      const issue = deprecated && listNumber && deprecated[listNumber]
-        ? deprecated[listNumber][value] : null;
-      if (issue) {
+      } else {
         api.report("codelist.deprecated", node, {
-          value, list: listNumber, issue, label: list.get(value),
+          value, list: listNumber, issue: problem.issue, label: problem.label,
         });
       }
       return true;
@@ -495,40 +522,299 @@
     name: "datatype",
     element(node, api) {
       if (!api.model) return true;
-      const shape = api.model.elements[api.referenceName(node)];
+      const shape = api.shapeOf(node);
       if (!shape || !shape.text || typeof shape.text !== "string") return true;
-      const facets = api.model.datatypes[shape.text];
-      if (!facets || node.children.length) return true;
+      if (!api.model.datatypes[shape.text] || node.children.length) return true;
       const value = api.textOf(node);
       if (!value) return true;
 
-      if (facets.re && !facets.union && !facets.list) {
-        let expression = patternCache[shape.text];
-        if (expression === undefined) {
-          try { expression = new RegExp(`^(?:${facets.re})$`); }
-          catch (_) { expression = null; } // XSD regex dialect we can't compile
-          patternCache[shape.text] = expression;
-        }
-        if (expression && !expression.test(value)) {
-          api.report("datatype.pattern", node, { value, type: shape.text, found: node.nodeName });
-          return true;
-        }
-      }
-      if (facets.min != null || facets.max != null || facets.gt != null) {
-        const numeric = Number(value);
-        const outOfRange = Number.isNaN(numeric) ||
-          (facets.min != null && numeric < facets.min) ||
-          (facets.max != null && numeric > facets.max) ||
-          (facets.gt != null && numeric <= facets.gt);
-        if (outOfRange) {
-          api.report("datatype.range", node, { value, type: shape.text, found: node.nodeName });
-        }
+      const problem = datatypeProblem(value, shape.text, api.model);
+      if (problem) {
+        api.report(`datatype.${problem.kind}`, node, Object.assign({
+          value, type: shape.text, found: node.nodeName,
+          title: problem.list ? listTitle(problem.list) : undefined,
+        }, problem));
       }
       return true;
     },
   });
 
   const patternCache = Object.create(null);
+
+  // ---- shared value checks --------------------------------------------------
+
+  // Both the codelist rule and the attribute rule need these, and a second copy
+  // would drift. Each returns null when the value is fine.
+
+  function codeProblem(value, listNumber, list) {
+    if (!list.has(value)) return { kind: "unknown" };
+    const deprecated = window.OnixViewerDeprecatedCodes;
+    const issue = deprecated && listNumber && deprecated[listNumber]
+      ? deprecated[listNumber][value] : null;
+    return issue ? { kind: "deprecated", issue, label: list.get(value) } : null;
+  }
+
+  // The lexical space of the XSD built-ins ONIX restricts. dt.Integer,
+  // dt.PositiveInteger, dt.PositiveIntegerOrZero and dt.Decimal carry no facets
+  // at all, so without this they were entirely unchecked and
+  // <NumberOfPages>abc</NumberOfPages> passed.
+  const LEXICAL = Object.assign(Object.create(null), {
+    decimal: { re: /^[+-]?(\d+(\.\d*)?|\.\d+)$/, article: "a", label: "decimal number" },
+    int: { re: /^[+-]?\d+$/, article: "an", label: "integer", min: -2147483648, max: 2147483647 },
+    integer: { re: /^[+-]?\d+$/, article: "an", label: "integer" },
+    positiveInteger: { re: /^\+?0*[1-9]\d*$/, article: "a", label: "positive integer" },
+    nonNegativeInteger: { re: /^\+?\d+$/, article: "a", label: "non-negative integer" },
+  });
+
+  function datatypeProblem(value, typeName, model) {
+    const facets = model.datatypes[typeName];
+    if (!facets) return null;
+    // A list is a whitespace-separated sequence of members; the whole value is
+    // never one token, so the other checks don't apply.
+    if (facets.list) return listProblem(value, facets);
+    const lexical = facets.base && LEXICAL[facets.base];
+    if (lexical) {
+      const numeric = Number(value);
+      const outside = !lexical.re.test(value) ||
+        (lexical.min != null && numeric < lexical.min) ||
+        (lexical.max != null && numeric > lexical.max);
+      if (outside) return { kind: "lexical", base: lexical.label, article: lexical.article };
+    }
+    if (facets.re && !facets.union && !facets.list) {
+      let expression = patternCache[typeName];
+      if (expression === undefined) {
+        try { expression = new RegExp(`^(?:${facets.re})$`); }
+        catch (_) { expression = null; } // XSD regex dialect we can't compile
+        patternCache[typeName] = expression;
+      }
+      if (expression && !expression.test(value)) return { kind: "pattern" };
+    }
+    if (facets.min != null || facets.max != null || facets.gt != null) {
+      const numeric = Number(value);
+      const outOfRange = Number.isNaN(numeric) ||
+        (facets.min != null && numeric < facets.min) ||
+        (facets.max != null && numeric > facets.max) ||
+        (facets.gt != null && numeric <= facets.gt);
+      if (outOfRange) return { kind: "range" };
+    }
+    return null;
+  }
+
+  // dt.CountryCodeList and dt.RegionCodeList: space-separated codes that
+  // together define a territory. Previously the whole value was skipped, so
+  // <CountriesIncluded>XX YY</CountriesIncluded> passed unchallenged.
+  function listProblem(value, facets) {
+    const members = value.split(/\s+/).filter(Boolean);
+    if (facets.minLength != null && members.length < facets.minLength) {
+      return { kind: "empty-list" };
+    }
+    if (!facets.listOf) return null;
+    const list = window.OnixViewerCodeListsByNumber &&
+      window.OnixViewerCodeListsByNumber[facets.listOf];
+    if (!list) return null;
+    for (const member of members) {
+      if (!list.has(member)) {
+        return { kind: "list-member", member, list: facets.listOf };
+      }
+    }
+    return null;
+  }
+
+  // ---- attribute rule -------------------------------------------------------
+
+  // ONIX carries ten attributes in total — datestamp, sourcename, sourcetype,
+  // language, textscript, textformat, textcase, dateformat, collationkey and
+  // release — and they were unchecked until now: a textformat="99" sailed
+  // through while the same bad code in an element was reported. Their names are
+  // identical in both dialects (only element names shorten), so nothing needs
+  // translating here.
+  //
+  // Only unqualified attributes are ours to judge. Testing namespaceURI for
+  // null excludes xmlns declarations, xsi:schemaLocation and xml:lang in one
+  // go — all legal, none of them ONIX's.
+  registerRule({
+    name: "attribute",
+    element(node, api) {
+      if (!api.model) return true;
+      const name = api.referenceName(node);
+      const shape = api.shapeOf(node);
+      if (!shape) return true; // already reported as structure.unknown
+
+      const allowed = shape.a != null ? api.model.attributeSets[shape.a] : [];
+      for (const attribute of node.attributes) {
+        if (attribute.namespaceURI !== null) continue;
+        checkAttribute(node, name, attribute, allowed, api);
+      }
+      for (const attributeName of allowed) {
+        const spec = api.model.attributes[attributeName];
+        if (spec && spec.required && !node.hasAttribute(attributeName)) {
+          api.report("attribute.missing", node, { element: node.nodeName, name: attributeName });
+        }
+      }
+      return true;
+    },
+  });
+
+  function checkAttribute(node, referenceName, attribute, allowed, api) {
+    const name = attribute.name;
+    // Every element may carry refname/shortname, and the only legal value is
+    // its own name in that dialect — which the short-tag map already knows, so
+    // the model doesn't waste 511 single-value enumerations saying it.
+    if (name === "refname" || name === "shortname") {
+      const expected = name === "refname"
+        ? referenceName
+        : nameInDialect(referenceName, "short");
+      if (attribute.value !== expected) {
+        api.report("attribute.value", node,
+          { name, expected: `"${expected}"`, value: attribute.value });
+      }
+      return;
+    }
+    if (!allowed.includes(name)) {
+      api.report("attribute.unknown", node, { name, element: node.nodeName });
+      return;
+    }
+
+    const spec = api.model.attributes[name];
+    const value = attribute.value.trim();
+    if (!spec || !value) return;
+
+    if (spec.values) {
+      if (!spec.values.includes(value)) {
+        api.report("attribute.value", node, {
+          name, value, expected: spec.values.map((v) => `"${v}"`).join(" or "),
+        });
+      }
+      return;
+    }
+    if (spec.list) {
+      const list = window.OnixViewerCodeListsByNumber &&
+        window.OnixViewerCodeListsByNumber[spec.list];
+      if (!list) return;
+      const problem = codeProblem(value, spec.list, list);
+      if (!problem) return;
+      const title = listTitle(spec.list);
+      if (problem.kind === "unknown") {
+        api.report("attribute.code", node, { name, value, list: spec.list, title });
+      } else {
+        api.report("attribute.deprecated", node, {
+          name, value, list: spec.list, issue: problem.issue, label: problem.label,
+        });
+      }
+      return;
+    }
+    if (typeof spec.text === "string") {
+      const problem = datatypeProblem(value, spec.text, api.model);
+      if (problem) {
+        // Attribute types are scalars in ONIX, so only the scalar kinds can
+        // come back here; anything else would want its own message.
+        const code = problem.kind === "lexical" ? "attribute.lexical" : `attribute.${problem.kind}`;
+        api.report(code, node, Object.assign({ name, value, type: spec.text }, problem));
+      }
+    }
+  }
+
+  // OnixViewerCodeListMeta is keyed by element name, and 35 lists are bound to
+  // attributes rather than elements — so those need the by-number titles.
+  function listTitle(listNumber) {
+    const titles = window.OnixViewerCodeListTitles;
+    return (titles && titles[listNumber]) || `List ${listNumber}`;
+  }
+
+  // ---- identity constraints (xs:unique) -------------------------------------
+
+  // The schema carries 142 of these in 3.1 and 85 in 3.0 — "no two <Price> with
+  // the same type, currency and territory", "each repeat of <Text> needs a
+  // distinct language + textscript". They are compiled into the model as `u`
+  // (see tools/generate-content-model.js), so this walks the host element's own
+  // subtree once per constraint rather than interpreting XPath.
+  //
+  // XSD semantics worth keeping: a node whose key is incomplete — any field
+  // absent — is simply outside the constraint, not a violation. That is what
+  // makes repeated <Text> with no language attribute at all legal, while two
+  // with language="eng" is not.
+  registerRule({
+    name: "unique",
+    element(node, api) {
+      if (!api.model) return true;
+      const shape = api.shapeOf(node);
+      if (!shape || !shape.u) return true;
+      for (const constraint of shape.u) checkUnique(node, constraint, api);
+      return true;
+    },
+  });
+
+  function checkUnique(node, constraint, api) {
+    const selected = selectNodes(node, constraint.s, api);
+    if (selected.length < 2) return;
+    const seen = new Map();
+    for (const candidate of selected) {
+      const key = keyOf(candidate, constraint.f, api);
+      if (key === null) continue; // incomplete key — outside the constraint
+      if (seen.has(key)) {
+        api.report("unique.duplicate", candidate, {
+          parent: node.nodeName,
+          selector: candidate.nodeName,
+          fields: describeFields(constraint.f, api),
+        });
+      } else {
+        seen.set(key, candidate);
+      }
+    }
+  }
+
+  // One or two steps of element names, over one or more alternative paths.
+  function selectNodes(node, paths, api) {
+    const found = [];
+    for (const path of paths) {
+      let level = [node];
+      for (const step of path) {
+        const next = [];
+        for (const parent of level) {
+          for (const child of parent.children) {
+            if (api.referenceName(child) === step) next.push(child);
+          }
+        }
+        level = next;
+      }
+      found.push(...level);
+    }
+    return found;
+  }
+
+  // null when any field is absent, so the node falls outside the constraint.
+  // \u0000 separates parts: it cannot occur in XML character data, so no pair of
+  // field values can collide by concatenation.
+  function keyOf(node, fields, api) {
+    const parts = [];
+    for (const field of fields) {
+      let value = null;
+      if (field.self) {
+        value = textOf(node).trim();
+        if (!value) value = null;
+      } else if (field.a) {
+        value = node.hasAttribute(field.a) ? node.getAttribute(field.a).trim() : null;
+      } else if (field.c) {
+        for (const child of node.children) {
+          if (api.referenceName(child) === field.c) { value = textOf(child).trim(); break; }
+        }
+        if (value === "") value = null;
+      }
+      if (value === null) return null;
+      parts.push(value);
+    }
+    return parts.join("\u0000");
+  }
+
+  function describeFields(fields, api) {
+    const names = fields.map((field) => {
+      if (field.self) return "value";
+      if (field.a) return field.a;
+      return api.displayName(field.c);
+    });
+    if (names.length === 1) return names[0];
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }
 
   // ---- room to grow ---------------------------------------------------------
 
