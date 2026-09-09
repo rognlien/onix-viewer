@@ -118,7 +118,7 @@ The pattern is:
 
 When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), we fall back to `XMLSerializer().serializeToString(document)` — the browser has already parsed the XML for us, so reading the live document is a reliable second path. This means file:// works without any background script, at the cost of waiting for `DOMContentLoaded` before takeover instead of acting at `document_start`.
 
-**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`.
+**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`.
 
 Things that still won't work:
 - **Streaming huge XML**: we hold the full source in memory. Anything > ~10 MB causes a noticeable parse hang.
