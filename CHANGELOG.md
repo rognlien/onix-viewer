@@ -3,19 +3,6 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
-
-### Fixed
-- **A namespace-prefixed ONIX attribute went unchecked.** ONIX declares all ten
-  of its attributes *unqualified* — none is global and neither schema sets
-  `attributeFormDefault` — so `onix:language="eng"` is not a valid ONIX
-  attribute at all. The rule skipped every namespaced attribute in one test, so
-  `onix:language="zzz"` was neither judged nor reported, bad code and all. It
-  is now `attribute.qualified`. Attributes in any *other* namespace stay
-  tolerated: strictly the schema rejects those too, but that is where real
-  feeds put their own annotations, and flagging it would report their
-  conventions as errors.
-
 ## 0.9.17 — 2026-09-09
 
 ### Added
@@ -168,6 +155,15 @@ the main branch.
   silent in release. The content script now waits for the root.
 - **Tree shortcuts acted behind an open dialog.** `/`, `e`, `c` and the rest
   are ignored while the code-list popup or the findings list is up.
+- **A namespace-prefixed ONIX attribute went unchecked.** ONIX declares all ten
+  of its attributes *unqualified* — none is global and neither schema sets
+  `attributeFormDefault` — so `onix:language="eng"` is not a valid ONIX
+  attribute at all. The rule skipped every namespaced attribute in one test, so
+  `onix:language="zzz"` was neither judged nor reported, bad code and all. It
+  is now `attribute.qualified`. Attributes in any *other* namespace stay
+  tolerated: strictly the schema rejects those too, but that is where real
+  feeds put their own annotations, and flagging it would report their
+  conventions as errors.
 - **Four datatypes were entirely unchecked.** `dt.Decimal`, `dt.Integer`,
   `dt.PositiveInteger` and `dt.PositiveIntegerOrZero` carry no facets at all,
   only a base type, and the generator recorded facets only — so
