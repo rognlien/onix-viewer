@@ -3,6 +3,106 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Added
+- **Attributes are validated.** ONIX's ten attributes — `datestamp`,
+  `sourcename`, `sourcetype`, `language`, `textscript`, `textformat`,
+  `textcase`, `dateformat`, `collationkey`, `release` — were never checked, so
+  a `textformat="99"` passed while the same bad code in an element was
+  reported. The new `attribute` rule checks code-list membership, deprecated
+  codes, datatypes, enumerations, and the one required attribute. `refname`
+  and `shortname` are checked against the element they sit on, in whichever
+  dialect the document uses. `xmlns`, `xsi:*` and `xml:*` are left alone.
+
+  The models grew ~4 KB, not 25: only ten distinct attribute sets exist across
+  510 elements, so the generator pools them and each element stores an index.
+
+### Added
+- **All 142 identity constraints are enforced** (85 in 3.0) — the rules no
+  content model can state: no two `<Product>` with the same
+  `<RecordReference>`, no two `<Measure>` with the same type and unit, each
+  repeat of `<Text>` needing a distinct language and script. Compiled from the
+  schema's `xs:unique` onto each host element; the generator throws rather than
+  skip a shape it cannot compile. `xs:unique`'s own rule is kept: a node whose
+  key is incomplete falls outside the constraint.
+
+### Added
+- **New owl artwork throughout.** The seven manifest icon sizes, the toolbar
+  mark, and the promo tiles all come from `icons/icon-original.png` now.
+  `tools/render-icons.sh` prefers a hand-drawn `icons/icon-<size>.png` over a
+  downscale of the master where one exists — definition at 16 and 32 px is worth
+  more than consistency with a scale — but refuses one without an alpha channel,
+  since an opaque icon shows as a pale tile on a dark ground.
+- **The toolbar mark is the app icon itself**, not a copy — it loads
+  `Resources/icons/icon-48.png` rather than a `logo-48.png` that would need
+  keeping in step.
+- **The toolbar opens with the extension's mark.** A raw XML URL gives no other
+  clue which extension replaced the page. 28px, which is exactly the toolbar's
+  content height. It is removed rather than left broken if the page's `img-src`
+  CSP refuses extension URLs.
+
+### Changed
+- **Soft wrap gains an icon**, so every labelled toolbar button now has one.
+  It is the return arrow: two earlier attempts drew the literal wrap — a text
+  rule plus a line curving round with an arrowhead — and at 14px both read as a
+  bar with a nub, because an arc and an arrowhead do not fit in 10 pixels. The
+  dialect switch stays text-only on purpose; its label names the translation and
+  changes with the document.
+
+### Fixed
+- **Four datatypes were entirely unchecked.** `dt.Decimal`, `dt.Integer`,
+  `dt.PositiveInteger` and `dt.PositiveIntegerOrZero` carry no facets at all,
+  only a base type, and the generator recorded facets only — so
+  `<EditionNumber>abc</EditionNumber>` passed, as did `2.5` and `0`. The base
+  type's lexical space is now checked, `xs:int`'s 32-bit range included.
+- **Space-separated code lists had their members skipped.**
+  `<CountriesIncluded>NO XX DK</CountriesIncluded>` passed unchallenged; `XX` is
+  now named. The generator records what the list is *of*, and `minLength`.
+- **`dt.DateOrDateTime` was never checked.** The generator saw `xs:union` and
+  treated it as opaque, so every `datestamp` and every date element went
+  unvalidated. The union has one member type carrying the five date patterns,
+  and a union of one is just that member. No fixture or `Onix/` sample gained
+  a finding, so this was a missed check rather than a wrong answer.
+- **35 code lists had no name to print in a finding.** Titles were only
+  reachable through an element that binds the list, and those 35 are bound to
+  attributes instead — so a finding read "List 14 (List 14)". The code-list
+  generator now emits titles by number as well.
+- **`<EpubLicense>` was missing from the ONIX 3.1 model entirely**, so valid
+  3.1 reported it as an unknown element and nothing inside it was checked at
+  all. It is the one element in either release declared by a *named*
+  `complexType` rather than an inline one — five declarations, two types — and
+  the generator compiled only inline types. Named types are now compiled,
+  `xs:extension` resolved by concatenating the base's particles ahead of the
+  extension's own. Its content model is genuinely context-dependent, so the
+  variants are keyed by parent: `<EpubLicenseDate>` is legal under
+  `<DescriptiveDetail>`, `<ContentItem>`, `<ResourceVersion>` and
+  `<TextContent>`, and not under `<Price>`. Every rule now reads an element's
+  shape through `api.shapeOf(node)`, which is where the parent is consulted.
+- **ONIX 3.0's `sourcetype`, `textcase` and `textformat` went unchecked.** 3.0
+  names those attribute types after the code list — `SourceTypeCode` where 3.1
+  says `List3` — and the definitions live in the CodeLists XSD we don't commit,
+  so all three compiled to an unknown datatype, which the datatype rule skips
+  in silence. A `textformat="99"` in a 3.0 document passed: exactly the bug
+  0.9.17 fixed for 3.1. They now resolve to Lists 3, 14 and 34.
+- **An empty `<CopyrightType/>` was reported as missing a value.** The
+  declaration carries `default="C"`, and an XSD default applies precisely when
+  the element is left empty, so the element is valid and means `C`. Defaults
+  are recorded in the model; three declarations across the two releases have
+  one.
+
+### Changed
+- **The content-model generator now refuses a schema it does not fully
+  understand**, rather than emit a model that is quietly short. Both releases
+  use exactly 27 XSD element kinds and all 27 are compiled, so a construct
+  absent today — `xs:any`, `xs:all`, `xs:key`, `nillable`, a facet like
+  `maxExclusive` — fails the build instead of being ignored. It also asserts
+  that every datatype named by an element or attribute is one it compiled,
+  which is the check that would have caught the 3.0 attribute gap above, and
+  that no facet on a `dt.*` type goes unread. A finite `maxOccurs` is enforced
+  too: `<OrderQuantityMinimum maxOccurs="2">` is the one particle in either
+  release with an upper bound above one.
+
 ## 0.9.16 — 2026-09-08
 
 ### Added
