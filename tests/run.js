@@ -1516,6 +1516,28 @@ describe("Validation", () => {
     assert(modal.querySelectorAll(".px-findings-item-current").length === 0, "no highlight without a row");
   });
 
+  test("stray text is flagged on the text's own row, not the composite's", () => {
+    // The finding is about <Product>, but its opening row can be hundreds of
+    // lines above the text; the reader wants the pill where the text is.
+    const w = render("onix-3.1-invalid.xml");
+    const source = w.__OXV_SOURCE__.replace("<Product>", "<Product>Stray words ");
+    const stray = renderSource(source, "stray-text.xml");
+    const pills = $$(stray, '#oxv-root .px-finding[data-oxv-code="structure.stray-text"]');
+    assert(pills.length === 1, `one stray-text pill, got ${pills.length}`);
+    const row = pills[0].closest(".px-row");
+    const text = row.querySelector(".px-text");
+    assert(text && text.textContent.trim() === "Stray words", `pinned to the text row, got: ${row.textContent}`);
+    assert(!rowsNamed(stray, "Product")[0].querySelector('[data-oxv-code="structure.stray-text"]'),
+      "and not to the <Product> row");
+    // The findings list still names the element the rule is about, and jumps
+    // to the text row.
+    pills[0].click();
+    const entry = stray.document.querySelector(".px-findings-item-current");
+    assert(entry.querySelector(".px-findings-where").textContent === "<Product>", "listed under <Product>");
+    entry.click();
+    assert(row.classList.contains("px-active"), "clicking the entry lands on the text row");
+  });
+
   test("a row with one finding shows its message in the pill", () => {
     const w = render("onix-3.1-invalid.xml");
     validate(w);

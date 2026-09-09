@@ -23,7 +23,8 @@
   // menu ("Copy node XML") to serialise the original, undecorated subtree.
   const rowElements = new WeakMap();
   // The reverse, so a validation finding can be pinned to the row that shows
-  // the element it is about.
+  // the element it is about. Text and CDATA rows are in here too, for the
+  // stray-text finding, which is about an element but shown on its text.
   const elementRows = new WeakMap();
   // The last completed validation run, so the summary label can list it.
   // Declared up here because validation starts during setup, before the
@@ -303,17 +304,23 @@
       case Node.TEXT_NODE: {
         const txt = node.nodeValue;
         if (!txt || !txt.trim()) return; // ignore whitespace-only text
-        appendRow(parent, depth, false, (row) => {
+        // Shown trimmed: the row is already indented to its depth, and the
+        // blank lines around a text node between elements are the file's
+        // layout, not content — kept verbatim they made the row three lines
+        // tall with the finding pill stranded on the last. Copying is from
+        // the source, so nothing is lost.
+        const textRow = appendRow(parent, depth, false, (row) => {
           const span = document.createElement("span");
           span.className = "px-text";
-          span.textContent = txt;
+          span.textContent = txt.trim();
           row.appendChild(span);
         });
+        elementRows.set(node, textRow);
         break;
       }
 
       case Node.CDATA_SECTION_NODE:
-        appendRow(parent, depth, false, (row) => {
+        elementRows.set(node, appendRow(parent, depth, false, (row) => {
           const open = document.createElement("span");
           open.className = "px-cdata-marker";
           open.textContent = "<![CDATA[";
@@ -324,7 +331,7 @@
           close.className = "px-cdata-marker";
           close.textContent = "]]>";
           row.append(open, body, close);
-        });
+        }));
         break;
     }
   }
@@ -1069,7 +1076,7 @@
   // Findings carry the element they are about; the marker lands on that
   // element's row, or on the root row when the element isn't rendered.
   function pinFinding(finding) {
-    const row = (finding.node && elementRows.get(finding.node)) || root.querySelector(".px-row");
+    const row = rowFor(finding) || root.querySelector(".px-row");
     if (!row) return;
     const isError = finding.severity === "error";
     row.classList.add("px-has-finding");
@@ -1211,11 +1218,21 @@
       // the selection. Keyboard activation leaves the selection collapsed, so
       // Enter and Space still navigate.
       if (hasSelectionInside(item)) return;
-      const row = finding.node && elementRows.get(finding.node);
+      const row = rowFor(finding);
       closeFindings();
       if (row) revealRow(row);
     });
     return item;
+  }
+
+  // The row a finding is shown on: the one for the node it names as `at`
+  // when that has a row of its own (stray text inside a composite), else the
+  // element's. A text node inside a text-only element has no row of its own —
+  // its text sits in the element's row — so the fallback covers it.
+  function rowFor(finding) {
+    let row = finding.at ? elementRows.get(finding.at) : null;
+    if (!row && finding.node) row = elementRows.get(finding.node);
+    return row || null;
   }
 
   function hasSelectionInside(element) {

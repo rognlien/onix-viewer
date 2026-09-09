@@ -57,7 +57,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (203 tests, ~8s; takes a name filter)
+│   ├── run.js                      jsdom harness (207 tests, ~8s; takes a name filter)
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -917,8 +917,14 @@ sample reports a false error.
 check — so text inside one breaks the schema. The matcher works from
 `childElements`, so it never saw it and a stray fragment between two composites
 passed in silence; `reportStrayText` closes that. Only a run containing a
-non-space character counts, because indentation is text too, and it reports
-once however many text nodes carry it.
+non-space character counts, because indentation is text too. Each run is
+reported on its own, with the text node as the finding's **`at`** — the
+optional fourth argument to `api.report` — so the viewer pins the pill to the
+row showing the text rather than to the composite's opening row, which for
+text at the end of an `<ONIXMessage>` is the top of the document. `rowFor()`
+in `viewer.js` prefers `at` and falls back to the element; text and CDATA rows
+are registered in `elementRows` for that. The findings list still files the
+entry under the element the rule is about.
 
 **Unknown elements are skipped, not matched.** An element the model has never
 heard of is reported once as `structure.unknown` and left out of its parent's
@@ -1267,7 +1273,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 203-test jsdom suite (~8s)
+npm test        # runs the 207-test jsdom suite (~8s)
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
