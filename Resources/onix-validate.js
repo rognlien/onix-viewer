@@ -7,11 +7,11 @@
 //     translated) without touching a line of validation logic.
 //   * RULES    — an ordered registry. The runner walks the document ONCE and
 //     offers every element to every rule, so adding a rule costs no extra
-//     traversal. xs:unique duplicate detection and GTIN-13 check digits slot
-//     in as new rules; see the notes at the bottom.
-//   * MODELS   — keyed by ONIX release. 3.1 ships today; a 3.0 model is a
-//     second generator run, and documents whose release has no model skip the
-//     structural rules rather than being judged against the wrong schema.
+//     traversal. The unique, deprecation and gtin rules below are exactly
+//     that: each was added without touching the walk.
+//   * MODELS   — keyed by ONIX release. 3.0 and 3.1 both ship, one generator
+//     run each, and documents whose release has no model skip the structural
+//     rules rather than being judged against the wrong schema.
 
 (function () {
   "use strict";
@@ -852,19 +852,8 @@
     return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   }
 
-  // ---- room to grow ---------------------------------------------------------
+  // ---- deprecated elements --------------------------------------------------
 
-  // Two rules the architecture is shaped for but that aren't written yet:
-  //
-  //   xs:unique — the 3.1 schema carries 125 identity constraints ("no two
-  //   <Price> with the same PriceType, CurrencyCode and Territory"). The
-  //   generator would emit selector/field paths per element; the rule collects
-  //   keys in element() and reports duplicates in finish().
-  //
-  //   GTIN-13 / ISBN-13 check digits — pure arithmetic on <IDValue> where the
-  //   sibling <ProductIDType> is 03 or 15. An element()-only rule, no model
-  //   needed.
-  //
   // Elements EDItEUR has deprecated. Its own rule rather than a branch of
   // `structure`, so it applies to leaves and composites alike and can be
   // dropped without touching the content-model matcher.

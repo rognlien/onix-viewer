@@ -2,9 +2,9 @@
 //
 // Loads the viewer scripts in jsdom, points them at fixture files, and
 // asserts on the rendered DOM. Catches logic regressions (codelist
-// resolution, ONIX detection, fold behavior) but cannot catch Safari-
-// specific rendering or content-script timing bugs — for those, test in
-// Safari per the README.
+// resolution, ONIX detection, fold behavior) but cannot catch browser
+// rendering or content-script timing bugs — for those, load the extension
+// unpacked in Chrome per the README.
 //
 // Usage:
 //   npm install        (one-time, installs jsdom)

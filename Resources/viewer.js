@@ -4,8 +4,8 @@
 //
 // Design notes:
 //  - We render to plain DOM (not innerHTML strings) for safety against XSS
-//    when XML contains markup-looking text. Performance is fine up to ~5MB
-//    docs; for larger we lazy-render children of folded <Product> blocks.
+//    when XML contains markup-looking text. Everything is rendered up front;
+//    Products are auto-collapsed on a multi-product feed so it stays scannable.
 //  - One row per logical "line": opening tag, text, closing tag are separate
 //    rows when the element has children, but combined into one row for
 //    leaf elements (more compact, easier to scan).
@@ -122,7 +122,8 @@
   // returns an element in the null namespace — not an HTMLElement — which
   // means it has no .style, .dataset, .className-as-DOMTokenList, etc.
   // Patch createElement once so every subsequent call (here and in
-  // onix-blocks.js) produces real HTMLElements.
+  // onix-popup.js, which builds its dialog lazily after this has run)
+  // produces real HTMLElements.
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const _createElementNS = document.createElementNS.bind(document);
   document.createElement = function (tagName) {
@@ -934,8 +935,6 @@
 
   // ---- validation -----------------------------------------------------------
 
-  // On demand only: a 12 MB feed is a couple of seconds' work, which is fine
-  // for a button press and not fine on every page load.
   // Runs on load, in slices. The first slice is generous, so a normal document
   // is finished before the reader sees anything and there's no spinner flash;
   // a large feed spends its first 12ms, then continues during idle time, which

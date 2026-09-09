@@ -106,9 +106,9 @@
   }
 
   // Which validation content model to inject. There is one file per ONIX
-  // release, ~51 KB each, and a message declares exactly one release — the
+  // release, ~65 KB each, and a message declares exactly one release — the
   // schema restricts `release` to "3.0" or "3.1" and the revisions (3.0.8,
-  // 3.1.3, …) aren't declarable — so loading both means parsing 103 KB to use
+  // 3.1.3, …) aren't declarable — so loading both means parsing 130 KB to use
   // half of it. Read the release off the same head looksLikeOnix() sniffed and
   // send only the matching model.
   //

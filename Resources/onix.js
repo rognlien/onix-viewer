@@ -39,7 +39,7 @@
   // lookups, so <b253> still resolves LanguageRole.
   //
   // The bulk is GENERATED into onix-codelists.js from EDItEUR's short-tag
-  // schema — all 505 pairs, keys lower-cased. It used to be a hand-kept
+  // schemas — all 530 pairs across both releases, keys lower-cased. It used to be a hand-kept
   // subset of ~30 tags, which left 145 of the 157 code-list-bound elements
   // unlabelled in short-tag documents.
   //
