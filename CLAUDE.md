@@ -57,7 +57,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (203 tests, ~8s; takes a name filter)
+│   ├── run.js                      jsdom harness (207 tests, ~8s; takes a name filter)
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -917,8 +917,14 @@ sample reports a false error.
 check — so text inside one breaks the schema. The matcher works from
 `childElements`, so it never saw it and a stray fragment between two composites
 passed in silence; `reportStrayText` closes that. Only a run containing a
-non-space character counts, because indentation is text too, and it reports
-once however many text nodes carry it.
+non-space character counts, because indentation is text too. Each run is
+reported on its own, with the text node as the finding's **`at`** — the
+optional fourth argument to `api.report` — so the viewer pins the pill to the
+row showing the text rather than to the composite's opening row, which for
+text at the end of an `<ONIXMessage>` is the top of the document. `rowFor()`
+in `viewer.js` prefers `at` and falls back to the element; text and CDATA rows
+are registered in `elementRows` for that. The findings list still files the
+entry under the element the rule is about.
 
 **Unknown elements are skipped, not matched.** An element the model has never
 heard of is reported once as `structure.unknown` and left out of its parent's
@@ -953,14 +959,24 @@ open, `▸` closed), and doubling them says "a level at a time".
 They are SVG rather than characters for two reasons: `⚠` has an emoji
 presentation on several platforms, so it renders as a colour emoji inside a
 coloured chip, and glyph metrics vary enough between fonts to shift a 12px
-chip around. The two severities are deliberately different *shapes* (a cross
-and an exclamation), not just different colours, so they stay distinguishable
-without colour.
+chip around. The two severities are deliberately different *shapes* — the
+conventional pair, a cross in a circle and a bang in a triangle — not just
+different colours, so they stay distinguishable without colour.
 
-`warning` is an exclamation rather than the conventional triangle: at 12px a
-triangle with a bang inside it loses both shapes, and the amber chip already
-reads as a warning. Chips are `aria-hidden` on the icon with the wording on
-the chip's `aria-label`.
+They are small solid glyphs — a filled circle with the cross knocked out, a
+filled triangle with a bang — because solid shapes hold at 12px where
+outlines go muddy, and because the glyph then carries the severity colour
+itself. The pill around it is a tint of that colour, a step stronger than
+the row's own tint (22% against the row's 7–9%), with the message in the
+ordinary text colour, and it keeps the code-list chips' height and type size
+so a row reads as one line of pills. Three earlier designs were rejected on
+sight: a neutral grey pill, which the reader wanted coloured; a solid red or amber block with a
+white cross or bare exclamation on it, and an outlined icon on a pale
+severity tint with a hairline border. A lone finding shows its message in
+the pill (`.px-finding-text`, ellipsised past `min(72ch, 55vw)`); a row that
+collects several drops the text for a count. The tooltip carries every
+message in full either way. Pills are `aria-hidden` on the icon with the
+wording on the pill's `aria-label`.
 
 Every labelled toolbar button now carries one — Expand, Collapse, Soft wrap and
 Copy XML — with a test asserting all four do. The dialect switch deliberately
@@ -981,9 +997,16 @@ viewer couldn't check (`model.missing`). Anything unlisted defaults to error,
 so a newly registered rule is conservative until it says otherwise.
 
 Findings are pinned to rows through `elementRows` (source element → row) and
-shown as a chip: red with a cross for errors, amber with an exclamation for
-warnings, the message in the tooltip and the row itself tinted to match. A row that collects
-several findings takes the worst severity and lists them all in the tooltip.
+shown as a pill: a red circle-cross for errors, an amber triangle-bang for
+warnings, the first message in the pill and the row itself tinted to match. A
+row that collects several findings takes the worst severity, keeps the first
+message and appends `+n more`; the tooltip lists them all. The pill is a
+`<button>`: clicking it opens the findings list with that row's entries
+highlighted (`.px-findings-item-current`), the first of them scrolled into
+view and focused — so the list opens on the thing the reader asked about
+rather than at the top. Opened from the toolbar instead, nothing is singled
+out. The click stops propagating, so the row underneath doesn't become the
+active row.
 
 The severity modifier classes are **`px-sev-error` / `px-sev-warning`**, not
 `px-error` / `px-warning` — `.px-error` is the parse-error panel, and chips
@@ -1250,7 +1273,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 203-test jsdom suite (~8s)
+npm test        # runs the 207-test jsdom suite (~8s)
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```

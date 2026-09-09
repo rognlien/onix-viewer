@@ -1477,14 +1477,75 @@ describe("Validation", () => {
       "the two severities must be different shapes, not only different colours");
   });
 
-  test("a row with several findings shows a count beside one icon", () => {
+  test("a row with several findings shows the first and says how many more", () => {
     const w = render("onix-3.1-invalid.xml");
-    // Two findings on one element: an unknown code that is also deprecated.
-    const source = w.__OXV_SOURCE__.replace("<ProductForm>BC</ProductForm>", "<ProductForm>ZZZ</ProductForm>");
+    // Two findings on one element: the bad code it already carries, plus an
+    // attribute ONIX doesn't declare.
+    const source = w.__OXV_SOURCE__.replace("<NotificationType>99", '<NotificationType bogus="1">99');
     const two = renderSource(source, "two-findings.xml");
-    const marker = rowsNamed(two, "ProductForm")[0].querySelector(".px-finding");
+    const marker = rowsNamed(two, "NotificationType")[0].querySelector(".px-finding");
     assert(marker, "the row should be marked");
     assert(marker.querySelectorAll("svg").length === 1, "one icon, not one per finding");
+    const inline = marker.querySelector(".px-finding-text");
+    assert(inline && inline.textContent.includes("not in List 1"), "the first message stays in the pill");
+    assert(marker.querySelector(".px-finding-count").textContent === "+1 more", "and the rest are counted");
+    assert(marker.title.split("\n").length === 2, "the tooltip lists both");
+  });
+
+  test("clicking a pill opens the findings list at that row's entries", () => {
+    const w = render("onix-3.1-invalid.xml");
+    const source = w.__OXV_SOURCE__.replace("<NotificationType>99", '<NotificationType bogus="1">99');
+    const two = renderSource(source, "two-findings.xml");
+    const row = rowsNamed(two, "NotificationType")[0];
+    const pill = row.querySelector(".px-finding");
+    assert(pill.tagName === "BUTTON", "the pill is a button, so it is reachable by keyboard too");
+    pill.click();
+    const modal = two.document.getElementById("oxv-findings");
+    assert(modal && !modal.hidden, "the findings list should open");
+    assert(!row.classList.contains("px-active"), "and the row click underneath must not fire");
+    const current = [...modal.querySelectorAll(".px-findings-item-current")];
+    assert(current.length === 2, `both of the row's entries are highlighted, got ${current.length}`);
+    assert(current.every((item) => item.querySelector(".px-findings-where").textContent === "<NotificationType>"),
+      "and only that row's");
+    assert(two.document.activeElement === current[0], "focus lands on the first of them");
+    two.document.dispatchEvent(new two.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert(modal.hidden, "Escape closes it");
+    assert(two.document.activeElement === pill, "and focus returns to the pill");
+    // Opened from the toolbar instead, nothing is singled out.
+    two.document.getElementById("oxv-validation").click();
+    assert(modal.querySelectorAll(".px-findings-item-current").length === 0, "no highlight without a row");
+  });
+
+  test("stray text is flagged on the text's own row, not the composite's", () => {
+    // The finding is about <Product>, but its opening row can be hundreds of
+    // lines above the text; the reader wants the pill where the text is.
+    const w = render("onix-3.1-invalid.xml");
+    const source = w.__OXV_SOURCE__.replace("<Product>", "<Product>Stray words ");
+    const stray = renderSource(source, "stray-text.xml");
+    const pills = $$(stray, '#oxv-root .px-finding[data-oxv-code="structure.stray-text"]');
+    assert(pills.length === 1, `one stray-text pill, got ${pills.length}`);
+    const row = pills[0].closest(".px-row");
+    const text = row.querySelector(".px-text");
+    assert(text && text.textContent.trim() === "Stray words", `pinned to the text row, got: ${row.textContent}`);
+    assert(!rowsNamed(stray, "Product")[0].querySelector('[data-oxv-code="structure.stray-text"]'),
+      "and not to the <Product> row");
+    // The findings list still names the element the rule is about, and jumps
+    // to the text row.
+    pills[0].click();
+    const entry = stray.document.querySelector(".px-findings-item-current");
+    assert(entry.querySelector(".px-findings-where").textContent === "<Product>", "listed under <Product>");
+    entry.click();
+    assert(row.classList.contains("px-active"), "clicking the entry lands on the text row");
+  });
+
+  test("a row with one finding shows its message in the pill", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validate(w);
+    const marker = rowsNamed(w, "NotificationType")[0].querySelector(".px-finding");
+    const inline = marker.querySelector(".px-finding-text");
+    assert(inline && inline.textContent === marker.title,
+      `the pill should read the message itself, got: ${inline && inline.textContent}`);
+    assert(!marker.querySelector(".px-finding-count"), "and no count for a single finding");
   });
 
   test("severity chips don't inherit the parse-error box styling", () => {

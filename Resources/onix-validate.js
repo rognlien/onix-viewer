@@ -164,9 +164,13 @@
       model,
       findings,
       reported: 0,
-      report(code, node, data) {
+      // `at` is optional: the node the finding should be shown on when that
+      // is not `node` itself — stray text is about the element that contains
+      // it, but the reader wants the pill on the text.
+      report(code, node, data, at) {
         api.reported++;
         const finding = { code, node, data: data || {}, severity: SEVERITIES[code] || "error" };
+        if (at) finding.at = at;
         counts[finding.severity]++;
         if (findings.length < limit) findings.push(finding);
       },
@@ -377,15 +381,16 @@
   // matcher works from childElements alone and so never saw it: a stray
   // fragment sitting between two composites passed in silence. Indentation is
   // whitespace and must stay invisible, so only a run with a non-space
-  // character counts, and it is reported once however many text nodes carry
-  // it.
+  // character counts. Each run is reported on its own, naming the text node
+  // as `at`, so the viewer can pin the finding to the row that shows the text
+  // rather than to the composite's opening row, which may be hundreds of
+  // lines above it.
   function reportStrayText(node, api) {
     for (const child of node.childNodes) {
       const isText = child.nodeType === 3 || child.nodeType === 4; // text, CDATA
       if (isText && (child.nodeValue || "").trim()) {
         api.report("structure.stray-text", node,
-          { found: node.nodeName, text: (child.nodeValue || "").trim().slice(0, 40) });
-        return;
+          { found: node.nodeName, text: (child.nodeValue || "").trim().slice(0, 40) }, child);
       }
     }
   }

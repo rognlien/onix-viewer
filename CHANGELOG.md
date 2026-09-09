@@ -3,6 +3,37 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Changed
+- **Finding markers are pills now.** The solid red and amber blocks with a
+  white glyph are gone. A finding shows as a pill tinted in its severity colour,
+  a step stronger than the row's own tint, led by a small solid glyph — a red
+  circle-cross or an amber triangle-bang — and carrying the message itself. A
+  row with several findings shows the first and `+n more`. The pill is a
+  button: clicking it opens the findings list scrolled to that row's entries,
+  with them highlighted and the first focused; Escape brings focus back to the
+  pill. The findings list's badges use the same glyphs, unboxed.
+- **Row tints are softer** — 9% amber and 7% red, from 16% and 12%.
+- **Standalone text rows are shown trimmed.** The blank lines and indentation
+  around a text node between elements are the file's layout, not content, and
+  kept verbatim they made the row three lines tall.
+
+### Fixed
+- **The tree did not fill the window.** It is the only child of a flex row and
+  had no grow, so a narrow document left it, and its scrollbar, standing in
+  the middle of the window.
+- **Stray text was flagged on the wrong row.** The finding was pinned to the
+  containing element's opening row, which for text at the end of an
+  `<ONIXMessage>` is the top of the document. Each run of text is now reported
+  on its own, naming the text node, and the pill sits on the text's row. The
+  findings list still files it under the element.
+
+### Added
+- `Onix/onix-errors-and-warnings.xml`, a sample that trips every finding kind
+  the validator has, 104 numbered violations including nine that warn rather
+  than error.
+
 ## 0.9.17 — 2026-09-09
 
 ### Added
