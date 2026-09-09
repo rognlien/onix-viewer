@@ -795,6 +795,15 @@ single-value enumerations would have doubled the model to say nothing.
 `namespaceURI === null` excludes `xmlns` declarations, `xsi:schemaLocation` and
 `xml:lang` in one go — all legal, none of them ONIX's.
 
+**An empty value is always a violation**, and was the one hole left in this
+rule: it bailed on a falsy value before reaching any check, so `language=""`
+and `datestamp=""` passed. None of the ten attributes has a legal empty value —
+each is code-list bound (no enumeration includes `""`), an enumeration of its
+own, or a datatype whose pattern demands a character. Whitespace-only counts as
+empty because every enumerated type in ONIX restricts **`xs:token`**, whose
+`whiteSpace: collapse` runs *before* validation — which is the same reason
+`language=" eng "` has to stay valid, and why the rule trims before comparing.
+
 Two fixes fell out of building this:
 
 - **`dt.DateOrDateTime` was opaque.** The generator saw `xs:union` and gave up,

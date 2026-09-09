@@ -91,6 +91,15 @@ the main branch.
   by no rule.
 
 ### Fixed
+- **An empty attribute value went unchecked.** `language=""`, `datestamp=""`
+  and `collationkey=""` were all accepted: the attribute rule bailed out on a
+  falsy value before reaching any check. No ONIX attribute has a legal empty
+  value — each is code-list bound (no enumeration includes the empty string),
+  an enumeration of its own, or a datatype whose pattern demands a character
+  (`dt.NonEmptyString` is literally `.*\S.*`) — so this is now reported as
+  `attribute.empty`. Whitespace-only counts as empty, because every enumerated
+  type in ONIX restricts `xs:token`, which collapses whitespace before
+  validating; the same rule is why `language=" eng "` stays valid.
 - **`SECURITY.md` under-reported the manifest.** Its excerpt claimed to be the
   full surface but omitted `icons/icon-48.png` from `web_accessible_resources`
   (added when the toolbar gained the app icon) as well as `all_frames`, and it

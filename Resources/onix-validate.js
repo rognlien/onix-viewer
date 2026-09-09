@@ -35,6 +35,7 @@
     "datatype.list-member": "\"{member}\" is not in List {list} ({title})",
     "unique.duplicate": "<{parent}> repeats <{selector}> with the same {fields}",
     "attribute.unknown": "{name} is not an attribute of <{element}>",
+    "attribute.empty": "{name} on <{element}> has no value",
     "attribute.missing": "<{element}> is missing its required {name} attribute",
     "attribute.value": "{name} must be {expected}, not \"{value}\"",
     "attribute.code": "{name}=\"{value}\" is not in List {list} ({title})",
@@ -676,8 +677,21 @@
     }
 
     const spec = api.model.attributes[name];
+    if (!spec) return;
+
+    // Trimming is what the schema does: every enumerated type in ONIX
+    // restricts xs:token, which collapses whitespace before validating — so
+    // language=" eng " is valid, and language="   " is the empty string.
     const value = attribute.value.trim();
-    if (!spec || !value) return;
+    if (!value) {
+      // No ONIX attribute has a legal empty value. Each is either code-list
+      // bound (no enumeration includes ""), an enumeration of its own
+      // (`release`), or a datatype whose pattern demands a character —
+      // dt.NonEmptyString is literally `.*\S.*`. Bailing out here let
+      // language="" and datestamp="" through unchecked.
+      api.report("attribute.empty", node, { name, element: node.nodeName });
+      return;
+    }
 
     if (spec.values) {
       if (!spec.values.includes(value)) {

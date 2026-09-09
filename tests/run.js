@@ -1612,6 +1612,30 @@ describe("Validation", () => {
     assert(session.result().total === 7, `same findings as a single pass: ${session.result().total}`);
   });
 
+  test("slicing never changes the verdict, for any fixture", () => {
+    // The pass carries state between slices — the traversal stack, each rule's
+    // own bookkeeping — so a fixture that validates differently when sliced
+    // would mean a rule is holding something a resume drops. A zero budget
+    // forces the smallest possible slice, which is the worst case.
+    const w = render("onix-3.1-valid.xml");
+    const dir = path.join(__dirname, "fixtures");
+    const files = fsv.readdirSync(dir).filter((f) => f.endsWith(".xml"));
+    assert(files.length > 20, `expected the whole fixture set, got ${files.length}`);
+    for (const file of files) {
+      const xml = fsv.readFileSync(path.join(dir, file), "utf8");
+      const whole = findingsFor(w, xml);
+      const doc = new w.DOMParser().parseFromString(xml, "application/xml");
+      const session = w.OnixViewerValidation.start(doc, w.OnixViewerOnix.detect(doc));
+      let steps = 0;
+      while (!session.done && steps < 100000) { session.step(0); steps++; }
+      const sliced = session.result();
+      assert(codes(whole).join() === codes(sliced).join(),
+        `${file}: whole ${codes(whole).join()} vs sliced ${codes(sliced).join()}`);
+      assert(whole.total === sliced.total,
+        `${file}: totals differ, ${whole.total} vs ${sliced.total}`);
+    }
+  });
+
   test("both dialects of the same record produce the same findings", () => {
     const read = (n) => fsv.readFileSync(path.join(__dirname, "..", "Onix", n), "utf8");
     const reference = findings(renderSource(read("onix-3.1-refnames.xml")));
@@ -1999,6 +2023,7 @@ describe("Deprecated elements", () => {
 });
 
 describe("Attributes", () => {
+
   function findingsFor(window, xml) {
     const doc = new window.DOMParser().parseFromString(xml, "application/xml");
     return window.OnixViewerValidation.run(doc, window.OnixViewerOnix.detect(doc));
@@ -2131,6 +2156,30 @@ describe("Attributes", () => {
     assert(found.length === 1 && found[0].includes("textcase=\"99\""),
       `the same attribute check should apply in short tags; got: ${found.join("; ")}`);
   });
+  test("an empty attribute value is reported, whatever the attribute's type", () => {
+    // No ONIX attribute has a legal empty value: each is code-list bound, an
+    // enumeration, or a datatype whose pattern demands a character. The rule
+    // used to bail on a falsy value, so language="" sailed through unchecked —
+    // the same class of hole as the four datatypes that carried no facets.
+    const w = render("onix-3.1-valid.xml");
+    for (const attribute of ["language", "collationkey", "datestamp"]) {
+      const xml = message({ titleAttrs: ` ${attribute}=""` });
+      const found = attributeFindings(w, xml);
+      assert(found.length === 1 && found[0].startsWith("attribute.empty"),
+        `${attribute}="" should be reported empty; got: ${found.join("; ") || "nothing"}`);
+    }
+
+    // Whitespace-only is the empty string too: every enumerated type in ONIX
+    // restricts xs:token, which collapses whitespace before validating.
+    const blank = attributeFindings(w, message({ titleAttrs: ' language="   "' }));
+    assert(blank.length === 1 && blank[0].startsWith("attribute.empty"),
+      `whitespace-only collapses to empty; got: ${blank.join("; ") || "nothing"}`);
+
+    // Which is also why a padded but real code has to stay valid.
+    const padded = attributeFindings(w, message({ titleAttrs: ' language=" eng "' }));
+    assert(padded.length === 0, `language=" eng " must stay valid; got: ${padded.join("; ")}`);
+  });
+
 });
 
 describe("Identifier check digits", () => {
