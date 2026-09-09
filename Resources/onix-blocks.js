@@ -740,23 +740,5 @@
     };
   }
 
-  function findIdentifiers(productEl) {
-    const ids = deepFind(productEl, ["productidentifier"]);
-    const list = codelist("ProductIDType");
-    return ids.map((id) => {
-      const typeEl = findChildByName(id, ["productidtype", "b221"]);
-      const valEl = findChildByName(id, ["idvalue", "b244"]);
-      const typeNameEl = findChildByName(id, ["idtypename", "b233"]);
-      const code = textOf(typeEl);
-      const label = (list && list.get(code)) || code || "ID";
-      return {
-        type: code,
-        label,
-        value: textOf(valEl),
-        typeName: textOf(typeNameEl) || null,
-      };
-    });
-  }
-
   window.OnixViewerBlocks = { render };
 })();

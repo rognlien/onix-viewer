@@ -1085,25 +1085,7 @@ details[open] > summary > .px-chevron::before { content: "▾"; }
   margin-left: 6px;
 }
 
-.px-block-subhead {
-  margin: 12px 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
-.px-block-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.px-block-list > li {
-  padding: 4px 0;
-  border-top: 1px solid var(--border);
-}
-.px-block-list > li:first-child { border-top: none; }
 
 .px-block-row {
   display: flex;

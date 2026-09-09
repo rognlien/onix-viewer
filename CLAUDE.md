@@ -36,13 +36,13 @@ onix-viewer/
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
-│   └── icons/                      icon-{16,32,48,96,128,256,512}.png from icons/image.png
+│   └── icons/                      icon-{16,32,48,96,128,256,512}.png, built from icons/
 ├── icons/                          SOURCE artwork — not shipped. The master plus
 │                                   any hand-drawn per-size overrides
 │   ├── icon-original.png           1254×1254 RGBA master — the render source
-│   ├── icon-<size>.png             hand-drawn overrides; used verbatim when present
-│   ├── image.png                   the previous book-and-gem artwork, kept
-│   └── image-original.png          its 1024×1024 original
+│   └── icon-<size>.png             hand-drawn overrides; used verbatim when present.
+│                                   Only manifest sizes are consulted, so a file
+│                                   at any other size is never read
 ├── tools/
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
