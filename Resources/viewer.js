@@ -1660,6 +1660,9 @@
       // Skip when the user is typing in an input.
       if (ev.target instanceof HTMLInputElement) return;
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      // A dialog owns the keyboard while it is open; these act on the tree
+      // behind it, which the reader cannot see.
+      if (dialogOpen()) return;
 
       switch (ev.key) {
         case "/":
@@ -1684,6 +1687,13 @@
           break;
       }
     });
+  }
+
+  // The code-list popup marks the body while it is up; the findings list is
+  // this file's own.
+  function dialogOpen() {
+    return document.body.classList.contains("px-popup-open") ||
+      !!(findingsModal && !findingsModal.hidden);
   }
 
   // ---- click + active row ---------------------------------------------------

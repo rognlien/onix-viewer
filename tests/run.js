@@ -1604,6 +1604,21 @@ describe("Validation", () => {
     assert(modal.hidden, "a plain click should still close the list");
   });
 
+  test("tree shortcuts are quiet while the findings list is open", () => {
+    // / and e used to open the search and unfold rows behind the dialog.
+    const w = render("onix-3.1-invalid.xml");
+    validate(w).click();
+    const modal = w.document.getElementById("oxv-findings");
+    assert(!modal.hidden, "the list should be open");
+    const key = (k) => w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
+    key("/");
+    assert(!w.document.body.classList.contains("px-search-open"), "/ should not open the search");
+    key("Escape");
+    assert(modal.hidden, "Escape should still close the list");
+    key("/");
+    assert(w.document.body.classList.contains("px-search-open"), "and the shortcuts should work again");
+  });
+
   test("closing the findings list puts focus back where it was", () => {
     const w = render("onix-3.1-invalid.xml");
     const label = validate(w);
