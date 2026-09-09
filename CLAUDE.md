@@ -45,6 +45,7 @@ onix-viewer/
 ├── tools/
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
+│   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
 │   ├── generate-content-model.js   generates Resources/onix-content-model.js
 │   ├── release.sh                  bumps version, commits, tags
@@ -1138,7 +1139,7 @@ branch of the viewer.
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks, blockNames)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListTitles` — list number → title, for the 35 lists no element binds
@@ -1206,7 +1207,12 @@ tools/release.sh 0.9.X
 git push origin main v0.9.X
 ```
 
-Every push and pull request runs `.github/workflows/test.yml` — the same suite, plus a check that the generated files still match `tools/data/` (it re-runs all three generators and requires no diff, so editing an XSD without regenerating fails there rather than shipping stale data).
+Every push and pull request runs `.github/workflows/test.yml` — the same suite, plus two staleness checks:
+
+- **Generated data**: all three generators are re-run and any diff fails the build, so editing an XSD without regenerating fails there rather than shipping stale data.
+- **Icons** (`npm run check:icons`): the shipped `Resources/icons/icon-<size>.png` must be byte-identical to a hand-drawn `icons/icon-<size>.png` where one exists, every PNG's pixel size must match its name, and each must carry an alpha channel. It deliberately does **not** re-render: `render-icons.sh` needs `rsvg-convert`, whose output is not byte-stable between versions, so a re-render-and-diff check would fail on the renderer's version rather than on a real problem. Byte comparison and a PNG header read need no image tooling at all.
+
+  This exists because a stale icon did ship: `icons/icon-32.png` gained an alpha channel, which makes a hand-drawn size win over a downscale, but `render-icons.sh` was not re-run — so `Resources/icons/icon-32.png` stayed the downscale through a commit. The check also prints which sizes are still rendered from the master, so the hand-drawn set can be completed one size at a time.
 
 The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the zip is built, and a GitHub release is created with `onix-viewer-0.9.X.zip` attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
 

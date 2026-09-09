@@ -887,12 +887,6 @@ body.px-popup-open { overflow: hidden; }
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-/* ───────── ONIX blocks pane ───────── */
-
-/* Unified chevron for every collapsible <details> in the right pane.
-   Real DOM (not ::before) so click handlers can distinguish a chevron click
-   ("toggle") from a click on the rest of the summary ("highlight match"). */
-
 /* The active row: set on click, and on the row a findings entry jumps to.
    Persists until the next click. The !important is what makes the selection
    accent win over a severity tint — see the note above the tint rules. */

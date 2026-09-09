@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.17 — 2026-09-09
 
 ### Added
 - **Attributes are validated.** ONIX's ten attributes — `datestamp`,
@@ -42,6 +42,15 @@ the main branch.
   content height. It is removed rather than left broken if the page's `img-src`
   CSP refuses extension URLs.
 
+### Added
+- **A staleness check for the icons** (`npm run check:icons`, and a step in
+  `test.yml`). The shipped PNGs must be byte-identical to their hand-drawn
+  sources, sized to match their names, and carry an alpha channel. It compares
+  bytes rather than re-rendering, because `render-icons.sh` needs
+  `rsvg-convert`, whose output is not byte-stable between versions — a
+  re-render-and-diff check would fail on the renderer, not on a real problem.
+  It also reports which sizes are still downscales of the master.
+
 ### Removed
 - **The structure / split pane is gone.** A right pane rendering Products as
   cards-and-blocks, with a resizable divider, a three-way XML / Split /
@@ -66,6 +75,10 @@ the main branch.
 - **Dead blocks-pane leftovers**: `findIdentifiers()` in the pane renderer had
   no caller, and `.px-block-list` / `.px-block-subhead` were styled but never
   produced by anything.
+- **`OnixViewerOnix.tagClass()`** — exported but called by nothing;
+  `viewer.js` derives the dialect class itself in `displayedTagClass()`.
+- **A dead `--shadow-card` custom property**, declared in both themes and used
+  by no rule.
 
 ### Fixed
 - **The shipped 32px icon was stale.** `icons/icon-32.png` gained an alpha

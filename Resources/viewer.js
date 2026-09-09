@@ -327,119 +327,89 @@
     }
   }
 
+  // An element takes one of three shapes, decided by what its children are:
+  // empty, text-only, or element-bearing. This classifies and delegates; the
+  // three renderers below own the DOM each shape produces.
   function renderElement(el, parent, depth, stack) {
-    const elementChildren = Array.from(el.childNodes).filter(
+    const children = Array.from(el.childNodes).filter(
       (n) => n.nodeType !== Node.TEXT_NODE || n.nodeValue.trim().length > 0
     );
-
-    // Classify: leaf-text (single text/cdata child) vs. has-element-children
-    // vs. truly empty.
-    const onlyText =
-      elementChildren.length > 0 &&
-      elementChildren.every(
-        (n) => n.nodeType === Node.TEXT_NODE || n.nodeType === Node.CDATA_SECTION_NODE
-      );
-    const empty = elementChildren.length === 0;
-
-    if (empty) {
-      // <Tag attr="val"/> — single row, self-closing.
-      const selfClosingRow = appendRow(parent, depth, false, (row) => {
-        writeOpenTag(row, el, /* selfClose */ true);
-      });
-      attachNodeMenu(selfClosingRow, el);
-      return;
+    const textOnly = children.length > 0 && children.every(
+      (n) => n.nodeType === Node.TEXT_NODE || n.nodeType === Node.CDATA_SECTION_NODE
+    );
+    if (children.length === 0) {
+      renderEmptyElement(el, parent, depth);
+    } else if (textOnly) {
+      renderTextElement(el, parent, depth, children);
+    } else {
+      renderParentElement(el, parent, depth, stack);
     }
+  }
 
-    if (onlyText) {
-      // <Tag>text</Tag> — single row, with optional codelist badge.
-      const resolved = window.OnixViewerOnix
-        ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
-        : null;
-      const textClass = resolved ? "px-text px-codelist-value" : "px-text";
-      const leafRow = appendRow(parent, depth, false, (row) => {
-        writeOpenTag(row, el, false);
-        for (const c of elementChildren) {
-          if (c.nodeType === Node.CDATA_SECTION_NODE) {
-            const open = document.createElement("span");
-            open.className = "px-cdata-marker";
-            open.textContent = "<![CDATA[";
-            const body = document.createElement("span");
-            body.className = textClass;
-            body.textContent = c.nodeValue;
-            const close = document.createElement("span");
-            close.className = "px-cdata-marker";
-            close.textContent = "]]>";
-            row.append(open, body, close);
-          } else {
-            const t = document.createElement("span");
-            t.className = textClass;
-            t.textContent = c.nodeValue;
-            row.appendChild(t);
-          }
-        }
-        writeCloseTag(row, el);
+  // <Tag attr="val"/> — one self-closing row.
+  function renderEmptyElement(el, parent, depth) {
+    const row = appendRow(parent, depth, false, (r) => {
+      writeOpenTag(r, el, /* selfClose */ true);
+    });
+    attachNodeMenu(row, el);
+  }
 
-        if (resolved) {
-          const badge = document.createElement("span");
-          badge.className = "px-codelist";
-          badge.textContent = `→ ${resolved.label}`;
-          badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
-          row.appendChild(badge);
-          if (resolved.url) row.appendChild(buildListLink(resolved));
-        }
-      });
-      attachNodeMenu(leafRow, el);
-      return;
+  // <Tag>text</Tag> — one row, with a code-list badge when the value resolves.
+  function renderTextElement(el, parent, depth, children) {
+    const resolved = window.OnixViewerOnix
+      ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
+      : null;
+    const textClass = resolved ? "px-text px-codelist-value" : "px-text";
+    const row = appendRow(parent, depth, false, (r) => {
+      writeOpenTag(r, el, false);
+      for (const child of children) appendTextContent(r, child, textClass);
+      writeCloseTag(r, el);
+      if (resolved) appendCodelistBadge(r, el, resolved);
+    });
+    attachNodeMenu(row, el);
+  }
+
+  // CDATA keeps its markers so the copy and the display agree about what the
+  // source said.
+  function appendTextContent(row, child, textClass) {
+    const body = document.createElement("span");
+    body.className = textClass;
+    body.textContent = child.nodeValue;
+    if (child.nodeType === Node.CDATA_SECTION_NODE) {
+      const open = document.createElement("span");
+      open.className = "px-cdata-marker";
+      open.textContent = "<![CDATA[";
+      const close = document.createElement("span");
+      close.className = "px-cdata-marker";
+      close.textContent = "]]>";
+      row.append(open, body, close);
+    } else {
+      row.appendChild(body);
     }
+  }
 
-    // Has element children: open row (collapsible) + children container + close row.
+  function appendCodelistBadge(row, el, resolved) {
+    const badge = document.createElement("span");
+    badge.className = "px-codelist";
+    badge.textContent = `\u2192 ${resolved.label}`;
+    badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
+    row.appendChild(badge);
+    if (resolved.url) row.appendChild(buildListLink(resolved));
+  }
+
+  // Element children: a collapsible open row, a children container, and a
+  // close row queued behind them.
+  function renderParentElement(el, parent, depth, stack) {
     const openRow = appendRow(parent, depth, true, (row) => {
       const toggle = document.createElement("span");
       toggle.className = "px-toggle";
       toggle.setAttribute("aria-hidden", "true");
       row.appendChild(toggle);
       writeOpenTag(row, el, false);
-
-      // When the row is folded, show "...</Tag>" inline so the structure
-      // reads as <Tag>...</Tag> at a glance. Hidden by CSS when expanded.
-      const ellipsis = document.createElement("span");
-      ellipsis.className = "px-fold-ellipsis";
-      ellipsis.textContent = "…";
-      row.appendChild(ellipsis);
-
-      const closeInline = document.createElement("span");
-      closeInline.className = "px-tag px-fold-close";
-      const foldDialectClass = displayedTagClass();
-      if (foldDialectClass) closeInline.classList.add(foldDialectClass);
-      closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
-      closeInline.classList.add("px-tag-name");
-      row.appendChild(closeInline);
-
-      // "Block N" badge on ONIX 3.x block elements, visible folded or not.
-      if (window.OnixViewerOnix) {
-        const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
-        if (block) {
-          const label = document.createElement("span");
-          label.className = "px-block-label";
-          label.textContent = `Block ${block}`;
-          row.appendChild(label);
-        }
-      }
-
-      // Inline summary span (visible when folded). onix.js decides which
-      // composites have a one-line essence worth showing and returns null for
-      // the rest.
-      if (window.OnixViewerOnix) {
-        const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
-        if (summary) {
-          const s = document.createElement("span");
-          s.className = "px-summary";
-          s.textContent = summary;
-          row.appendChild(s);
-        }
-      }
+      appendFoldedTail(row, el);
+      appendBlockBadge(row, el);
+      appendSummary(row, el);
     });
-
     attachNodeMenu(openRow, el);
 
     const childrenContainer = document.createElement("div");
@@ -450,9 +420,48 @@
     stack.push({ close: el, parent, depth });
     pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
 
-    // Fold/highlight handling is delegated on #oxv-root in setupClickHandlers
-    // — clicking the chevron toggles, clicking elsewhere highlights the
-    // matching right-pane element.
+    // Folding is delegated on #oxv-root in setupClickHandlers: the chevron
+    // toggles, a click anywhere else makes the row active.
+  }
+
+  // While the row is folded, show "…</Tag>" inline so the structure reads as
+  // <Tag>…</Tag> at a glance. Hidden by CSS when expanded.
+  function appendFoldedTail(row, el) {
+    const ellipsis = document.createElement("span");
+    ellipsis.className = "px-fold-ellipsis";
+    ellipsis.textContent = "\u2026";
+    row.appendChild(ellipsis);
+
+    const closeInline = document.createElement("span");
+    closeInline.className = "px-tag px-fold-close";
+    const foldDialectClass = displayedTagClass();
+    if (foldDialectClass) closeInline.classList.add(foldDialectClass);
+    closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
+    closeInline.classList.add("px-tag-name");
+    row.appendChild(closeInline);
+  }
+
+  // "Block N" on the ONIX 3.x block elements, visible folded or not.
+  function appendBlockBadge(row, el) {
+    if (!window.OnixViewerOnix) return;
+    const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
+    if (!block) return;
+    const label = document.createElement("span");
+    label.className = "px-block-label";
+    label.textContent = `Block ${block}`;
+    row.appendChild(label);
+  }
+
+  // onix.js decides which composites have a one-line essence worth showing
+  // and returns null for the rest.
+  function appendSummary(row, el) {
+    if (!window.OnixViewerOnix) return;
+    const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
+    if (!summary) return;
+    const span = document.createElement("span");
+    span.className = "px-summary";
+    span.textContent = summary;
+    row.appendChild(span);
   }
 
   function pushChildren(stack, childNodes, parent, depth) {

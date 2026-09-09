@@ -41,3 +41,11 @@ jobs:
             echo "::error::Generated files are stale — run the generators in tools/ and commit the result"
             exit 1
           fi
+
+      # The icons are the one build output with no generator to re-run here:
+      # render-icons.sh needs rsvg-convert, whose output isn't byte-stable
+      # between versions, so re-rendering would fail on the renderer rather
+      # than on a real problem. This compares the shipped PNGs against their
+      # hand-drawn sources instead — which is what caught a stale 32px icon.
+      - name: Shipped icons match their sources
+        run: npm run check:icons

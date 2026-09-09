@@ -4,7 +4,8 @@
   "private": true,
   "description": "Chrome extension that pretty-prints raw XML pages with ONIX-aware features.",
   "scripts": {
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "check:icons": "node tools/check-icons.js"
   },
   "devDependencies": {
     "jsdom": "^24.0.0"
