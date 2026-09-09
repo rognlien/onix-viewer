@@ -138,6 +138,23 @@ the main branch.
   changes with the document.
 
 ### Fixed
+- **Copy XML lost its icon after the first click.** The "Copied" flash wrote
+  the button's `textContent`, which took the prepended SVG with it and never
+  put it back. Only the label's text node is swapped now.
+- **Elements named after `Object.prototype` members were misjudged.** The
+  generated content model's `elements`, `deprecated` and `attributes` tables
+  were plain object literals, so an extension element called `<constructor>`
+  or `<toString>` inherited a function as its shape and was reported as
+  deprecated and as needing a value instead of as unknown. The generator now
+  emits null-prototype tables; both models regenerated.
+- **DOCTYPE rows dropped the `SYSTEM` keyword.** Every ONIX 2.1 file references
+  its DTD that way, and the row rendered `<!DOCTYPE ONIXMessage "…dtd">`.
+- **The takeover could fail silently on a fast re-fetch.** At `document_start`
+  the parser may not have created the root element yet, and a cached re-fetch
+  can resolve before it does; the root swap then threw into a catch that is
+  silent in release. The content script now waits for the root.
+- **Tree shortcuts acted behind an open dialog.** `/`, `e`, `c` and the rest
+  are ignored while the code-list popup or the findings list is up.
 - **Four datatypes were entirely unchecked.** `dt.Decimal`, `dt.Integer`,
   `dt.PositiveInteger` and `dt.PositiveIntegerOrZero` carry no facets at all,
   only a base type, and the generator recorded facets only — so
@@ -189,6 +206,15 @@ the main branch.
   that no facet on a `dt.*` type goes unread. A finite `maxOccurs` is enforced
   too: `<OrderQuantityMinimum maxOccurs="2">` is the one particle in either
   release with an upper bound above one.
+- **The manifest declares Chrome 119 as the minimum version**, the first
+  release with `match_origin_as_fallback`, so the store does not serve the
+  extension to a browser that would ignore that key.
+- **Dead code removed**: the attribute toggle that had no button, the unused
+  block-name set and its export, and a product-row scan that duplicated
+  `isProductRow`. The one `innerHTML` write, which cleared an already empty
+  tree, is gone too, and the reviewability test now asserts there are no
+  `innerHTML` assignments at all. Stale comments that contradicted the code
+  were brought in line.
 
 ## 0.9.16 — 2026-09-08
 
