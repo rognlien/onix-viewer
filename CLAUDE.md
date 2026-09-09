@@ -1170,6 +1170,45 @@ The `px-` CSS prefix was retained from the rename because changing it would touc
 
 A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings; the four LOW recommendations were applied in 0.9.8.
 
+## Keeping the extension easy to review
+
+A Chrome Web Store reviewer reads the manifest and `SECURITY.md`, then goes
+looking for the things those documents claim are absent. **A stale security
+note is worse than none** — a reviewer who finds one claim wrong stops trusting
+the rest — so the claims are asserted in the suite rather than maintained by
+hand. `describe("Reviewability")` in `tests/run.js` checks:
+
+| Claim | How it is held |
+|---|---|
+| "No remote code" | no `eval`, `new Function` or `document.write` in any shipped script, and no string in the code referencing a remote `.js` |
+| "One network call" | exactly one `fetch(` across the shipped scripts, and its argument must be `document.location.href` |
+| No HTML injection | every `innerHTML`/`outerHTML` assignment must be a literal empty string (the one write clears the tree), and `insertAdjacentHTML` is banned |
+| "Zero permissions" | `permissions` is `[]`, and `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent |
+| `SECURITY.md` is accurate | its fenced manifest excerpt is parsed as JSON and compared field-by-field with the real manifest |
+| Injection actually works | every resource `content.js` builds a `getURL()` for is both web-accessible and present on disk |
+
+Each was verified to fail when the claim is broken — a planted `eval`, an added
+permission, an extra web-accessible resource, `root.innerHTML = SOURCE`.
+
+Two design choices carry most of the reviewability, and both should survive any
+refactor:
+
+- **The untrusted XML never becomes markup.** It reaches the page as
+  `textContent` on an inert `<script type="application/xml">` block and is
+  rendered to DOM nodes one at a time. The shell HTML is a template string, but
+  its only three interpolations are two `runtime.getURL()` values and an
+  `escapeHtml`'d page title — no document content goes near it.
+- **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
+  a rogue `fetch` to a third party is blocked by CORS in the browser, not
+  merely absent from the code. There is no capability for a page to borrow.
+
+`web_accessible_resources` is the one broad-looking entry that isn't a
+permission, and *is* asked about: the viewer runs in the page's world, so the
+page has to be allowed to load the eight scripts, the stylesheet and the icon
+that `content.js` appends. It exposes only static files that are public in this
+repository, and grants a page none of the extension's privileges — of which
+there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
+
 ## Dev workflow
 
 ### Test loop (fast — use this most of the time)

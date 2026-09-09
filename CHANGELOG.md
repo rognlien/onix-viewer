@@ -43,6 +43,16 @@ the main branch.
   CSP refuses extension URLs.
 
 ### Added
+- **The store-review claims are now asserted, not just written down.** A
+  `Reviewability` block in the suite checks that no shipped script uses `eval`,
+  `new Function` or `document.write`; that exactly one `fetch()` exists and it
+  targets the page's own URL; that every `innerHTML` write is a literal empty
+  string; that the manifest declares no permissions, host permissions,
+  background worker or `externally_connectable`; that `SECURITY.md`'s fenced
+  manifest excerpt parses as JSON and matches the real manifest field for
+  field; and that every resource `content.js` injects is web-accessible and
+  present. A stale security note is worse than none, so these are held by
+  tests rather than by hand.
 - **A staleness check for the icons** (`npm run check:icons`, and a step in
   `test.yml`). The shipped PNGs must be byte-identical to their hand-drawn
   sources, sized to match their names, and carry an alpha channel. It compares
@@ -81,6 +91,13 @@ the main branch.
   by no rule.
 
 ### Fixed
+- **`SECURITY.md` under-reported the manifest.** Its excerpt claimed to be the
+  full surface but omitted `icons/icon-48.png` from `web_accessible_resources`
+  (added when the toolbar gained the app icon) as well as `all_frames`, and it
+  described the clipboard path without its `execCommand` fallback. All three
+  corrected, and `web_accessible_resources` — which reviewers do ask about —
+  now has a justification of its own in both `SECURITY.md` and
+  `CWS_LISTING.md`.
 - **The shipped 32px icon was stale.** `icons/icon-32.png` gained an alpha
   channel, which makes a hand-drawn size win over a downscale of the master —
   but `render-icons.sh` had not been re-run since, so `Resources/icons/icon-32.png`

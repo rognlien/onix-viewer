@@ -19,25 +19,46 @@ This document explains how ONIX Viewer handles page content, what permissions it
   "permissions": [],
   "content_scripts": [{
     "matches": ["<all_urls>"],
-    "match_origin_as_fallback": true,
     "run_at": "document_start",
+    "all_frames": false,
+    "match_origin_as_fallback": true,
     "js": ["content.js"]
   }],
   "web_accessible_resources": [{
     "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js",
                   "onix-content-model-3.1.js","onix-content-model-3.0.js",
-                  "onix-validate.js","onix-popup.js"],
+                  "onix-validate.js","onix-popup.js","icons/icon-48.png"],
     "matches": ["<all_urls>"]
   }]
 }
 ```
 
-That's the full surface. Specifically:
+Plus `name`, `version`, `description` and the `icons` map, which carry no
+privilege. That is the whole manifest — there is nothing omitted from the
+excerpt above.
+
+Specifically:
 
 - **No `host_permissions`** — the extension cannot fetch arbitrary cross-origin URLs. Any attempt to `fetch("https://attacker.example/...")` from inside the extension would be subject to the page's CORS rules and would be blocked by the browser, not just by absent code.
-- **No `permissions`** — no `tabs`, `storage`, `webRequest`, `cookies`, `history`, `bookmarks`, `clipboardWrite`, `downloads`, or any other Chrome API permission. The clipboard "Copy XML" button uses the standard, unprivileged `navigator.clipboard.writeText` (which requires a user gesture and goes to the local clipboard, not the network).
+- **No `permissions`** — no `tabs`, `storage`, `webRequest`, `cookies`, `history`, `bookmarks`, `clipboardWrite`, `downloads`, or any other Chrome API permission. The clipboard "Copy XML" button uses the standard, unprivileged `navigator.clipboard.writeText` (which requires a user gesture and goes to the local clipboard, not the network), falling back to `document.execCommand("copy")` on a hidden textarea where that API is unavailable — also unprivileged, and also local.
 - **No background service worker.** No persistent runtime, no data buffer that outlives a tab.
 - **`content_scripts.matches: ["<all_urls>"]`** is needed so the content script *runs* on any page (XML can be served from any URL). It bails immediately on the first 10 lines of `content.js` for any page whose Content-Type isn't `application/xml`, `text/xml`, or `application/onix+xml`. It then bails again unless the XML body contains the EDItEUR ONIX namespace, an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. On every other page it does nothing.
+
+- **`web_accessible_resources`** lists the eight viewer scripts, the
+  stylesheet and one icon, matched against `<all_urls>`. They have to be
+  web-accessible because the viewer runs in the **page's** world, not the
+  content script's: `content.js` replaces the document and then appends
+  ordinary `<script src="chrome-extension://…">` tags, which the page must be
+  allowed to load. The `<all_urls>` match follows from the same fact as the
+  content script's — ONIX can be served from any URL.
+
+  What this exposes is the extension's own static files, all of which are in
+  this repository and in the published package; there is nothing secret in
+  them. It does make the extension **fingerprintable** — a page can probe
+  whether `chrome-extension://<id>/viewer.js` loads — which is inherent to any
+  extension that injects page-world scripts. It grants a page no access to the
+  extension's privileges, and since there are no permissions to borrow, there
+  is nothing to escalate to.
 
 ## What's the one network call?
 
