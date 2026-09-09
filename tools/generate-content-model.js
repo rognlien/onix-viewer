@@ -704,18 +704,22 @@ function render(model, datatypes, deprecated, attributeSpecs, attributeSets, cou
   out.push(`  window.OnixViewerContentModels[${JSON.stringify(VERSION)}] = {`);
   out.push(`    version: ${JSON.stringify(VERSION)},`);
   out.push(`    datatypes: ${JSON.stringify(datatypes)},`);
-  out.push(`    attributes: ${JSON.stringify(attributeSpecs)},`);
+  // The tables keyed by names read off the document get no prototype: a
+  // plain object literal answers `elements["constructor"]` with a function,
+  // so an extension element by that name was judged against Object.prototype
+  // instead of being reported as unknown.
+  out.push(`    attributes: ${bare(JSON.stringify(attributeSpecs))},`);
   out.push(`    attributeSets: ${JSON.stringify(attributeSets)},`);
-  out.push("    deprecated: {");
+  out.push("    deprecated: Object.assign(Object.create(null), {");
   for (const name of Object.keys(deprecated).sort()) {
     out.push(`      ${JSON.stringify(name)}: ${JSON.stringify(deprecated[name])},`);
   }
-  out.push("    },");
-  out.push("    elements: {");
+  out.push("    }),");
+  out.push("    elements: Object.assign(Object.create(null), {");
   for (const name of Object.keys(model).sort()) {
     out.push(`      ${JSON.stringify(name)}: ${JSON.stringify(model[name])},`);
   }
-  out.push("    },");
+  out.push("    }),");
   out.push("  };");
   out.push("})();");
   out.push("");
@@ -723,6 +727,11 @@ function render(model, datatypes, deprecated, attributeSpecs, attributeSets, cou
 }
 
 // ---- utilities -------------------------------------------------------------
+
+// An object literal with no prototype behind it.
+function bare(literal) {
+  return `Object.assign(Object.create(null), ${literal})`;
+}
 
 function elements(doc, localName) {
   return [...doc.getElementsByTagNameNS(XS, localName)];

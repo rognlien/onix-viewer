@@ -29,9 +29,9 @@
   window.OnixViewerContentModels["3.1"] = {
     version: "3.1",
     datatypes: {"CountryCodeList":{"list":1,"listOf":91,"minLength":1},"RegionCodeList":{"list":1,"listOf":49,"minLength":1},"DateOrDateTime":{"base":"string","re":"(19|20)\\d\\d(0[1-9]|1[0-2])(0[1-9]|1[0-9]|2[0-8])(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|(19|20)\\d\\d(0[13-9]|1[0-2])(29|30)(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|(19|20)\\d\\d(0[13578]|1[02])31(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|19(0[48]|[13579][26]|[2468][048])0229(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|20(0[048]|[13579][26]|[2468][048])0229(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?"},"Decimal":{"base":"decimal"},"PositiveDecimalOrZero":{"base":"decimal","min":0},"PositiveDecimal":{"base":"decimal","gt":0},"PercentDecimal":{"base":"decimal","min":0,"max":100},"Integer":{"base":"int"},"PositiveInteger":{"base":"positiveInteger"},"PositiveIntegerOrZero":{"base":"nonNegativeInteger"},"NonEmptyString":{"base":"string","re":".*\\S.*"},"EmailString":{"base":"string","re":"[A-Za-z0-9_]+([\\-+.'][A-Za-z0-9_]+)*@[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*\\.[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*"},"RomanNumeralString":{"base":"string","re":"([MDCLXVI]+|[mdclxvi]+)"},"NonEmptyURI":{"base":"anyURI","re":"\\S+"},"TimeOrDuration":{"base":"string","re":"[0-9]{3}[0-5][0-9][0-5][0-9]([0-9]{2})?"},"Year":{"base":"string","re":"(1[0-9]{3}|20[0-9]{2})"},"YearOrYearRange":{"base":"string","re":"(1[0-9]{3}|20[0-9]{2})(-(1[0-9]{3}|20[0-9]{2}))?"},"MultiLevelNumber":{"base":"string","re":"[1-9][0-9]*(\\.[1-9][0-9]*)*"},"MultiLevelNumberOrHyphen":{"base":"string","re":"([1-9][0-9]*|-)(\\.([1-9][0-9]*|-))*"}},
-    attributes: {"datestamp":{"text":"DateOrDateTime"},"sourcename":{"text":"NonEmptyString"},"sourcetype":{"list":3},"release":{"values":["3.1"],"required":1},"language":{"list":74},"textscript":{"list":121},"collationkey":{"text":"NonEmptyString"},"textformat":{"list":34},"dateformat":{"list":55},"textcase":{"list":14}},
+    attributes: Object.assign(Object.create(null), {"datestamp":{"text":"DateOrDateTime"},"sourcename":{"text":"NonEmptyString"},"sourcetype":{"list":3},"release":{"values":["3.1"],"required":1},"language":{"list":74},"textscript":{"list":121},"collationkey":{"text":"NonEmptyString"},"textformat":{"list":34},"dateformat":{"list":55},"textcase":{"list":14}}),
     attributeSets: [["datestamp","release","sourcename","sourcetype"],["datestamp","sourcename","sourcetype"],["datestamp","language","sourcename","sourcetype","textscript"],["collationkey","datestamp","language","sourcename","sourcetype"],["datestamp","language","sourcename","sourcetype","textformat"],["datestamp","language","sourcename","sourcetype"],["datestamp","language","sourcename","sourcetype","textformat","textscript"],["dateformat","datestamp","sourcename","sourcetype"],["collationkey","datestamp","language","sourcename","sourcetype","textscript"],["collationkey","datestamp","language","sourcename","sourcetype","textcase","textscript"]],
-    deprecated: {
+    deprecated: Object.assign(Object.create(null), {
       "DefaultCurrencyCode": {"since":"release 3.1","advice":"use explicit <CurrencyCode> instead"},
       "DefaultLanguageOfText": {"since":"release 3.1","advice":"use explicit <Language> with role 01 instead"},
       "DefaultPriceType": {"since":"release 3.1","advice":"use explicit <PriceType> instead"},
@@ -39,8 +39,8 @@
       "TextSourceCorporate": {"since":"revision 3.1.3"},
       "TextSourceDescription": {"since":"revision 3.1.3","within":"TextContent"},
       "TitleText": {"since":"release 3.1","advice":"use either <TitlePrefix> or <NoPrefix/>, plus <TitleWithoutPrefix> instead"},
-    },
-    elements: {
+    }),
+    elements: Object.assign(Object.create(null), {
       "AVDuration": {"text":"TimeOrDuration","a":1},
       "AVItem": {"c":["s",1,["e","AVItemType",1,1],["e","AVItemIdentifier",0,0],["e","TimeRun",0,0],["e","AVDuration",0,1]],"a":1},
       "AVItemIDType": {"list":241,"a":1},
@@ -552,6 +552,6 @@
       "WorkIdentifier": {"c":["s",1,["e","WorkIDType",1,1],["e","IDTypeName",0,1],["e","IDValue",1,1]],"a":1},
       "WorkRelationCode": {"list":164,"a":1},
       "YearOfAnnual": {"text":"YearOrYearRange","a":1},
-    },
+    }),
   };
 })();

@@ -29,9 +29,9 @@
   window.OnixViewerContentModels["3.0"] = {
     version: "3.0",
     datatypes: {"CountryCodeList":{"list":1,"listOf":91,"minLength":1},"RegionCodeList":{"list":1,"listOf":49,"minLength":1},"DateOrDateTime":{"base":"string","re":"(19|2\\d)\\d\\d(0[1-9]|1[0-2])(0[1-9]|1[0-9]|2[0-8])(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|(19|2\\d)\\d\\d(0[13-9]|1[0-2])(29|30)(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|(19|2\\d)\\d\\d(0[13578]|1[02])31(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|(19|2\\d)(0[48]|[13579][26]|[2468][048])0229(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?|2[048][0]{2}0229(T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9])?(Z|[+\\-](0[0-9]|1[0-2])(00|15|30|45))?)?"},"Decimal":{"base":"decimal"},"PositiveDecimal":{"base":"decimal","min":0},"StrictPositiveDecimal":{"base":"decimal","gt":0},"PercentDecimal":{"base":"decimal","min":0,"max":100},"Integer":{"base":"int"},"PositiveInteger":{"base":"nonNegativeInteger"},"StrictPositiveInteger":{"base":"positiveInteger"},"NonEmptyString":{"base":"string","re":".*\\S.*"},"EmailString":{"base":"string","re":"[A-Za-z0-9_]+([\\-+.'][A-Za-z0-9_]+)*@[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*\\.[A-Za-z0-9_]+([\\-.][A-Za-z0-9_]+)*"},"RomanNumeralString":{"base":"string","re":"([MDCLXVI]+|[mdclxvi]+)"},"NonEmptyURI":{"base":"anyURI","re":"\\S+"},"Year":{"base":"string","re":"(1[0-9]{3}|20[0-9]{2})"},"TimeOrDuration":{"base":"string","re":"[0-9]{3}[0-5][0-9][0-5][0-9]([0-9]{2})?"},"YearOrYearRange":{"base":"string","re":"(1[0-9]{3}|20[0-9]{2})(-(1[0-9]{3}|20[0-9]{2}))?"},"MultiLevelNumber":{"base":"string","re":"\\d+(\\.\\d+)*"},"MultiLevelNumberOrHyphen":{"base":"string","re":"(\\d+|-)(\\.(\\d+|-))*"}},
-    attributes: {"datestamp":{"text":"DateOrDateTime"},"sourcename":{"text":"NonEmptyString"},"sourcetype":{"list":3},"release":{"values":["3.0"],"required":1},"language":{"list":74},"collationkey":{"text":"NonEmptyString"},"textformat":{"list":34},"dateformat":{"list":55},"textscript":{"list":121},"textcase":{"list":14}},
+    attributes: Object.assign(Object.create(null), {"datestamp":{"text":"DateOrDateTime"},"sourcename":{"text":"NonEmptyString"},"sourcetype":{"list":3},"release":{"values":["3.0"],"required":1},"language":{"list":74},"collationkey":{"text":"NonEmptyString"},"textformat":{"list":34},"dateformat":{"list":55},"textscript":{"list":121},"textcase":{"list":14}}),
     attributeSets: [["datestamp","release","sourcename","sourcetype"],["datestamp","sourcename","sourcetype"],["datestamp","language","sourcename","sourcetype"],["collationkey","datestamp","language","sourcename","sourcetype"],["datestamp","language","sourcename","sourcetype","textformat"],["dateformat","datestamp","sourcename","sourcetype"],["collationkey","datestamp","language","sourcename","sourcetype","textscript"],["datestamp","language","sourcename","sourcetype","textscript"],["collationkey","datestamp","language","sourcename","sourcetype","textcase","textscript"]],
-    deprecated: {
+    deprecated: Object.assign(Object.create(null), {
       "AudienceCode": {"advice":"use <Audience> instead"},
       "Conference": {"advice":"use <Event> instead"},
       "ConferenceAcronym": {"advice":"use <Event> instead of <Conference>"},
@@ -50,8 +50,8 @@
       "Reissue": {"advice":"use start and end dates in <Price>, <TextContent>, <SupportingResource> etc instead"},
       "ReissueDate": {"advice":"use <PublishingDate> or <SupplyDate> instead"},
       "ReissueDescription": {"advice":"use <TextContent> with start and end dates instead"},
-    },
-    elements: {
+    }),
+    elements: Object.assign(Object.create(null), {
       "AVDuration": {"text":"TimeOrDuration","a":1},
       "AVItem": {"c":["s",1,["e","AVItemType",1,1],["e","AVItemIdentifier",0,0],["e","TimeRun",0,0],["e","AVDuration",0,1]],"a":1},
       "AVItemIDType": {"list":241,"a":1},
@@ -564,6 +564,6 @@
       "WorkIdentifier": {"c":["s",1,["e","WorkIDType",1,1],["e","IDTypeName",0,1],["e","IDValue",1,1]],"a":1},
       "WorkRelationCode": {"list":164,"a":1},
       "YearOfAnnual": {"text":"YearOrYearRange","a":1},
-    },
+    }),
   };
 })();

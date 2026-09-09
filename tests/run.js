@@ -1122,6 +1122,18 @@ describe("Validation", () => {
     assert(codes(bad).filter((c) => c === "structure.missing").length >= 2,
       `the root's own required children should be checked; got: ${codes(bad).join(", ")}`);
 
+    // The model's tables are keyed by names read off the document, so an
+    // element named after an Object.prototype member must not inherit one as
+    // its shape: <constructor> used to be reported as deprecated and as
+    // needing a value instead of as unknown.
+    const inherited = product({ root: "Product", dialect: "reference" },
+      "<RecordReference>r1</RecordReference><NotificationType>03</NotificationType>" +
+      "<constructor>x</constructor><toString/>");
+    const prototype = findingsFor(w, inherited);
+    const about = (name) => prototype.findings.filter((f) => f.node.nodeName === name).map((f) => f.code);
+    assert(about("constructor").join() === "structure.unknown", `constructor: ${about("constructor")}`);
+    assert(about("toString").join() === "structure.unknown", `toString: ${about("toString")}`);
+
     // The fixture itself is valid apart from its deprecated <TitleText>.
     const clean = findings(w);
     assert(clean.checkedStructure && codes(clean).join() === "element.deprecated",
