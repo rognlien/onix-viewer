@@ -38,14 +38,18 @@
   // Everything is stroked in currentColor, so a chip's own colour carries.
   const SVG_NS = "http://www.w3.org/2000/svg";
   const ICONS = Object.assign(Object.create(null), {
-    // A bold cross. Outlined shapes go muddy at 12px; two thick strokes don't.
-    error: [["path", { d: "M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8", "stroke-width": "2.2" }]],
-    // An exclamation rather than the usual triangle: a 12px triangle with a
-    // bang inside it loses both shapes, and the amber chip already reads as a
-    // warning without one.
+    // The conventional pair as small solid glyphs: a filled circle with a
+    // cross knocked out of it, a filled triangle with a bang. Solid shapes
+    // hold at 12px where outlines go muddy, and the glyph carries the colour
+    // itself, so the pill around it can stay the neutral chip grey.
+    error: [
+      ["circle", { cx: "8", cy: "8", r: "7", fill: "currentColor", stroke: "none" }],
+      ["path", { d: "M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8", stroke: "#fff", "stroke-width": "1.8" }],
+    ],
     warning: [
-      ["path", { d: "M8 3.6v5.1", "stroke-width": "2.2" }],
-      ["circle", { cx: "8", cy: "12", r: "1.15", fill: "currentColor", stroke: "none" }],
+      ["path", { d: "M8 1.6L15.2 14.2H0.8z", fill: "currentColor", "stroke-width": "1.2" }],
+      ["path", { d: "M8 6v3.6", stroke: "#2b2100", "stroke-width": "1.7" }],
+      ["circle", { cx: "8", cy: "12", r: "0.95", fill: "#2b2100", stroke: "none" }],
     ],
     close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
     ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
@@ -1074,8 +1078,9 @@
     const text = window.OnixViewerValidation.message(finding);
     const existing = row.querySelector(".px-finding");
     if (existing) {
-      // A row can collect several findings: the marker takes the worst
-      // severity and its tooltip lists them all.
+      // A row can collect several findings: the pill takes the worst
+      // severity, keeps the first message and says how many more there are,
+      // and its tooltip lists them all. Clicking it shows the full set.
       existing.title += `\n${text}`;
       const seen = Number(existing.dataset.oxvCount || 1) + 1;
       existing.dataset.oxvCount = String(seen);
@@ -1091,17 +1096,32 @@
         counter.className = "px-finding-count";
         existing.appendChild(counter);
       }
-      counter.textContent = String(seen);
-      existing.setAttribute("aria-label", `${seen} problems on this row`);
+      counter.textContent = `+${seen - 1} more`;
+      existing.setAttribute("aria-label", `${seen} problems on this row: ${existing.title}`);
       return;
     }
-    const marker = document.createElement("span");
+    // A button, not a badge: clicking it opens the findings list at this
+    // row's entries. The first message is read in place; the tooltip still
+    // carries everything in full for when the pill has been clipped.
+    const marker = document.createElement("button");
+    marker.type = "button";
     marker.className = `px-finding px-sev-${finding.severity}`;
     marker.appendChild(icon(isError ? "error" : "warning"));
+    const inline = document.createElement("span");
+    inline.className = "px-finding-text";
+    inline.textContent = text;
+    marker.appendChild(inline);
     marker.title = text;
-    marker.setAttribute("role", "img");
     marker.setAttribute("aria-label", `${isError ? "Error" : "Warning"}: ${text}`);
     marker.dataset.oxvCode = finding.code;
+    marker.addEventListener("click", (event) => {
+      event.stopPropagation();
+      // Not every platform focuses a button on click (macOS doesn't outside
+      // Chrome), and the list hands focus back to whatever had it on close —
+      // so take it here, and closing returns the reader to this pill.
+      marker.focus();
+      showFindings(finding.node);
+    });
     row.appendChild(marker);
   }
 
@@ -1118,7 +1138,7 @@
   function setupFindingsLabel() {
     const status = document.getElementById("oxv-validation");
     if (!status) return;
-    status.addEventListener("click", showFindings);
+    status.addEventListener("click", () => showFindings());
     status.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -1130,12 +1150,23 @@
     });
   }
 
-  function showFindings() {
+  // `about` is the source element a row's pill was clicked on: its entries
+  // are highlighted, the first of them scrolled into view and given focus, so
+  // the list opens on the thing the reader asked about rather than at the top.
+  function showFindings(about) {
     if (!lastValidation || !lastValidation.total) return;
     const overlay = ensureFindingsModal();
     const list = overlay.querySelector(".px-findings-list");
     list.textContent = "";
-    for (const finding of lastValidation.findings) list.appendChild(findingEntry(finding));
+    let first = null;
+    for (const finding of lastValidation.findings) {
+      const entry = findingEntry(finding);
+      if (about && finding.node === about) {
+        entry.classList.add("px-findings-item-current");
+        if (!first) first = entry;
+      }
+      list.appendChild(entry);
+    }
     overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
     overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
     overlay.querySelector(".px-popup-footer").textContent = lastValidation.truncated
@@ -1143,8 +1174,9 @@
       : "";
     findingsLastFocus = document.activeElement;
     overlay.hidden = false;
-    const closeButton = overlay.querySelector(".px-popup-close");
-    if (closeButton) closeButton.focus();
+    const target = first || overlay.querySelector(".px-popup-close");
+    if (target) target.focus();
+    if (first && first.scrollIntoView) first.scrollIntoView({ block: "center" });
   }
 
   function findingEntry(finding) {

@@ -93,9 +93,9 @@
 
     --accent: #58a6ff;
     --accent-soft: rgba(88, 166, 255, 0.18);
-  --severity-error: #f2645c;
-  --severity-warning: #e8b53a;
-  --severity-ok: #4fbb7e;
+    --severity-error: #f2645c;
+    --severity-warning: #e8b53a;
+    --severity-ok: #4fbb7e;
 
     --shadow-popup: 0 24px 60px rgba(0, 0, 0, 0.6);
   }
@@ -495,9 +495,6 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   user-select: none;
 }
 
-/* Validation findings: a ⚠ marker on the row the finding is about, with the
-   message in its tooltip. Excluded from selection like the other decorations,
-   so a drag-copy still yields plain XML. */
 /* Tiny inline-SVG icons, sized once here so every chip and button that uses
    one lines up. `flex: none` keeps them from being squashed inside a chip. */
 .px-icon {
@@ -507,27 +504,53 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   height: 12px;
 }
 
+/* Validation findings: a pill on the row the finding is about, tinted in
+   the severity colour a step stronger than the row's own tint, led by a
+   small solid glyph in that colour. It shows the first message, clipped with
+   an ellipsis past a comfortable width, and "+n more" when the row has
+   several; the tooltip carries everything in full. It is a button: clicking
+   it opens the findings list at this row's entries. Excluded from selection
+   like the other decorations, so a drag-copy still yields plain XML. */
 .px-finding {
+  appearance: none;
+  border: 0;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  height: 16px;
+  max-width: min(72ch, 55vw);
   margin-left: 6px;
-  padding: 2px 5px;
-  border-radius: 4px;
+  padding: 0 7px 0 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sev) 22%, transparent);
+  color: var(--fg);
   font-family: var(--ui);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
   line-height: 1;
-  color: #fff;
+  /* `middle`, where the code-list chips use `1px`: an inline-flex box takes
+     its baseline from its first item, and this one's is the icon, which has
+     none — so the browser used its bottom edge and the pill sat ~3px lower
+     than the chips. Centring on the line lands within half a pixel of them,
+     whatever the font. */
   vertical-align: middle;
-  cursor: help;
+  cursor: pointer;
   user-select: none;
 }
-.px-finding-count { font-variant-numeric: tabular-nums; }
+.px-finding:hover { background: color-mix(in srgb, var(--sev) 32%, transparent); }
+.px-finding:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.px-finding > .px-icon { width: 12px; height: 12px; color: var(--sev); }
+.px-finding-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.px-finding-count { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
 /* px-sev-* rather than px-error/px-warning: .px-error is already the
-   parse-error box, whose margins and borders these chips would inherit. */
-.px-finding.px-sev-error { background: var(--severity-error); }
-.px-finding.px-sev-warning { background: var(--severity-warning); color: #3a2c00; }
+   parse-error box, whose margins and borders these chips would inherit.
+   Shared by the row pills and the findings-list badges. */
+.px-sev-error { --sev: var(--severity-error); }
+.px-sev-warning { --sev: var(--severity-warning); }
 
 /* Tint the row itself so a finding is visible while scanning, not only when
    the eye reaches the right-hand marker. The #oxv-root prefix keeps these
@@ -537,10 +560,10 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
    the accent says "you are here", and the ✕ / ⚠ chip still carries the
    severity. Not worth an !important of its own. */
 #oxv-root .px-row.px-has-finding {
-  background: color-mix(in srgb, var(--severity-warning) 16%, transparent);
+  background: color-mix(in srgb, var(--severity-warning) 9%, transparent);
 }
 #oxv-root .px-row.px-has-error {
-  background: color-mix(in srgb, var(--severity-error) 12%, transparent);
+  background: color-mix(in srgb, var(--severity-error) 7%, transparent);
 }
 
 /* Validation status: a spinner while working, a green tick when clean, the
@@ -606,6 +629,12 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 }
 .px-findings-item:hover,
 .px-findings-item:focus-visible { background: var(--bg-hover); outline: none; }
+/* The entries for the row whose pill was clicked. */
+.px-findings-item.px-findings-item-current { background: var(--accent-soft); }
+.px-findings-item.px-findings-item-current:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .px-findings-severity {
   display: inline-flex;
   align-items: center;
@@ -613,11 +642,9 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   justify-self: start;
   width: 20px;
   height: 20px;
-  border-radius: 5px;
-  color: #fff;
+  color: var(--sev);
 }
-.px-findings-severity.px-sev-error { background: var(--severity-error); }
-.px-findings-severity.px-sev-warning { background: var(--severity-warning); color: #3a2c00; }
+.px-findings-severity > .px-icon { width: 14px; height: 14px; }
 .px-findings-where {
   font-family: var(--mono);
   font-size: 12px;
