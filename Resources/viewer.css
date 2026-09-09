@@ -363,6 +363,10 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
 }
 
 #oxv-root {
+  /* The tree is the only child of the flex row #oxv-main, and a flex item
+     with no grow sizes to its content — so a narrow document left the tree,
+     and its scrollbar, standing in the middle of the window. */
+  flex: 1;
   min-width: 0;
   overflow: auto;
   padding: 12px 16px 96px;
