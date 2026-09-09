@@ -15,7 +15,7 @@
 
   <!-- Book + crystal artwork (the real extension icon) at the left,
        360×360 centred vertically. -->
-  <image href="icons/image.png" x="90" y="100" width="360" height="360"/>
+  <image href="icons/icon-original.png" x="90" y="100" width="360" height="360"/>
 
   <!-- Wordmark -->
   <text x="540" y="220"

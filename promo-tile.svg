@@ -14,7 +14,7 @@
   <circle cx="400" cy="240" r="140" fill="#F4A35C" opacity="0.10"/>
 
   <!-- Book + crystal artwork at the left, 180×180 centred vertically -->
-  <image href="icons/image.png" x="20" y="50" width="180" height="180"/>
+  <image href="icons/icon-original.png" x="20" y="50" width="180" height="180"/>
 
   <!-- Wordmark -->
   <text x="225" y="125"
