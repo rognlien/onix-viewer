@@ -791,9 +791,15 @@ element declares them, and the only legal value is that element's own name in
 each dialect — which the short-tag map already knows. Recording 511 pairs of
 single-value enumerations would have doubled the model to say nothing.
 
-**Only unqualified attributes are ours to judge.** Testing
+**Unqualified attributes are ours to judge**, and testing
 `namespaceURI === null` excludes `xmlns` declarations, `xsi:schemaLocation` and
-`xml:lang` in one go — all legal, none of them ONIX's.
+`xml:lang` in one go. But a prefix into ONIX's *own* namespace is a third case
+that used to be skipped in silence: ONIX declares all ten attributes
+unqualified — none is global, neither schema sets `attributeFormDefault` — so
+`onix:language="zzz"` is not an ONIX attribute at all, and was neither judged
+nor reported. It is now `attribute.qualified`. Any *other* namespace stays
+tolerated: strictly the schema rejects those too, but that is where feeds put
+their own annotations.
 
 **An empty value is always a violation**, and was the one hole left in this
 rule: it bailed on a falsy value before reaching any check, so `language=""`

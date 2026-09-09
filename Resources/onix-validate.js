@@ -36,6 +36,7 @@
     "datatype.list-member": "\"{member}\" is not in List {list} ({title})",
     "unique.duplicate": "<{parent}> repeats <{selector}> with the same {fields}",
     "attribute.unknown": "{name} is not an attribute of <{element}>",
+    "attribute.qualified": "{name} on <{element}> must not carry a namespace prefix",
     "attribute.empty": "{name} on <{element}> has no value",
     "attribute.missing": "<{element}> is missing its required {name} attribute",
     "attribute.value": "{name} must be {expected}, not \"{value}\"",
@@ -652,9 +653,22 @@
   // identical in both dialects (only element names shorten), so nothing needs
   // translating here.
   //
-  // Only unqualified attributes are ours to judge. Testing namespaceURI for
-  // null excludes xmlns declarations, xsi:schemaLocation and xml:lang in one
-  // go — all legal, none of them ONIX's.
+  // ONIX declares all ten of its attributes *unqualified* — none is global and
+  // neither schema sets attributeFormDefault — so an unprefixed attribute is
+  // ours to judge, and testing namespaceURI for null excludes xmlns
+  // declarations, xsi:schemaLocation and xml:lang in one go.
+  //
+  // An attribute prefixed into ONIX's *own* namespace is a different case, and
+  // one this rule used to skip in silence: <TitleWithoutPrefix onix:language="zzz">
+  // was neither judged nor complained about, bad code and all. It cannot be a
+  // legitimate extension — ONIX declares no qualified attribute and the schema
+  // has no attribute wildcard — so it is reported rather than ignored.
+  //
+  // Attributes in any *other* namespace are left alone. Strictly the schema
+  // rejects those too, but that is the space real feeds use for their own
+  // annotations, and flagging it would report a page's own conventions as
+  // errors.
+  const ONIX_NAMESPACE = /ns\.editeur\.org\/onix/;
   registerRule({
     name: "attribute",
     element(node, api) {
@@ -665,8 +679,12 @@
 
       const allowed = shape.a != null ? api.model.attributeSets[shape.a] : [];
       for (const attribute of node.attributes) {
-        if (attribute.namespaceURI !== null) continue;
-        checkAttribute(node, name, attribute, allowed, api);
+        if (attribute.namespaceURI === null) {
+          checkAttribute(node, name, attribute, allowed, api);
+        } else if (ONIX_NAMESPACE.test(attribute.namespaceURI)) {
+          api.report("attribute.qualified", node,
+            { name: attribute.localName, element: node.nodeName });
+        }
       }
       for (const attributeName of allowed) {
         const spec = api.model.attributes[attributeName];

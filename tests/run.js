@@ -2267,6 +2267,33 @@ describe("Attributes", () => {
     assert(padded.length === 0, `language=" eng " must stay valid; got: ${padded.join("; ")}`);
   });
 
+  test("an ONIX-namespaced attribute is reported, a foreign one is not", () => {
+    // ONIX declares all ten attributes unqualified — none is global and
+    // neither schema sets attributeFormDefault — so onix:language is not a
+    // valid ONIX attribute at all. The rule skipped every namespaced
+    // attribute, so onix:language="zzz" was neither judged nor complained
+    // about. A foreign namespace stays tolerated: that is where real feeds put
+    // their own annotations, and flagging it would report their conventions as
+    // errors.
+    const w = render("onix-3.1-valid.xml");
+    const withNs = (attrs) => message({
+      rootNs: 'xmlns="http://ns.editeur.org/onix/3.1/reference" ' +
+        'xmlns:onix="http://ns.editeur.org/onix/3.1/reference" ' +
+        'xmlns:foo="http://example.invalid/x"',
+      titleAttrs: " " + attrs,
+    });
+
+    for (const attrs of ['onix:language="zzz"', 'onix:language="eng"', 'onix:bogus="1"']) {
+      const found = attributeFindings(w, withNs(attrs));
+      assert(found.length === 1 && found[0].startsWith("attribute.qualified"),
+        `${attrs} should be reported; got: ${found.join("; ") || "nothing"}`);
+    }
+    for (const attrs of ['foo:anything="1"', 'xml:lang="en"']) {
+      const found = attributeFindings(w, withNs(attrs));
+      assert(found.length === 0, `${attrs} must stay silent; got: ${found.join("; ")}`);
+    }
+  });
+
 });
 
 describe("Identifier check digits", () => {

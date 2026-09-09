@@ -3,6 +3,19 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Fixed
+- **A namespace-prefixed ONIX attribute went unchecked.** ONIX declares all ten
+  of its attributes *unqualified* — none is global and neither schema sets
+  `attributeFormDefault` — so `onix:language="eng"` is not a valid ONIX
+  attribute at all. The rule skipped every namespaced attribute in one test, so
+  `onix:language="zzz"` was neither judged nor reported, bad code and all. It
+  is now `attribute.qualified`. Attributes in any *other* namespace stay
+  tolerated: strictly the schema rejects those too, but that is where real
+  feeds put their own annotations, and flagging it would report their
+  conventions as errors.
+
 ## 0.9.17 — 2026-09-09
 
 ### Added
