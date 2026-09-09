@@ -52,7 +52,6 @@
   --severity-ok: #1c7c47;
 
   /* Subtle drop shadow for cards/popup. */
-  --shadow-card: 0 1px 2px rgba(15, 22, 36, 0.05);
   --shadow-popup: 0 24px 60px rgba(15, 22, 36, 0.28);
 
   --indent: 1.25rem;
@@ -98,7 +97,6 @@
   --severity-warning: #e8b53a;
   --severity-ok: #4fbb7e;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-popup: 0 24px 60px rgba(0, 0, 0, 0.6);
   }
 }
@@ -385,6 +383,9 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 
 .px-row {
   display: block;
+  /* --depth is set per row by viewer.js (row.style.setProperty), so it is the
+     one custom property with no declaration here. The 0 fallback keeps a row
+     readable if it is ever rendered without one. */
   padding: var(--row-pad-y) 4px var(--row-pad-y) calc(var(--indent) * var(--depth, 0) + var(--gutter) + 18px);
   position: relative;
   /* Soft-wrap by default — long text contents (descriptions, blurbs) would
@@ -892,8 +893,9 @@ body.px-popup-open { overflow: hidden; }
    Real DOM (not ::before) so click handlers can distinguish a chevron click
    ("toggle") from a click on the rest of the summary ("highlight match"). */
 
-/* Click-to-highlight: shared class set on the matched element when the user
-   clicks its partner in the other pane. Persists until the next click. */
+/* The active row: set on click, and on the row a findings entry jumps to.
+   Persists until the next click. The !important is what makes the selection
+   accent win over a severity tint — see the note above the tint rules. */
 .px-active {
   background: var(--accent-soft) !important;
   box-shadow: inset 2px 0 0 var(--accent);
