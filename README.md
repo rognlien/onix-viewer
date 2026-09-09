@@ -22,7 +22,6 @@ It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAckno
 
 Non-ONIX XML (RSS, generic XML, anything without an EDItEUR namespace) is left alone — the browser's native viewer handles it. XHTML and SVG are also skipped (browsers render them natively).
 
-There's also a more ambitious "Structure" / "Split" pane that renders ONIX content as a higher-level cards-and-blocks view; it's bundled and tested but **disabled in the UI for the time being** while we get the tree-only experience polished. See `setupViewMode` in `viewer.js` for the one-line revert.
 
 ## Install (development)
 
@@ -58,7 +57,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (209 tests, ~8s) covering generic XML, ONIX 3.0/3.1 reference and short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), the dialect switch and both copy paths, validation (content model, code lists, datatypes, deprecated elements, check digits), stepped expand/collapse, search, the toolbar, and the (currently disabled) structure view.
+Runs the full jsdom suite (188 tests, ~8s) covering generic XML, ONIX 3.0/3.1 reference and short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), the dialect switch and both copy paths, validation (content model, code lists, datatypes, attributes, identity constraints, deprecated elements, check digits), stepped expand/collapse, search and the toolbar.
 
 Pass a substring to run just part of it — matched against the test name and its
 block, so `npm test -- validation` or `npm test -- x512` both work, and a

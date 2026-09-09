@@ -34,7 +34,6 @@ onix-viewer/
 │   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~66 KB)
 │   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~62 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
-│   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
 │   └── icons/                      icon-{16,32,48,96,128,256,512}.png, built from icons/
 ├── icons/                          SOURCE artwork — not shipped. The master plus
@@ -113,7 +112,7 @@ The pattern is:
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
 4. Build a fresh HTML shell via `DOMParser`, then `document.replaceChild(newRoot, document.documentElement)` to swap roots.
-5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-blocks.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
+5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
 6. Those scripts parse the original XML with `DOMParser` and render to plain DOM.
 
 When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), we fall back to `XMLSerializer().serializeToString(document)` — the browser has already parsed the XML for us, so reading the live document is a reliable second path. This means file:// works without any background script, at the cost of waiting for `DOMContentLoaded` before takeover instead of acting at `document_start`.
@@ -143,7 +142,7 @@ after them. The conversion was verified by diffing the rendered
 
 **Scripts and DOMParser.** When DOMParser parses HTML, any `<script>` it produces has the spec's "already started" flag set — those scripts will *not* execute when inserted into a live document. That's why we don't embed the script tags in the parsed shell; we create them dynamically afterward.
 
-**XHTML namespace gotcha.** Even after we replace `documentElement`, `document.contentType` remains `application/xml`. In an XML document, plain `document.createElement(tagName)` creates an element in the *null* namespace — not an HTMLElement, so it has no `.style`, no `.dataset`, etc. content.js uses `createElementNS(XHTML, "script")` for the script tags it injects, and `viewer.js` monkey-patches `document.createElement` at the top of its IIFE so every subsequent call (here and in `onix-blocks.js`) produces real HTMLElements with no per-callsite ceremony. The HTML elements that come back from `DOMParser` are already in the XHTML namespace, which is why the toolbar etc. render correctly without special handling.
+**XHTML namespace gotcha.** Even after we replace `documentElement`, `document.contentType` remains `application/xml`. In an XML document, plain `document.createElement(tagName)` creates an element in the *null* namespace — not an HTMLElement, so it has no `.style`, no `.dataset`, etc. content.js uses `createElementNS(XHTML, "script")` for the script tags it injects, and `viewer.js` monkey-patches `document.createElement` at the top of its IIFE so every subsequent call produces real HTMLElements with no per-callsite ceremony. The HTML elements that come back from `DOMParser` are already in the XHTML namespace, which is why the toolbar etc. render correctly without special handling.
 
 ## ONIX detection logic
 
@@ -1106,17 +1105,35 @@ The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
-## Currently disabled features
+## The structure pane, removed
 
-Two features are bundled and tested but hidden from the UI while the simpler tree-only experience is polished:
+There used to be a second view — a right pane rendering Products as
+cards-and-blocks, with a divider, a three-way XML / Split / Structure toggle and
+bidirectional collapse-sync to the tree. It was **bundled and tested but gated
+off in the UI**, in two places at once, and stayed that way long enough that it
+was shipping ~29 KB of `onix-blocks.js` plus 47 CSS rules and a divider drag
+handler to every install, for something no reader could reach. Removed in
+0.9.17.
 
-- **Structure / Split view** — a right pane that renders ONIX Products as cards with sections per P.x block (DescriptiveDetail, CollateralDetail, …), with bidirectional collapse-sync to the tree pane and click-to-highlight. Lives in `Resources/onix-blocks.js`. To re-enable: uncomment the `.px-view-group` block in `content.js` and delete the early-return at the top of `setupViewMode()` in `viewer.js`.
+What went with it: `Resources/onix-blocks.js`, `window.OnixViewerBlocks`,
+`setupViewMode` / `applyViewMode` / `renderBlocksPane` / `setupBlockSync` /
+`setupDivider`, the `pairMap` row↔card WeakMap and the
+`highlightInTree`/`highlightInBlocks` pair, the `#oxv-blocks-pane`,
+`#oxv-blocks` and `#oxv-divider` elements, the `body.oxv-view-*` classes and the
+`oxv-view-mode` localStorage key, and 339 lines of tests. The tree lost nothing:
+`setActiveTreeRow` stays, because the findings list uses it to jump to a row.
 
-  **The pane's cards are built on first reveal, not at load.** `renderBlocksPane()` in `viewer.js` runs the first time `applyViewMode()` is given a mode other than `xml`, and wires `setupBlockSync()` immediately after — the collapse-sync pairs tree rows with cards, so it can only run once the cards exist. Rendering it eagerly while it was hidden cost every ONIX page a second full pass whose output was then thrown away: 43k discarded DOM nodes on a 300-product feed, 144k on a 1000-product one, and roughly half the load time.
+Three things are deliberately **kept**, having looked like pane code and not
+been:
 
-  The meta pill's product count therefore comes from `OnixViewerOnix.productElements(doc).length`, not from the pane's return value — the label must not depend on a disabled feature having run.
+- **`.px-block-label`** — the tree's own `Block N` badge, built in `viewer.js`.
+- **`#oxv-block-list`** — the toolbar pill's `Blocks: 1, 2, 4, 5, 6` segment,
+  which is a different thing entirely from `#oxv-blocks`.
+- **`#oxv-main`** — still the flex row wrapping `#oxv-root`, now with one child.
 
-  Tests that assert on the pane go through `renderWithBlocks()` in `tests/run.js`, which reveals it the way a reader would.
+If the idea ever comes back it is in the history (`git show 53ea342:Resources/onix-blocks.js`, the last commit that carried it),
+and it should come back as its own thing rather than as a permanently-disabled
+branch of the viewer.
 
 ## Identifier conventions
 
@@ -1128,7 +1145,6 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
 - `window.OnixViewerShortTags` — generated short-tag → reference-name pairs (lower-cased keys); `onix.js` builds `SHORT_TO_REFERENCE` from it
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
-- `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.0"`, `"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
@@ -1240,7 +1256,6 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **Generic XML rendering** (syntax highlighting, fold behavior, search, keyboard nav): live in `viewer.js` and `viewer.css`. Always add a corresponding fixture + test.
 - **ONIX detection / codelist resolution / Product summaries**: live in `onix.js`. The viewer calls into the ONIX module via the `window.OnixViewerOnix` API — keep that contract narrow so non-ONIX docs don't pay for ONIX features.
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
-- **Right-pane block changes** (only relevant if/when the structure view is re-enabled): live in `onix-blocks.js`. Uses native `<details>`/`<summary>` for collapse, no JS needed for that.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
 - **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes all seven manifest sizes. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-48.png`, the app icon's own 48px size, so there is nothing to keep in step. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
 - **Store screenshots**: re-take into `Screenshots/` at 1280×800 and commit them. That directory is the record of what the listing shows — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`.

@@ -42,6 +42,38 @@ the main branch.
   content height. It is removed rather than left broken if the page's `img-src`
   CSP refuses extension URLs.
 
+### Removed
+- **The structure / split pane is gone.** A right pane rendering Products as
+  cards-and-blocks, with a resizable divider, a three-way XML / Split /
+  Structure toggle and bidirectional collapse-sync to the tree — bundled,
+  tested, and gated off in the UI in two places at once. It shipped ~29 KB of
+  `onix-blocks.js`, 47 CSS rules and a divider drag handler to every install
+  for something no reader could reach. Out with it went
+  `window.OnixViewerBlocks`, `setupViewMode`/`applyViewMode`/
+  `renderBlocksPane`/`setupBlockSync`/`setupDivider`, the row↔card `pairMap`
+  and its highlight pair, `#oxv-blocks-pane`/`#oxv-blocks`/`#oxv-divider`, the
+  `body.oxv-view-*` classes, the `oxv-view-mode` localStorage key and 339 lines
+  of tests. `viewer.js` is 13.3 KB smaller, `viewer.css` 6.8 KB, and the
+  packaged extension drops about 49 KB.
+
+  The tree kept everything of its own: the `Block N` badge
+  (`.px-block-label`), the toolbar's `Blocks: …` segment (`#oxv-block-list` —
+  a different thing from `#oxv-blocks`), and `setActiveTreeRow`, which the
+  findings list uses to jump to a row.
+- **Superseded icon artwork.** The book-and-gem source (`icons/image.png` and
+  its original) and two hand-drawn sizes that nothing reads — only manifest
+  sizes are consulted, so `icon-24.png` and `icon-64.png` were never opened.
+- **Dead blocks-pane leftovers**: `findIdentifiers()` in the pane renderer had
+  no caller, and `.px-block-list` / `.px-block-subhead` were styled but never
+  produced by anything.
+
+### Fixed
+- **The shipped 32px icon was stale.** `icons/icon-32.png` gained an alpha
+  channel, which makes a hand-drawn size win over a downscale of the master —
+  but `render-icons.sh` had not been re-run since, so `Resources/icons/icon-32.png`
+  was still the downscale. Re-rendered. Note that the icons have no drift check
+  in CI the way the generated JS does.
+
 ### Changed
 - **Soft wrap gains an icon**, so every labelled toolbar button now has one.
   It is the return arrow: two earlier attempts drew the literal wrap — a text
