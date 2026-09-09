@@ -213,6 +213,15 @@ describe("Generic XML", () => {
     assert(piRows.some((p) => p.textContent.startsWith("<?xml")), "missing <?xml declaration");
   });
 
+  test("renders a DOCTYPE with its SYSTEM keyword", () => {
+    // Every ONIX 2.1 file references its DTD this way, and the row used to
+    // drop the keyword: <!DOCTYPE ONIXMessage "http://…dtd">.
+    const w = render("onix-2.1-doctype.xml");
+    const doctype = $$(w, "#oxv-root .px-pi").map((p) => p.textContent).find((t) => t.startsWith("<!DOCTYPE"));
+    assert(doctype === '<!DOCTYPE ONIXMessage SYSTEM "http://www.editeur.org/onix/2.1/reference/onix-international.dtd">',
+      `got: ${doctype}`);
+  });
+
   test("renders comments distinctly", () => {
     const w = render("with-comments.xml");
     const comments = $$(w, "#oxv-root .px-comment");

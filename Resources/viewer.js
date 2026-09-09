@@ -266,8 +266,11 @@
         appendRow(parent, depth, false, (row) => {
           const span = document.createElement("span");
           span.className = "px-pi";
+          // PUBLIC takes both ids; a system id on its own needs SYSTEM in
+          // front of it, which is the form every ONIX 2.1 DTD reference takes.
           let s = `<!DOCTYPE ${node.name}`;
           if (node.publicId) s += ` PUBLIC "${node.publicId}"`;
+          else if (node.systemId) s += " SYSTEM";
           if (node.systemId) s += ` "${node.systemId}"`;
           s += ">";
           span.textContent = s;
