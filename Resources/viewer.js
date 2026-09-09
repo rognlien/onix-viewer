@@ -13,12 +13,6 @@
 (function () {
   "use strict";
 
-  // Lower-cased names of the ONIX 3.x block elements (DescriptiveDetail …
-  // PromotionDetail). The table lives in onix.js next to the block numbers.
-  const ONIX_BLOCK_NAMES = window.OnixViewerOnix
-    ? window.OnixViewerOnix.blockNames
-    : new Set();
-
   // Named here so Collapse's ONIX-shaped steps are skipped on non-ONIX
   // documents, where the ONIX module isn't consulted at all.
   const isProductElement = window.OnixViewerOnix
@@ -519,8 +513,8 @@
   }
 
   // "→ XHTML" chip right after a code-list attribute value, e.g.
-  // <Text textformat="06" → XHTML>. Lives inside the .px-attr span so the
-  // "hide attributes" toggle hides it along with the attribute.
+  // <Text textformat="06" → XHTML>. Lives inside the .px-attr span, so it
+  // belongs to the attribute it explains.
   function buildAttributeBadge(attributeName, resolved) {
     const badge = document.createElement("span");
     badge.className = "px-codelist px-attr-codelist";
@@ -687,19 +681,10 @@
   }
 
   function autoCollapseProducts() {
-    // Find every open-row whose first tag span's text is a Product element
-    // (in either dialect). With more than one we collapse them so a long
-    // feed is scannable; with a single product we leave it expanded since
-    // the user is clearly inspecting that one record.
-    const rows = root.querySelectorAll(".px-row.px-collapsible");
-    const productRows = [];
-    for (const row of rows) {
-      const firstTag = row.querySelector(".px-tag + .px-tag"); // skip "<"
-      if (!firstTag) continue;
-      if ((firstTag.textContent || "").toLowerCase() === "product") {
-        productRows.push(row);
-      }
-    }
+    // With more than one Product we collapse them so a long feed is
+    // scannable; with a single product we leave it expanded, since the user
+    // is clearly inspecting that one record.
+    const productRows = collapsibleRows().filter(isProductRow);
     if (productRows.length <= 1) return;
     for (const row of productRows) row.classList.add("px-folded");
   }
@@ -735,11 +720,6 @@
         case "dialect-toggle":
           applyDialect(otherDialect(displayDialect));
           break;
-        case "toggle-attrs": {
-          const on = document.body.classList.toggle("px-no-attrs");
-          btn.setAttribute("aria-pressed", on ? "false" : "true");
-          break;
-        }
         case "search":
           toggleSearch();
           break;

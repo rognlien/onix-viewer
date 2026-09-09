@@ -1168,7 +1168,7 @@ branch of the viewer.
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListTitles` — list number → title, for the 35 lists no element binds

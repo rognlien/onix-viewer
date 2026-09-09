@@ -647,8 +647,6 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-pi { color: var(--pi); }
 .px-cdata-marker { color: var(--cdata-marker); }
 
-body.px-no-attrs .px-attr { display: none; }
-
 /* inline summary shown on collapsed parents */
 .px-summary {
   margin-left: 8px;
