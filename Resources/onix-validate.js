@@ -26,6 +26,7 @@
     "structure.expected-one-of": "<{parent}> requires one of {expected} here",
     "structure.unexpected": "<{found}> is not allowed at this position in <{parent}>",
     "structure.repeated": "<{found}> may appear at most {max}× in <{parent}>",
+    "structure.stray-text": "<{found}> contains text (\"{text}\") where only elements are allowed",
     "structure.childless": "<{found}> takes a value, not child elements",
     "structure.not-empty": "<{found}> must be empty",
     "structure.missing-value": "<{found}> must carry a value",
@@ -345,6 +346,7 @@
       }
       if (shape.flow) return false; // XHTML — not ours to judge
       if (shape.c) {
+        reportStrayText(node, api);
         matchChildren(node, name, shape.c, api);
         return true;
       }
@@ -367,6 +369,25 @@
       return false;
     },
   });
+
+  // A composite's content model is element-only — none of them is
+  // `mixed="true"`, which is what `flow` marks and what returns above — so any
+  // non-whitespace character data inside one is a schema violation. The
+  // matcher works from childElements alone and so never saw it: a stray
+  // fragment sitting between two composites passed in silence. Indentation is
+  // whitespace and must stay invisible, so only a run with a non-space
+  // character counts, and it is reported once however many text nodes carry
+  // it.
+  function reportStrayText(node, api) {
+    for (const child of node.childNodes) {
+      const isText = child.nodeType === 3 || child.nodeType === 4; // text, CDATA
+      if (isText && (child.nodeValue || "").trim()) {
+        api.report("structure.stray-text", node,
+          { found: node.nodeName, text: (child.nodeValue || "").trim().slice(0, 40) });
+        return;
+      }
+    }
+  }
 
   // Greedy single pass. Sound because the schema has no repeating compound
   // particle and XSD's Unique Particle Attribution makes the first-sets of a

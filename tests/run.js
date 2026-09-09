@@ -1215,6 +1215,41 @@ describe("Validation", () => {
     });
   });
 
+  test("text inside an element-only composite is reported", () => {
+    // No composite is mixed="true" — that is what `flow` marks, and flow
+    // returns before this check — so character data inside one violates the
+    // schema. The matcher works from childElements alone and never saw it.
+    // Indentation is whitespace and must stay invisible.
+    const w = render("onix-3.1-valid.xml");
+    const product = (stray) =>
+      '<?xml version="1.0"?><ONIXMessage release="3.1" ' +
+      'xmlns="http://ns.editeur.org/onix/3.1/reference">' +
+      "<Header><Sender><SenderName>S</SenderName></Sender>" +
+      "<SentDateTime>20260101</SentDateTime></Header>" +
+      `<Product>${stray}<RecordReference>r1</RecordReference>` +
+      "<NotificationType>03</NotificationType>" +
+      "<ProductIdentifier><ProductIDType>15</ProductIDType>" +
+      "<IDValue>9788234567896</IDValue></ProductIdentifier>" +
+      "<DescriptiveDetail><ProductComposition>00</ProductComposition>" +
+      "<ProductForm>BC</ProductForm><TitleDetail><TitleType>01</TitleType><TitleElement>" +
+      "<TitleElementLevel>01</TitleElementLevel><NoPrefix/>" +
+      "<TitleWithoutPrefix>T</TitleWithoutPrefix></TitleElement></TitleDetail>" +
+      "</DescriptiveDetail></Product></ONIXMessage>";
+
+    assert(codes(findingsFor(w, product("oops"))).join() === "structure.stray-text",
+      `stray text should be reported; got: ${codes(findingsFor(w, product("oops"))).join(", ")}`);
+    assert(codes(findingsFor(w, product("<![CDATA[oops]]>"))).join() === "structure.stray-text",
+      "CDATA is character data too");
+    assert(findingsFor(w, product("\n\t   \n")).total === 0,
+      "indentation must stay invisible");
+    assert(findingsFor(w, product("")).total === 0, "and the control stays clean");
+
+    // XHTML-bearing elements are mixed by design and must not be touched.
+    const flow = product("").replace("<TitleWithoutPrefix>T</TitleWithoutPrefix>",
+      "<TitleWithoutPrefix>T</TitleWithoutPrefix>");
+    assert(findingsFor(w, flow).total === 0, "flow content is not judged");
+  });
+
   test("a finite maxOccurs is enforced, not just unbounded", () => {
     // <OrderQuantityMinimum> is the one particle in either release with a
     // finite bound above one (maxOccurs="2"), so it is the only thing keeping

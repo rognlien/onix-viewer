@@ -906,6 +906,14 @@ choice whose second branch is `<xs:element minOccurs="0" ref="NoContributor"/>`
 `<NoContributor>` is legal. `nullable()` models this. Without it, EDItEUR's own
 sample reports a false error.
 
+**Character data in a composite is a violation.** No composite is
+`mixed="true"` — that is exactly what `flow` marks, and flow returns before the
+check — so text inside one breaks the schema. The matcher works from
+`childElements`, so it never saw it and a stray fragment between two composites
+passed in silence; `reportStrayText` closes that. Only a run containing a
+non-space character counts, because indentation is text too, and it reports
+once however many text nodes carry it.
+
 **Unknown elements are skipped, not matched.** An element the model has never
 heard of is reported once as `structure.unknown` and left out of its parent's
 match. Without that recovery a single typo makes every following sibling "not

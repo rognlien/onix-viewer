@@ -91,6 +91,13 @@ the main branch.
   by no rule.
 
 ### Fixed
+- **Text inside an element-only composite went unreported.** No ONIX composite
+  is `mixed="true"` — that is what the XHTML `flow` elements are — so character
+  data inside one is a schema violation. The matcher worked from
+  `childElements` alone and so never saw it: a stray fragment sitting between
+  two composites, of the kind a mis-serialised feed produces, passed in
+  silence. Now `structure.stray-text`, CDATA included. Indentation stays
+  invisible, and flow elements are still never inspected.
 - **A wrong-length identifier went unchecked.** Under `ProductIDType` 15 both
   `978-82-345-6789-6` (hyphenated, which real feeds do send) and `97882345`
   (truncated) passed in silence. A comment claimed the length was "left to the
