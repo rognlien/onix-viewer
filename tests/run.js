@@ -2862,7 +2862,9 @@ describe("Content-script sniffs", () => {
       const release = (xml.match(/ns\.editeur\.org\/onix\/(?:acknowledgement\/)?(\d+\.\d+)\//) ||
                        xml.match(/release\s*=\s*["'](\d+\.\d+)["']/) || [])[1];
       const urls = contentModelURLs(xml);
-      const expected = release ? [`onix-content-model-${release}.js`] : null;
+      // ONIX 2.1 declares a release but has no model, so it is sent both.
+      const bundled = fs.existsSync(path.join(RES, `onix-content-model-${release}.js`));
+      const expected = bundled ? [`onix-content-model-${release}.js`] : null;
       if (expected && JSON.stringify(urls) !== JSON.stringify(expected)) {
         wrong.push(`${file} (release ${release}) → ${JSON.stringify(urls)}`);
       }

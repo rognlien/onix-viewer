@@ -199,6 +199,15 @@
   }
 
   function takeOver(xmlSource) {
+    // We run at document_start and a cached re-fetch resolves quickly, so the
+    // parser may not have created the root element yet. There is nothing to
+    // replace until it has — and the swap below throws on a null root, into
+    // the catch above, which is silent in release.
+    if (!document.documentElement) {
+      whenRootExists(() => takeOver(xmlSource));
+      return;
+    }
+
     // Another enabled copy of the extension may already have taken this page
     // over (a Web Store install running alongside an unpacked one). Replacing
     // its shell would leave two viewer instances rendering into one tree, so
@@ -310,6 +319,24 @@
       s.async = false;
       document.body.appendChild(s);
     });
+  }
+
+  // Calls back once the parser has given the document a root element. The
+  // parser's insertions are observable mutations; DOMContentLoaded is the
+  // backstop for a document that reaches the end without one.
+  function whenRootExists(callback) {
+    let called = false;
+    const once = () => {
+      if (called) return;
+      called = true;
+      observer.disconnect();
+      callback();
+    };
+    const observer = new MutationObserver(() => {
+      if (document.documentElement) once();
+    });
+    observer.observe(document, { childList: true });
+    document.addEventListener("DOMContentLoaded", once, { once: true });
   }
 
   function deriveTitle(url) {
