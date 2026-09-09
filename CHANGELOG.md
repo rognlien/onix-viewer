@@ -3,6 +3,193 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## 0.9.17 — 2026-09-09
+
+### Added
+- **Attributes are validated.** ONIX's ten attributes — `datestamp`,
+  `sourcename`, `sourcetype`, `language`, `textscript`, `textformat`,
+  `textcase`, `dateformat`, `collationkey`, `release` — were never checked, so
+  a `textformat="99"` passed while the same bad code in an element was
+  reported. The new `attribute` rule checks code-list membership, deprecated
+  codes, datatypes, enumerations, and the one required attribute. `refname`
+  and `shortname` are checked against the element they sit on, in whichever
+  dialect the document uses. `xmlns`, `xsi:*` and `xml:*` are left alone.
+
+  The models grew ~4 KB, not 25: only ten distinct attribute sets exist across
+  510 elements, so the generator pools them and each element stores an index.
+
+### Added
+- **All 142 identity constraints are enforced** (85 in 3.0) — the rules no
+  content model can state: no two `<Product>` with the same
+  `<RecordReference>`, no two `<Measure>` with the same type and unit, each
+  repeat of `<Text>` needing a distinct language and script. Compiled from the
+  schema's `xs:unique` onto each host element; the generator throws rather than
+  skip a shape it cannot compile. `xs:unique`'s own rule is kept: a node whose
+  key is incomplete falls outside the constraint.
+
+### Added
+- **New owl artwork throughout.** The seven manifest icon sizes, the toolbar
+  mark, and the promo tiles all come from `icons/icon-original.png` now.
+  `tools/render-icons.sh` prefers a hand-drawn `icons/icon-<size>.png` over a
+  downscale of the master where one exists — definition at 16 and 32 px is worth
+  more than consistency with a scale — but refuses one without an alpha channel,
+  since an opaque icon shows as a pale tile on a dark ground.
+- **The toolbar mark is the app icon itself**, not a copy — it loads
+  `Resources/icons/icon-48.png` rather than a `logo-48.png` that would need
+  keeping in step.
+- **The toolbar opens with the extension's mark.** A raw XML URL gives no other
+  clue which extension replaced the page. 28px, which is exactly the toolbar's
+  content height. It is removed rather than left broken if the page's `img-src`
+  CSP refuses extension URLs.
+
+### Added
+- **The store-review claims are now asserted, not just written down.** A
+  `Reviewability` block in the suite checks that no shipped script uses `eval`,
+  `new Function` or `document.write`; that exactly one `fetch()` exists and it
+  targets the page's own URL; that every `innerHTML` write is a literal empty
+  string; that the manifest declares no permissions, host permissions,
+  background worker or `externally_connectable`; that `SECURITY.md`'s fenced
+  manifest excerpt parses as JSON and matches the real manifest field for
+  field; and that every resource `content.js` injects is web-accessible and
+  present. A stale security note is worse than none, so these are held by
+  tests rather than by hand.
+- **A staleness check for the icons** (`npm run check:icons`, and a step in
+  `test.yml`). The shipped PNGs must be byte-identical to their hand-drawn
+  sources, sized to match their names, and carry an alpha channel. It compares
+  bytes rather than re-rendering, because `render-icons.sh` needs
+  `rsvg-convert`, whose output is not byte-stable between versions — a
+  re-render-and-diff check would fail on the renderer, not on a real problem.
+  It also reports which sizes are still downscales of the master.
+
+### Removed
+- **The structure / split pane is gone.** A right pane rendering Products as
+  cards-and-blocks, with a resizable divider, a three-way XML / Split /
+  Structure toggle and bidirectional collapse-sync to the tree — bundled,
+  tested, and gated off in the UI in two places at once. It shipped ~29 KB of
+  `onix-blocks.js`, 47 CSS rules and a divider drag handler to every install
+  for something no reader could reach. Out with it went
+  `window.OnixViewerBlocks`, `setupViewMode`/`applyViewMode`/
+  `renderBlocksPane`/`setupBlockSync`/`setupDivider`, the row↔card `pairMap`
+  and its highlight pair, `#oxv-blocks-pane`/`#oxv-blocks`/`#oxv-divider`, the
+  `body.oxv-view-*` classes, the `oxv-view-mode` localStorage key and 339 lines
+  of tests. `viewer.js` is 13.3 KB smaller, `viewer.css` 6.8 KB, and the
+  packaged extension drops about 49 KB.
+
+  The tree kept everything of its own: the `Block N` badge
+  (`.px-block-label`), the toolbar's `Blocks: …` segment (`#oxv-block-list` —
+  a different thing from `#oxv-blocks`), and `setActiveTreeRow`, which the
+  findings list uses to jump to a row.
+- **Superseded icon artwork.** The book-and-gem source (`icons/image.png` and
+  its original) and two hand-drawn sizes that nothing reads — only manifest
+  sizes are consulted, so `icon-24.png` and `icon-64.png` were never opened.
+- **Dead blocks-pane leftovers**: `findIdentifiers()` in the pane renderer had
+  no caller, and `.px-block-list` / `.px-block-subhead` were styled but never
+  produced by anything.
+- **`OnixViewerOnix.tagClass()`** — exported but called by nothing;
+  `viewer.js` derives the dialect class itself in `displayedTagClass()`.
+- **A dead `--shadow-card` custom property**, declared in both themes and used
+  by no rule.
+
+### Fixed
+- **Text inside an element-only composite went unreported.** No ONIX composite
+  is `mixed="true"` — that is what the XHTML `flow` elements are — so character
+  data inside one is a schema violation. The matcher worked from
+  `childElements` alone and so never saw it: a stray fragment sitting between
+  two composites, of the kind a mis-serialised feed produces, passed in
+  silence. Now `structure.stray-text`, CDATA included. Indentation stays
+  invisible, and flow elements are still never inspected.
+- **A wrong-length identifier went unchecked.** Under `ProductIDType` 15 both
+  `978-82-345-6789-6` (hyphenated, which real feeds do send) and `97882345`
+  (truncated) passed in silence. A comment claimed the length was "left to the
+  datatype rule" — it cannot be: `<IDValue>` is typed `dt.NonEmptyString`,
+  pattern `.*\S.*`, so the schema constrains neither length nor alphabet and
+  there is no facet to catch it with. The `gtin` rule now owns the length for
+  the three schemes it knows, reporting `gtin.length` before any check digit,
+  since a digit cannot be computed for a value of the wrong shape. A lower-case
+  `x` in an ISBN-10's check position stays accepted on purpose.
+- **An empty attribute value went unchecked.** `language=""`, `datestamp=""`
+  and `collationkey=""` were all accepted: the attribute rule bailed out on a
+  falsy value before reaching any check. No ONIX attribute has a legal empty
+  value — each is code-list bound (no enumeration includes the empty string),
+  an enumeration of its own, or a datatype whose pattern demands a character
+  (`dt.NonEmptyString` is literally `.*\S.*`) — so this is now reported as
+  `attribute.empty`. Whitespace-only counts as empty, because every enumerated
+  type in ONIX restricts `xs:token`, which collapses whitespace before
+  validating; the same rule is why `language=" eng "` stays valid.
+- **`SECURITY.md` under-reported the manifest.** Its excerpt claimed to be the
+  full surface but omitted `icons/icon-48.png` from `web_accessible_resources`
+  (added when the toolbar gained the app icon) as well as `all_frames`, and it
+  described the clipboard path without its `execCommand` fallback. All three
+  corrected, and `web_accessible_resources` — which reviewers do ask about —
+  now has a justification of its own in both `SECURITY.md` and
+  `CWS_LISTING.md`.
+- **The shipped 32px icon was stale.** `icons/icon-32.png` gained an alpha
+  channel, which makes a hand-drawn size win over a downscale of the master —
+  but `render-icons.sh` had not been re-run since, so `Resources/icons/icon-32.png`
+  was still the downscale. Re-rendered. Note that the icons have no drift check
+  in CI the way the generated JS does.
+
+### Changed
+- **Soft wrap gains an icon**, so every labelled toolbar button now has one.
+  It is the return arrow: two earlier attempts drew the literal wrap — a text
+  rule plus a line curving round with an arrowhead — and at 14px both read as a
+  bar with a nub, because an arc and an arrowhead do not fit in 10 pixels. The
+  dialect switch stays text-only on purpose; its label names the translation and
+  changes with the document.
+
+### Fixed
+- **Four datatypes were entirely unchecked.** `dt.Decimal`, `dt.Integer`,
+  `dt.PositiveInteger` and `dt.PositiveIntegerOrZero` carry no facets at all,
+  only a base type, and the generator recorded facets only — so
+  `<EditionNumber>abc</EditionNumber>` passed, as did `2.5` and `0`. The base
+  type's lexical space is now checked, `xs:int`'s 32-bit range included.
+- **Space-separated code lists had their members skipped.**
+  `<CountriesIncluded>NO XX DK</CountriesIncluded>` passed unchallenged; `XX` is
+  now named. The generator records what the list is *of*, and `minLength`.
+- **`dt.DateOrDateTime` was never checked.** The generator saw `xs:union` and
+  treated it as opaque, so every `datestamp` and every date element went
+  unvalidated. The union has one member type carrying the five date patterns,
+  and a union of one is just that member. No fixture or `Onix/` sample gained
+  a finding, so this was a missed check rather than a wrong answer.
+- **35 code lists had no name to print in a finding.** Titles were only
+  reachable through an element that binds the list, and those 35 are bound to
+  attributes instead — so a finding read "List 14 (List 14)". The code-list
+  generator now emits titles by number as well.
+- **`<EpubLicense>` was missing from the ONIX 3.1 model entirely**, so valid
+  3.1 reported it as an unknown element and nothing inside it was checked at
+  all. It is the one element in either release declared by a *named*
+  `complexType` rather than an inline one — five declarations, two types — and
+  the generator compiled only inline types. Named types are now compiled,
+  `xs:extension` resolved by concatenating the base's particles ahead of the
+  extension's own. Its content model is genuinely context-dependent, so the
+  variants are keyed by parent: `<EpubLicenseDate>` is legal under
+  `<DescriptiveDetail>`, `<ContentItem>`, `<ResourceVersion>` and
+  `<TextContent>`, and not under `<Price>`. Every rule now reads an element's
+  shape through `api.shapeOf(node)`, which is where the parent is consulted.
+- **ONIX 3.0's `sourcetype`, `textcase` and `textformat` went unchecked.** 3.0
+  names those attribute types after the code list — `SourceTypeCode` where 3.1
+  says `List3` — and the definitions live in the CodeLists XSD we don't commit,
+  so all three compiled to an unknown datatype, which the datatype rule skips
+  in silence. A `textformat="99"` in a 3.0 document passed: exactly the bug
+  0.9.17 fixed for 3.1. They now resolve to Lists 3, 14 and 34.
+- **An empty `<CopyrightType/>` was reported as missing a value.** The
+  declaration carries `default="C"`, and an XSD default applies precisely when
+  the element is left empty, so the element is valid and means `C`. Defaults
+  are recorded in the model; three declarations across the two releases have
+  one.
+
+### Changed
+- **The content-model generator now refuses a schema it does not fully
+  understand**, rather than emit a model that is quietly short. Both releases
+  use exactly 27 XSD element kinds and all 27 are compiled, so a construct
+  absent today — `xs:any`, `xs:all`, `xs:key`, `nillable`, a facet like
+  `maxExclusive` — fails the build instead of being ignored. It also asserts
+  that every datatype named by an element or attribute is one it compiled,
+  which is the check that would have caught the 3.0 attribute gap above, and
+  that no facet on a `dt.*` type goes unread. A finite `maxOccurs` is enforced
+  too: `<OrderQuantityMinimum maxOccurs="2">` is the one particle in either
+  release with an upper bound above one.
+
 ## 0.9.16 — 2026-09-08
 
 ### Added

@@ -15,14 +15,13 @@ When the browser loads a page whose `Content-Type` is `application/xml`, `text/x
 4. Labels the ONIX blocks: each block element inside a `<Product>` gets a `Block N` badge, and for a single-Product document the document pill names the blocks present (`Blocks: 1, 4, 6`).
 5. **Expand** and **Collapse** work a level at a time rather than all-or-nothing. Collapse follows the shape of a message: the first press folds the `<Header>` and everything inside each `<Product>` — the seven blocks plus `ProductIdentifier`, `RecordSourceIdentifier` and `Barcode` — so each record reads as one row per composite; the second folds the `<Product>` rows; the third folds the root. Expand walks back out the same way. Neither counts clicks: each press reads the tree, so they still do the right thing after you have folded rows by hand.
 6. Lets you read — and copy — the other dialect. ONIX comes in two: **reference names** (`<LanguageRole>`) and **short tags** (`<b253>`). One switch (shortcut `t`) shows the document as the other one — labelled **View as reference names** over a short-tag file and **View as short tags** over a reference file, so it's always obvious which one you actually opened; the toolbar names the source dialect too. Copying follows the view, so while translated, **Copy XML** and **Copy node XML** hand you the converted ONIX, namespace included. Back at the document's own dialect, the copy is the file byte for byte.
-7. Validates the document automatically, in the background: missing or misplaced elements, codes that aren't in their EDItEUR list, codes *and elements* EDItEUR has deprecated (naming the replacement it advises), ISBN-13 / GTIN-13 / ISBN-10 check digits, and values that break their datatype. Each finding gets a chip on the row it concerns — red with a cross for a schema error, amber with an exclamation for a warning — with the message in the tooltip. The toolbar shows a spinner while it works, a green tick and **Valid** when the document is clean, or e.g. `5 errors, 2 warnings`; click that (or press `v`) for the full list, and click any entry to jump to that row. Both ONIX releases since 3.0 are checked in full — 3.0 and 3.1, each against its own schema. Anything older (2.1) gets its code lists checked and is told the structure wasn't, as do Acknowledgement messages, whose schema isn't bundled.
+7. Validates the document automatically, in the background: missing or misplaced elements, codes that aren't in their EDItEUR list, codes *and elements* EDItEUR has deprecated (naming the replacement it advises), ISBN-13 / GTIN-13 / ISBN-10 check digits, values that break their datatype, and the attributes — `language`, `textformat`, `datestamp` and the rest — which are checked the same way. Each finding gets a chip on the row it concerns — red with a cross for a schema error, amber with an exclamation for a warning — with the message in the tooltip. The toolbar shows a spinner while it works, a green tick and **Valid** when the document is clean, or e.g. `5 errors, 2 warnings`; click that (or press `v`) for the full list, and click any entry to jump to that row. Both ONIX releases since 3.0 are checked in full — 3.0 and 3.1, each against its own schema. Anything older (2.1) gets its code lists checked and is told the structure wasn't, as do Acknowledgement messages, whose schema isn't bundled.
 8. Lets you copy any subtree: hover a row and click the `⋮` button in the gutter, then **Copy node XML**. You get the element and its children as plain source XML, without any of the viewer's decoration.
 
 It also recognises the ONIX **Acknowledgement** message (root `<ONIXMessageAcknowledgement>`) — the optional response format a recipient sends back to confirm or reject a feed. It's labelled `ONIX Acknowledgement 3.0` in the toolbar, and the status codes it's built from (`MessageStatus`, `RecordStatus`, status-detail severity, …) resolve to readable labels just like product code-lists.
 
 Non-ONIX XML (RSS, generic XML, anything without an EDItEUR namespace) is left alone — the browser's native viewer handles it. XHTML and SVG are also skipped (browsers render them natively).
 
-There's also a more ambitious "Structure" / "Split" pane that renders ONIX content as a higher-level cards-and-blocks view; it's bundled and tested but **disabled in the UI for the time being** while we get the tree-only experience polished. See `setupViewMode` in `viewer.js` for the one-line revert.
 
 ## Install (development)
 
@@ -40,14 +39,14 @@ While the Chrome Web Store review is pending you can sideload the extension as a
 2. Open Chrome and go to `chrome://extensions`.
 3. Toggle **Developer mode** (top-right).
 4. Click **Load unpacked** (top-left), navigate to the unzipped folder, and select it.
-6. The "ONIX Viewer" card appears. Click **Details** → enable **Allow access to file URLs** to open local `.xml` files.
+5. The "ONIX Viewer" card appears. Click **Details** → enable **Allow access to file URLs** to open local `.xml` files.
 
 **Caveats**
 
 - Chrome shows a persistent "Disable developer mode extensions" banner on every restart. Dismissable but recurring. It goes away once the Web Store version is installed.
 - **No auto-updates.** When a new version ships, send the new zip; recipients delete-and-reinstall, or replace the folder contents and click the reload arrow on the extension card.
 
-For Workspace-managed Macs, IT can bypass all of the above by force-installing the packed `.crx` via the `ExtensionInstallForcelist` Chrome policy — gold-standard internal distribution, but needs an admin.
+If your company centrally manages its Macs, IT can skip all of the above and install the extension for everyone silently, with automatic updates, via Chrome's `ExtensionInstallForcelist` policy. That needs someone with admin access to the fleet's management tooling, plus a private signing key and somewhere to host the packed `.crx` — worth it for a managed fleet, overkill for a few colleagues.
 
 ## Test it
 
@@ -58,7 +57,7 @@ npm install
 npm test
 ```
 
-Runs the full jsdom suite (187 tests, ~7s) covering generic XML, ONIX 3.0/3.1 reference and short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), the dialect switch and both copy paths, validation (content model, code lists, datatypes, deprecated elements, check digits), stepped expand/collapse, search, the toolbar, and the (currently disabled) structure view.
+Runs the full jsdom suite (188 tests, ~8s) covering generic XML, ONIX 3.0/3.1 reference and short-tag, RSS, parse errors, code-list resolution, the code-list popup, collapsed-row summary edge cases (multi-title, GTIN-only, ISBN-10-only, proprietary-only), the dialect switch and both copy paths, validation (content model, code lists, datatypes, attributes, identity constraints, deprecated elements, check digits), stepped expand/collapse, search and the toolbar.
 
 Pass a substring to run just part of it — matched against the test name and its
 block, so `npm test -- validation` or `npm test -- x512` both work, and a

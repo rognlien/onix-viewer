@@ -4,8 +4,8 @@
 //
 // Design notes:
 //  - We render to plain DOM (not innerHTML strings) for safety against XSS
-//    when XML contains markup-looking text. Performance is fine up to ~5MB
-//    docs; for larger we lazy-render children of folded <Product> blocks.
+//    when XML contains markup-looking text. Everything is rendered up front;
+//    Products are auto-collapsed on a multi-product feed so it stays scannable.
 //  - One row per logical "line": opening tag, text, closing tag are separate
 //    rows when the element has children, but combined into one row for
 //    leaf elements (more compact, easier to scan).
@@ -13,21 +13,12 @@
 (function () {
   "use strict";
 
-  // Lower-cased names of the ONIX 3.x block elements (DescriptiveDetail …
-  // PromotionDetail). The table lives in onix.js next to the block numbers.
-  const ONIX_BLOCK_NAMES = window.OnixViewerOnix
-    ? window.OnixViewerOnix.blockNames
-    : new Set();
-
   // Named here so Collapse's ONIX-shaped steps are skipped on non-ONIX
   // documents, where the ONIX module isn't consulted at all.
   const isProductElement = window.OnixViewerOnix
     ? window.OnixViewerOnix.isProductElement
     : () => false;
 
-  // Bidirectional map between a tree row and its right-pane <details>.
-  // Populated by setupBlockSync.bindPair(); used by click-to-highlight.
-  const pairMap = new WeakMap();
   // Tree row → the source DOM element it renders. Used by the per-node
   // menu ("Copy node XML") to serialise the original, undecorated subtree.
   const rowElements = new WeakMap();
@@ -80,6 +71,14 @@
       ["path", { d: "M4.6 7.2L8 4.2l3.4 3", "stroke-width": "1.7" }],
       ["path", { d: "M4.6 11.8L8 8.8l3.4 3", "stroke-width": "1.7" }],
     ],
+    // The return arrow, using the full box: two strokes, both bold. Earlier
+    // attempts drew a text rule plus a wrapping line, which needs an arc and
+    // an arrowhead inside about 10px — more detail than 14px holds, and both
+    // versions read as a bar with a nub.
+    wrap: [
+      ["path", { d: "M12.6 3.4v5.1a2.2 2.2 0 01-2.2 2.2H4.6", "stroke-width": "1.7" }],
+      ["path", { d: "M7.3 8L4.5 10.7l2.8 2.7", "stroke-width": "1.7" }],
+    ],
     // Two sheets, one behind the other.
     copy: [
       ["rect", { x: "3.3", y: "5.3", width: "7.9", height: "8.4", rx: "1.2", "stroke-width": "1.5" }],
@@ -109,10 +108,7 @@
     return svg;
   }
   let activeTreeRow = null;
-  let activeBlockEl = null;
 
-  const VIEW_MODES = ["xml", "split", "structure"];
-  const VIEW_STORAGE_KEY = "oxv-view-mode";
   const DIALECT_STORAGE_KEY = "oxv-dialect";
 
   // The dialect the document is written in, and the one currently on screen.
@@ -126,7 +122,8 @@
   // returns an element in the null namespace — not an HTMLElement — which
   // means it has no .style, .dataset, .className-as-DOMTokenList, etc.
   // Patch createElement once so every subsequent call (here and in
-  // onix-blocks.js) produces real HTMLElements.
+  // onix-popup.js, which builds its dialog lazily after this has run)
+  // produces real HTMLElements.
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const _createElementNS = document.createElementNS.bind(document);
   document.createElement = function (tagName) {
@@ -190,19 +187,8 @@
 
   const sizeKB = (SOURCE.length / 1024).toFixed(1);
 
-  // Right pane: ONIX blocks. Hidden entirely when the document isn't ONIX,
-  // so non-ONIX XML keeps a single full-width tree. Its cards are built by
-  // renderBlocksPane() the first time the pane is actually shown — the pane
-  // is hidden today (see setupViewMode), and building it eagerly cost every
-  // ONIX page a full second pass that was then thrown away: 43k discarded
-  // DOM nodes on a 300-product feed, 144k on a 1000-product one.
-  const blocksContainer = document.getElementById("oxv-blocks");
-  let blocksRendered = false;
   if (!onixCtx.isOnix) document.body.classList.add("px-no-onix");
 
-  // The meta pill's count comes straight from the parsed document rather than
-  // from the pane's return value, so the label doesn't depend on a disabled
-  // feature having run.
   const productCount = onixCtx.isOnix
     ? window.OnixViewerOnix.productElements(doc).length
     : 0;
@@ -216,10 +202,8 @@
 
   setupToolbar();
   setupDialectToggle();
-  setupViewMode(onixCtx.isOnix);
   setupSearch();
   setupKeyboard();
-  setupDivider();
   setupClickHandlers();
   setupNodeMenu();
   setupFindingsLabel();
@@ -277,8 +261,11 @@
         appendRow(parent, depth, false, (row) => {
           const span = document.createElement("span");
           span.className = "px-pi";
+          // PUBLIC takes both ids; a system id on its own needs SYSTEM in
+          // front of it, which is the form every ONIX 2.1 DTD reference takes.
           let s = `<!DOCTYPE ${node.name}`;
           if (node.publicId) s += ` PUBLIC "${node.publicId}"`;
+          else if (node.systemId) s += " SYSTEM";
           if (node.systemId) s += ` "${node.systemId}"`;
           s += ">";
           span.textContent = s;
@@ -338,119 +325,89 @@
     }
   }
 
+  // An element takes one of three shapes, decided by what its children are:
+  // empty, text-only, or element-bearing. This classifies and delegates; the
+  // three renderers below own the DOM each shape produces.
   function renderElement(el, parent, depth, stack) {
-    const elementChildren = Array.from(el.childNodes).filter(
+    const children = Array.from(el.childNodes).filter(
       (n) => n.nodeType !== Node.TEXT_NODE || n.nodeValue.trim().length > 0
     );
-
-    // Classify: leaf-text (single text/cdata child) vs. has-element-children
-    // vs. truly empty.
-    const onlyText =
-      elementChildren.length > 0 &&
-      elementChildren.every(
-        (n) => n.nodeType === Node.TEXT_NODE || n.nodeType === Node.CDATA_SECTION_NODE
-      );
-    const empty = elementChildren.length === 0;
-
-    if (empty) {
-      // <Tag attr="val"/> — single row, self-closing.
-      const selfClosingRow = appendRow(parent, depth, false, (row) => {
-        writeOpenTag(row, el, /* selfClose */ true);
-      });
-      attachNodeMenu(selfClosingRow, el);
-      return;
+    const textOnly = children.length > 0 && children.every(
+      (n) => n.nodeType === Node.TEXT_NODE || n.nodeType === Node.CDATA_SECTION_NODE
+    );
+    if (children.length === 0) {
+      renderEmptyElement(el, parent, depth);
+    } else if (textOnly) {
+      renderTextElement(el, parent, depth, children);
+    } else {
+      renderParentElement(el, parent, depth, stack);
     }
+  }
 
-    if (onlyText) {
-      // <Tag>text</Tag> — single row, with optional codelist badge.
-      const resolved = window.OnixViewerOnix
-        ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
-        : null;
-      const textClass = resolved ? "px-text px-codelist-value" : "px-text";
-      const leafRow = appendRow(parent, depth, false, (row) => {
-        writeOpenTag(row, el, false);
-        for (const c of elementChildren) {
-          if (c.nodeType === Node.CDATA_SECTION_NODE) {
-            const open = document.createElement("span");
-            open.className = "px-cdata-marker";
-            open.textContent = "<![CDATA[";
-            const body = document.createElement("span");
-            body.className = textClass;
-            body.textContent = c.nodeValue;
-            const close = document.createElement("span");
-            close.className = "px-cdata-marker";
-            close.textContent = "]]>";
-            row.append(open, body, close);
-          } else {
-            const t = document.createElement("span");
-            t.className = textClass;
-            t.textContent = c.nodeValue;
-            row.appendChild(t);
-          }
-        }
-        writeCloseTag(row, el);
+  // <Tag attr="val"/> — one self-closing row.
+  function renderEmptyElement(el, parent, depth) {
+    const row = appendRow(parent, depth, false, (r) => {
+      writeOpenTag(r, el, /* selfClose */ true);
+    });
+    attachNodeMenu(row, el);
+  }
 
-        if (resolved) {
-          const badge = document.createElement("span");
-          badge.className = "px-codelist";
-          badge.textContent = `→ ${resolved.label}`;
-          badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
-          row.appendChild(badge);
-          if (resolved.url) row.appendChild(buildListLink(resolved));
-        }
-      });
-      attachNodeMenu(leafRow, el);
-      return;
+  // <Tag>text</Tag> — one row, with a code-list badge when the value resolves.
+  function renderTextElement(el, parent, depth, children) {
+    const resolved = window.OnixViewerOnix
+      ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
+      : null;
+    const textClass = resolved ? "px-text px-codelist-value" : "px-text";
+    const row = appendRow(parent, depth, false, (r) => {
+      writeOpenTag(r, el, false);
+      for (const child of children) appendTextContent(r, child, textClass);
+      writeCloseTag(r, el);
+      if (resolved) appendCodelistBadge(r, el, resolved);
+    });
+    attachNodeMenu(row, el);
+  }
+
+  // CDATA keeps its markers so the copy and the display agree about what the
+  // source said.
+  function appendTextContent(row, child, textClass) {
+    const body = document.createElement("span");
+    body.className = textClass;
+    body.textContent = child.nodeValue;
+    if (child.nodeType === Node.CDATA_SECTION_NODE) {
+      const open = document.createElement("span");
+      open.className = "px-cdata-marker";
+      open.textContent = "<![CDATA[";
+      const close = document.createElement("span");
+      close.className = "px-cdata-marker";
+      close.textContent = "]]>";
+      row.append(open, body, close);
+    } else {
+      row.appendChild(body);
     }
+  }
 
-    // Has element children: open row (collapsible) + children container + close row.
+  function appendCodelistBadge(row, el, resolved) {
+    const badge = document.createElement("span");
+    badge.className = "px-codelist";
+    badge.textContent = `\u2192 ${resolved.label}`;
+    badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
+    row.appendChild(badge);
+    if (resolved.url) row.appendChild(buildListLink(resolved));
+  }
+
+  // Element children: a collapsible open row, a children container, and a
+  // close row queued behind them.
+  function renderParentElement(el, parent, depth, stack) {
     const openRow = appendRow(parent, depth, true, (row) => {
       const toggle = document.createElement("span");
       toggle.className = "px-toggle";
       toggle.setAttribute("aria-hidden", "true");
       row.appendChild(toggle);
       writeOpenTag(row, el, false);
-
-      // When the row is folded, show "...</Tag>" inline so the structure
-      // reads as <Tag>...</Tag> at a glance. Hidden by CSS when expanded.
-      const ellipsis = document.createElement("span");
-      ellipsis.className = "px-fold-ellipsis";
-      ellipsis.textContent = "…";
-      row.appendChild(ellipsis);
-
-      const closeInline = document.createElement("span");
-      closeInline.className = "px-tag px-fold-close";
-      const foldDialectClass = displayedTagClass();
-      if (foldDialectClass) closeInline.classList.add(foldDialectClass);
-      closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
-      closeInline.classList.add("px-tag-name");
-      row.appendChild(closeInline);
-
-      // "Block N" badge on ONIX 3.x block elements, visible folded or not.
-      if (window.OnixViewerOnix) {
-        const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
-        if (block) {
-          const label = document.createElement("span");
-          label.className = "px-block-label";
-          label.textContent = `Block ${block}`;
-          row.appendChild(label);
-        }
-      }
-
-      // Inline summary span (visible when folded). onix.js decides which
-      // composites have a one-line essence worth showing and returns null for
-      // the rest.
-      if (window.OnixViewerOnix) {
-        const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
-        if (summary) {
-          const s = document.createElement("span");
-          s.className = "px-summary";
-          s.textContent = summary;
-          row.appendChild(s);
-        }
-      }
+      appendFoldedTail(row, el);
+      appendBlockBadge(row, el);
+      appendSummary(row, el);
     });
-
     attachNodeMenu(openRow, el);
 
     const childrenContainer = document.createElement("div");
@@ -461,9 +418,48 @@
     stack.push({ close: el, parent, depth });
     pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
 
-    // Fold/highlight handling is delegated on #oxv-root in setupClickHandlers
-    // — clicking the chevron toggles, clicking elsewhere highlights the
-    // matching right-pane element.
+    // Folding is delegated on #oxv-root in setupClickHandlers: the chevron
+    // toggles, a click anywhere else makes the row active.
+  }
+
+  // While the row is folded, show "…</Tag>" inline so the structure reads as
+  // <Tag>…</Tag> at a glance. Hidden by CSS when expanded.
+  function appendFoldedTail(row, el) {
+    const ellipsis = document.createElement("span");
+    ellipsis.className = "px-fold-ellipsis";
+    ellipsis.textContent = "\u2026";
+    row.appendChild(ellipsis);
+
+    const closeInline = document.createElement("span");
+    closeInline.className = "px-tag px-fold-close";
+    const foldDialectClass = displayedTagClass();
+    if (foldDialectClass) closeInline.classList.add(foldDialectClass);
+    closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
+    closeInline.classList.add("px-tag-name");
+    row.appendChild(closeInline);
+  }
+
+  // "Block N" on the ONIX 3.x block elements, visible folded or not.
+  function appendBlockBadge(row, el) {
+    if (!window.OnixViewerOnix) return;
+    const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
+    if (!block) return;
+    const label = document.createElement("span");
+    label.className = "px-block-label";
+    label.textContent = `Block ${block}`;
+    row.appendChild(label);
+  }
+
+  // onix.js decides which composites have a one-line essence worth showing
+  // and returns null for the rest.
+  function appendSummary(row, el) {
+    if (!window.OnixViewerOnix) return;
+    const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
+    if (!summary) return;
+    const span = document.createElement("span");
+    span.className = "px-summary";
+    span.textContent = summary;
+    row.appendChild(span);
   }
 
   function pushChildren(stack, childNodes, parent, depth) {
@@ -518,8 +514,8 @@
   }
 
   // "→ XHTML" chip right after a code-list attribute value, e.g.
-  // <Text textformat="06" → XHTML>. Lives inside the .px-attr span so the
-  // "hide attributes" toggle hides it along with the attribute.
+  // <Text textformat="06" → XHTML>. Lives inside the .px-attr span, so it
+  // belongs to the attribute it explains.
   function buildAttributeBadge(attributeName, resolved) {
     const badge = document.createElement("span");
     badge.className = "px-codelist px-attr-codelist";
@@ -686,19 +682,10 @@
   }
 
   function autoCollapseProducts() {
-    // Find every open-row whose first tag span's text is a Product element
-    // (in either dialect). With more than one we collapse them so a long
-    // feed is scannable; with a single product we leave it expanded since
-    // the user is clearly inspecting that one record.
-    const rows = root.querySelectorAll(".px-row.px-collapsible");
-    const productRows = [];
-    for (const row of rows) {
-      const firstTag = row.querySelector(".px-tag + .px-tag"); // skip "<"
-      if (!firstTag) continue;
-      if ((firstTag.textContent || "").toLowerCase() === "product") {
-        productRows.push(row);
-      }
-    }
+    // With more than one Product we collapse them so a long feed is
+    // scannable; with a single product we leave it expanded, since the user
+    // is clearly inspecting that one record.
+    const productRows = collapsibleRows().filter(isProductRow);
     if (productRows.length <= 1) return;
     for (const row of productRows) row.classList.add("px-folded");
   }
@@ -706,11 +693,17 @@
   // ---- toolbar --------------------------------------------------------------
 
   function setupToolbar() {
+    // A page with a restrictive img-src CSP can refuse a chrome-extension://
+    // image even though the stylesheet loaded — they are separate directives.
+    // Drop the mark rather than leave a broken-image glyph next to the buttons.
+    const logo = document.getElementById("oxv-logo");
+    if (logo) logo.addEventListener("error", () => logo.remove());
+
     // Icons are prepended here rather than written into the shell: content.js
     // builds that shell as a string, and these come from the same table the
     // severity chips and the spinner use, so they stay one set.
     for (const [action, name] of [["expand", "expand"], ["collapse", "collapse"],
-                                  ["copy-xml", "copy"]]) {
+                                  ["toggle-wrap", "wrap"], ["copy-xml", "copy"]]) {
       const button = document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
       if (button && !button.querySelector("svg")) button.prepend(icon(name));
     }
@@ -728,11 +721,6 @@
         case "dialect-toggle":
           applyDialect(otherDialect(displayDialect));
           break;
-        case "toggle-attrs": {
-          const on = document.body.classList.toggle("px-no-attrs");
-          btn.setAttribute("aria-pressed", on ? "false" : "true");
-          break;
-        }
         case "search":
           toggleSearch();
           break;
@@ -742,11 +730,6 @@
           btn.setAttribute("aria-pressed", off ? "false" : "true");
           break;
         }
-        case "view-xml":
-        case "view-split":
-        case "view-structure":
-          applyViewMode(btn.dataset.action.slice("view-".length));
-          break;
         case "copy-xml":
           copyRawXml(btn);
           break;
@@ -952,8 +935,6 @@
 
   // ---- validation -----------------------------------------------------------
 
-  // On demand only: a 12 MB feed is a couple of seconds' work, which is fine
-  // for a button press and not fine on every page load.
   // Runs on load, in slices. The first slice is generous, so a normal document
   // is finished before the reader sees anything and there's no spinner flash;
   // a large feed spends its first 12ms, then continues during idle time, which
@@ -1351,13 +1332,28 @@
   }
 
   function flashButton(btn, msg) {
-    const original = btn.textContent;
-    btn.textContent = msg;
+    const label = labelNode(btn);
+    const original = label.nodeValue;
+    label.nodeValue = msg;
     btn.setAttribute("disabled", "");
     setTimeout(() => {
-      btn.textContent = original;
+      label.nodeValue = original;
       btn.removeAttribute("disabled");
     }, 1200);
+  }
+
+  // The button's own text, as a node: the toolbar buttons carry an icon ahead
+  // of their label, and writing textContent would take the icon with it.
+  function labelNode(btn) {
+    let node = null;
+    for (const child of btn.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) node = child;
+    }
+    if (!node) {
+      node = document.createTextNode("");
+      btn.appendChild(node);
+    }
+    return node;
   }
 
   // ---- per-node menu --------------------------------------------------------
@@ -1516,57 +1512,6 @@
     return result;
   }
 
-  // ---- view mode (XML / Split / Structure) ---------------------------------
-
-  function setupViewMode(isOnix) {
-    // View mode (XML / Split / Structure) is currently DISABLED in the UI:
-    // the toggle buttons are commented out of the toolbar in content.js.
-    // We force XML view here so any state previously persisted in
-    // localStorage (from when the toggle was exposed) doesn't bleed through.
-    // To re-enable: restore the .px-view-group block in content.js and
-    // delete this early-return.
-    applyViewMode("xml", { persist: false });
-    return;
-
-    // eslint-disable-next-line no-unreachable
-    if (!isOnix) {
-      applyViewMode("xml", { persist: false });
-      return;
-    }
-    let stored = null;
-    try { stored = window.localStorage && localStorage.getItem(VIEW_STORAGE_KEY); } catch (_) {}
-    const initial = VIEW_MODES.includes(stored) ? stored : "xml";
-    applyViewMode(initial, { persist: false });
-  }
-
-  function applyViewMode(mode, opts) {
-    if (!VIEW_MODES.includes(mode)) return;
-    const persist = !opts || opts.persist !== false;
-    if (mode !== "xml") renderBlocksPane();
-    for (const m of VIEW_MODES) document.body.classList.remove(`oxv-view-${m}`);
-    document.body.classList.add(`oxv-view-${mode}`);
-    for (const btn of document.querySelectorAll('#oxv-toolbar [data-action^="view-"]')) {
-      const isActive = btn.dataset.action === `view-${mode}`;
-      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
-    }
-    if (persist) {
-      try { localStorage.setItem(VIEW_STORAGE_KEY, mode); } catch (_) {}
-    }
-  }
-
-  // Build the right pane's cards, once, on first reveal. Rendering it is a
-  // second full pass over the document, so it waits until a view mode that
-  // shows the pane asks for it.
-  function renderBlocksPane() {
-    if (blocksRendered) return;
-    if (!onixCtx.isOnix || !window.OnixViewerBlocks || !blocksContainer) return;
-    blocksRendered = true;
-    window.OnixViewerBlocks.render(doc, blocksContainer, onixCtx);
-    // The collapse-sync pairs tree rows with the pane's cards, so it can only
-    // be wired once those cards exist.
-    setupBlockSync();
-  }
-
   // ---- search ---------------------------------------------------------------
 
   let matches = [];
@@ -1714,6 +1659,9 @@
       // Skip when the user is typing in an input.
       if (ev.target instanceof HTMLInputElement) return;
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      // A dialog owns the keyboard while it is open; these act on the tree
+      // behind it, which the reader cannot see.
+      if (dialogOpen()) return;
 
       switch (ev.key) {
         case "/":
@@ -1740,164 +1688,17 @@
     });
   }
 
-  // ---- pane sync ------------------------------------------------------------
-
-  // Keep tree rows and right-pane elements in collapse-sync. Two pairings:
-  //   1. Each <Product> tree row ↔ its product card (a <details>).
-  //   2. Each ONIX block tree row (DescriptiveDetail, CollateralDetail, etc.)
-  //      ↔ its block section (also a <details>) inside the matching card.
-  // Block elements are direct children of <Product>, and there's at most one
-  // of each per product, so the pairing is unambiguous.
-  function setupBlockSync() {
-    if (!onixCtx.isOnix) return;
-
-    const productRows = Array.from(root.querySelectorAll(".px-row.px-collapsible"))
-      .filter((r) => {
-        const tags = r.querySelectorAll(".px-tag");
-        return tags.length >= 2 && tags[1].textContent === "Product";
-      });
-    const allCards = Array.from(document.querySelectorAll("#oxv-blocks .px-block-product"));
-    // The Message Header card (if present) sits before Product cards. Pair
-    // it with the <Header> tree row separately, then strip it from the cards
-    // list so the Nth Product card pairs with the Nth Product row.
-    const headerCard = document.querySelector("#oxv-blocks .px-message-header");
-    const cards = allCards.filter((c) => !c.classList.contains("px-message-header"));
-    if (!cards.length && !headerCard) return;
-
-    productRows.forEach((row, i) => { row.dataset.oxvProductIndex = String(i); });
-
-    // Pair-bind: keep one tree row class state in step with one <details>
-    // open state. Idempotent (no-op when both already match), so we don't
-    // need a re-entry guard. Also records the bidirectional partner lookup
-    // used by click-to-highlight.
-    function bindPair(row, det) {
-      if (!row || !det) return;
-      pairMap.set(row, det);
-      pairMap.set(det, row);
-      function sync(folded) {
-        row.classList.toggle("px-folded", folded);
-        det.open = !folded;
-      }
-      new MutationObserver(() => {
-        sync(row.classList.contains("px-folded"));
-      }).observe(row, { attributes: true, attributeFilter: ["class"] });
-      det.addEventListener("toggle", () => {
-        sync(!det.open);
-      });
-      // Initial alignment: tree state wins, so the right pane mirrors any
-      // auto-collapsed state by the time the user sees the page.
-      sync(row.classList.contains("px-folded"));
-    }
-
-    // Header-level pairing (only present in ONIXMessage-wrapped feeds).
-    if (headerCard) {
-      const headerRow = Array.from(root.querySelectorAll(".px-row.px-collapsible"))
-        .find((r) => {
-          const tags = r.querySelectorAll(".px-tag");
-          return tags.length >= 2 && tags[1].textContent.toLowerCase() === "header";
-        });
-      if (headerRow) bindPair(headerRow, headerCard);
-    }
-
-    // Product-level pairing
-    productRows.forEach((row, i) => bindPair(row, cards[i]));
-
-    // Block-level pairing
-    productRows.forEach((productRow, i) => {
-      const card = cards[i];
-      if (!card) return;
-      const childrenContainer = productRow.nextElementSibling;
-      if (!childrenContainer || !childrenContainer.classList.contains("px-children")) return;
-      const directRows = childrenContainer.querySelectorAll(":scope > .px-row.px-collapsible");
-      for (const blockRow of directRows) {
-        const tags = blockRow.querySelectorAll(".px-tag");
-        if (tags.length < 2) continue;
-        const name = (tags[1].textContent || "").toLowerCase();
-        if (!ONIX_BLOCK_NAMES.has(name)) continue;
-        blockRow.dataset.oxvBlockName = name;
-        const section = card.querySelector(`.px-block-section[data-oxv-block-name="${name}"]`);
-        if (section) bindPair(blockRow, section);
-      }
-    });
-
-    // Sub-block-level pairing. Walk all rows under each Product and tag every
-    // collapsible row with its element name and a per-element-type index.
-    // Then for each <details data-oxv-onix-element="…" data-oxv-onix-idx="…">
-    // in the card, find the row with the matching attrs and bind them.
-    productRows.forEach((productRow, i) => {
-      const card = cards[i];
-      if (!card) return;
-      const productContainer = productRow.nextElementSibling;
-      if (!productContainer || !productContainer.classList.contains("px-children")) return;
-
-      indexProductRows(productContainer);
-
-      const subDetails = card.querySelectorAll(
-        "details[data-oxv-onix-element][data-oxv-onix-idx]"
-      );
-      for (const det of subDetails) {
-        const name = det.dataset.oxvOnixElement;
-        const idx = det.dataset.oxvOnixIdx;
-        const row = productContainer.querySelector(
-          `.px-row.px-collapsible[data-oxv-element-name="${name}"][data-oxv-element-idx="${idx}"]`
-        );
-        if (row) bindPair(row, det);
-      }
-
-      // Leaf-level pairing: connect each .px-block-row leaf field on the
-      // right with its matching leaf row in the tree. No collapse-sync —
-      // these can't fold — just enough of a link for click-to-highlight.
-      const leafRows = card.querySelectorAll(
-        ".px-block-row[data-oxv-onix-element][data-oxv-onix-idx]"
-      );
-      for (const leaf of leafRows) {
-        const name = leaf.dataset.oxvOnixElement;
-        const idx = leaf.dataset.oxvOnixIdx;
-        const row = productContainer.querySelector(
-          `.px-row[data-oxv-element-name="${name}"][data-oxv-element-idx="${idx}"]`
-        );
-        if (row) {
-          pairMap.set(row, leaf);
-          pairMap.set(leaf, row);
-        }
-      }
-    });
+  // The code-list popup marks the body while it is up; the findings list is
+  // this file's own.
+  function dialogOpen() {
+    return document.body.classList.contains("px-popup-open") ||
+      !!(findingsModal && !findingsModal.hidden);
   }
 
-  // Tag every collapsible tree row under a Product with `data-oxv-element-name`
-  // and `data-oxv-element-idx` (the Nth occurrence of that name within this
-  // Product, in document order). Used to match sub-block <details> in the
-  // right pane to their corresponding tree rows.
-  function indexProductRows(productContainer) {
-    const counts = new Map();
-    const stack = [productContainer];
-    while (stack.length) {
-      const container = stack.pop();
-      for (const row of container.children) {
-        if (!row.classList || !row.classList.contains("px-row")) continue;
-        const tags = row.querySelectorAll(".px-tag");
-        // Index ALL rows (not just collapsible) so leaf elements can be
-        // paired with their right-pane counterparts for click-to-highlight.
-        if (tags.length >= 2) {
-          const name = (tags[1].textContent || "").toLowerCase();
-          const idx = counts.get(name) || 0;
-          row.dataset.oxvElementName = name;
-          row.dataset.oxvElementIdx = String(idx);
-          counts.set(name, idx + 1);
-        }
-        const sib = row.nextElementSibling;
-        if (sib && sib.classList && sib.classList.contains("px-children")) {
-          stack.push(sib);
-        }
-      }
-    }
-  }
+  // ---- click + active row ---------------------------------------------------
 
-  // ---- click + highlight ----------------------------------------------------
-
-  // Tree → highlight matching right-pane element. Right pane → highlight
-  // matching tree row. Only the chevron click toggles collapse on either
-  // side; clicking elsewhere on a row/summary highlights its partner.
+  // The chevron toggles collapse; clicking anywhere else on a row makes it the
+  // active row, which is what the selection accent follows.
   function setupClickHandlers() {
     root.addEventListener("click", (ev) => {
       const row = ev.target.closest(".px-row");
@@ -1915,36 +1716,7 @@
       // Don't grab focus while the user is selecting text.
       if (window.getSelection().toString()) return;
 
-      const partner = pairMap.get(row);
-      if (partner) highlightInBlocks(partner);
       setActiveTreeRow(row);
-    });
-
-    const blocksPane = document.getElementById("oxv-blocks-pane");
-    if (!blocksPane) return;
-
-    blocksPane.addEventListener("click", (ev) => {
-      if (ev.target.closest("a, button, input")) return;
-
-      const summary = ev.target.closest("summary");
-      if (summary) {
-        // Chevron click → let the default <details> toggle through.
-        if (ev.target.closest(".px-chevron")) return;
-        ev.preventDefault();
-        const det = summary.parentElement;
-        const partner = pairMap.get(det);
-        if (partner) highlightInTree(partner);
-        setActiveBlockEl(det);
-        return;
-      }
-
-      // Leaf field click: highlight the matching tree row.
-      const leaf = ev.target.closest(".px-block-row[data-oxv-onix-element]");
-      if (leaf) {
-        const partner = pairMap.get(leaf);
-        if (partner) highlightInTree(partner);
-        setActiveBlockEl(leaf);
-      }
     });
   }
 
@@ -1956,77 +1728,9 @@
     activeTreeRow = row;
   }
 
-  function setActiveBlockEl(el) {
-    if (activeBlockEl && activeBlockEl !== el) {
-      activeBlockEl.classList.remove("px-active");
-    }
-    el.classList.add("px-active");
-    activeBlockEl = el;
-  }
-
-  function highlightInBlocks(blockEl) {
-    if (!blockEl) return;
-    setActiveBlockEl(blockEl);
-    // Open any ancestor <details> so the target is visible, then scroll.
-    let p = blockEl.parentElement;
-    while (p) {
-      if (p.tagName && p.tagName.toLowerCase() === "details" && !p.open) p.open = true;
-      p = p.parentElement;
-    }
-    if (blockEl.scrollIntoView) blockEl.scrollIntoView({ block: "center", behavior: "smooth" });
-  }
-
-  function highlightInTree(row) {
-    if (!row) return;
-    setActiveTreeRow(row);
-    // Unfold any ancestor open-row that's currently collapsed.
-    unfoldAncestors(row);
-    if (row.scrollIntoView) row.scrollIntoView({ block: "center", behavior: "smooth" });
-  }
-
-  // ---- divider --------------------------------------------------------------
-
-  function setupDivider() {
-    const divider = document.getElementById("oxv-divider");
-    const main = document.getElementById("oxv-main");
-    if (!divider || !main) return;
-
-    const STORAGE_KEY = "oxv-split-pos";
-    let stored = null;
-    try { stored = window.localStorage && localStorage.getItem(STORAGE_KEY); } catch (_) {}
-    if (stored) main.style.setProperty("--split-pos", stored);
-
-    let dragging = false;
-    divider.addEventListener("pointerdown", (ev) => {
-      ev.preventDefault();
-      dragging = true;
-      try { divider.setPointerCapture(ev.pointerId); } catch (_) {}
-    });
-    divider.addEventListener("pointermove", (ev) => {
-      if (!dragging) return;
-      const rect = main.getBoundingClientRect();
-      if (rect.width <= 0) return;
-      let pct = ((ev.clientX - rect.left) / rect.width) * 100;
-      if (pct < 15) pct = 15;
-      if (pct > 85) pct = 85;
-      main.style.setProperty("--split-pos", `${pct.toFixed(2)}%`);
-    });
-    const stopDrag = () => {
-      if (!dragging) return;
-      dragging = false;
-      const value = main.style.getPropertyValue("--split-pos");
-      if (value) {
-        try { localStorage.setItem(STORAGE_KEY, value); } catch (_) {}
-      }
-    };
-    divider.addEventListener("pointerup", stopDrag);
-    divider.addEventListener("pointercancel", stopDrag);
-  }
-
   // ---- error UI -------------------------------------------------------------
 
   function showParseError(errEl) {
-    root.innerHTML = "";
     const box = document.createElement("div");
     box.className = "px-error";
     const h = document.createElement("h2");

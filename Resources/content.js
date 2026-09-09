@@ -106,9 +106,9 @@
   }
 
   // Which validation content model to inject. There is one file per ONIX
-  // release, ~51 KB each, and a message declares exactly one release — the
+  // release, ~65 KB each, and a message declares exactly one release — the
   // schema restricts `release` to "3.0" or "3.1" and the revisions (3.0.8,
-  // 3.1.3, …) aren't declarable — so loading both means parsing 103 KB to use
+  // 3.1.3, …) aren't declarable — so loading both means parsing 130 KB to use
   // half of it. Read the release off the same head looksLikeOnix() sniffed and
   // send only the matching model.
   //
@@ -199,6 +199,15 @@
   }
 
   function takeOver(xmlSource) {
+    // We run at document_start and a cached re-fetch resolves quickly, so the
+    // parser may not have created the root element yet. There is nothing to
+    // replace until it has — and the swap below throws on a null root, into
+    // the catch above, which is silent in release.
+    if (!document.documentElement) {
+      whenRootExists(() => takeOver(xmlSource));
+      return;
+    }
+
     // Another enabled copy of the extension may already have taken this page
     // over (a Web Store install running alongside an unpacked one). Replacing
     // its shell would leave two viewer instances rendering into one tree, so
@@ -215,11 +224,11 @@
     // Instead, build a fresh <html> via DOMParser and swap document roots.
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
+    const logoURL = browserAPI().runtime.getURL("icons/icon-48.png");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
     const modelURLs = contentModelURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
     const validateURL = browserAPI().runtime.getURL("onix-validate.js");
-    const blocksURL = browserAPI().runtime.getURL("onix-blocks.js");
     const popupURL = browserAPI().runtime.getURL("onix-popup.js");
     const viewerURL = browserAPI().runtime.getURL("viewer.js");
 
@@ -230,9 +239,14 @@
 <title>${escapeHtml(deriveTitle(document.location.href))}</title>
 <link rel="stylesheet" href="${cssURL}">
 </head>
-<body class="oxv-view-xml">
+<body>
 <div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
+    <!-- The mark says which extension took the page over — a raw XML URL gives
+         no other clue. It is the app icon's own 48px size — no separate copy to
+         keep in step — shown at 28px. If the page's own img-src CSP blocks extension
+         URLs, viewer.js removes it rather than leave a broken-image glyph. -->
+    <img id="oxv-logo" src="${logoURL}" width="28" height="28" alt="ONIX Viewer">
     <!-- Expand and Collapse both work a level at a time; viewer.js prepends
          their icons. -->
     <button type="button" data-action="expand" title="Expand one more level (E)">Expand</button>
@@ -251,25 +265,6 @@
       <input type="search" id="oxv-search" placeholder="Search" autocomplete="off" spellcheck="false" tabindex="-1">
       <span id="oxv-search-status" aria-live="polite"></span>
     </span>
-    <!--
-      View-mode toggle (XML / Split / Structure) is currently DISABLED.
-      The blocks-pane code (onix-blocks.js, the right pane, sync logic) is
-      still bundled and tested but hidden from the UI. To re-enable, restore
-      this <span class="px-view-group"> block and remove the early return in
-      viewer.js's setupViewMode.
-
-    <span class="px-view-group" role="group" aria-label="View mode">
-      <button type="button" class="px-icon-btn" data-action="view-xml" title="XML only" aria-label="XML only" aria-pressed="false">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
-      </button>
-      <button type="button" class="px-icon-btn" data-action="view-split" title="Split (XML + Structure)" aria-label="Split view" aria-pressed="false">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1" stroke="currentColor" stroke-width="1.25" fill="none"/><path d="M8 3.25v9.5" stroke="currentColor" stroke-width="1.25"/></svg>
-      </button>
-      <button type="button" class="px-icon-btn" data-action="view-structure" title="Structure only" aria-label="Structure only" aria-pressed="false">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1" stroke="currentColor" stroke-width="1.25" fill="none"/><path d="M5 6.5h6M5 9h6M5 11.5h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>
-      </button>
-    </span>
-    -->
   </div>
   <!-- The document pill sits next to the controls, not out at the right edge:
        it describes what you are looking at, so it belongs with the things that
@@ -286,10 +281,6 @@
 </div>
 <div id="oxv-main">
   <main id="oxv-root" tabindex="0" aria-label="XML tree"></main>
-  <div id="oxv-divider" role="separator" aria-orientation="vertical" aria-label="Resize panes" tabindex="0"></div>
-  <aside id="oxv-blocks-pane" aria-label="ONIX blocks">
-    <div id="oxv-blocks"></div>
-  </aside>
 </div>
 </body>
 </html>`;
@@ -322,12 +313,30 @@
     // which matters: the data files must define their globals before onix.js
     // and viewer.js read them.
     [codelistsURL, ...modelURLs, onixURL, validateURL,
-     blocksURL, popupURL, viewerURL].forEach((src) => {
+     popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);
       s.async = false;
       document.body.appendChild(s);
     });
+  }
+
+  // Calls back once the parser has given the document a root element. The
+  // parser's insertions are observable mutations; DOMContentLoaded is the
+  // backstop for a document that reaches the end without one.
+  function whenRootExists(callback) {
+    let called = false;
+    const once = () => {
+      if (called) return;
+      called = true;
+      observer.disconnect();
+      callback();
+    };
+    const observer = new MutationObserver(() => {
+      if (document.documentElement) once();
+    });
+    observer.observe(document, { childList: true });
+    document.addEventListener("DOMContentLoaded", once, { once: true });
   }
 
   function deriveTitle(url) {

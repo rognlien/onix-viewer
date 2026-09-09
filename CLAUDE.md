@@ -31,18 +31,21 @@ onix-viewer/
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
 │   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~231 KB)
-│   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~52 KB)
-│   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~52 KB)
+│   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~66 KB)
+│   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~62 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
-│   ├── onix-blocks.js              right-pane "blocks" view — currently DISABLED in UI
 │   ├── onix-popup.js               modal popup listing all entries of a code list
-│   └── icons/                      icon-{16,32,48,96,128,256,512}.png from icons/image.png
-├── icons/                          source-of-truth for the extension icon
-│   ├── image.png                   tight 546×546 crop of the artwork (the render source)
-│   └── image-original.png          archived 1024×1024 export from the artist
+│   └── icons/                      icon-{16,32,48,96,128,256,512}.png, built from icons/
+├── icons/                          SOURCE artwork — not shipped. The master plus
+│                                   any hand-drawn per-size overrides
+│   ├── icon-original.png           1254×1254 RGBA master — the render source
+│   └── icon-<size>.png             hand-drawn overrides; used verbatim when present.
+│                                   Only manifest sizes are consulted, so a file
+│                                   at any other size is never read
 ├── tools/
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload
-│   ├── render-icons.sh             renders icons/image.png into Resources/icons/icon-*.png
+│   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
+│   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
 │   ├── generate-content-model.js   generates Resources/onix-content-model.js
 │   ├── release.sh                  bumps version, commits, tags
@@ -54,7 +57,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (187 tests, ~7s; takes a name filter)
+│   ├── run.js                      jsdom harness (203 tests, ~8s; takes a name filter)
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -69,6 +72,36 @@ onix-viewer/
     └── release.yml                 tag-push → tests → zip → GitHub release
 ```
 
+## Two icon directories, and why
+
+`icons/` is **source**; `Resources/icons/` is **output**. Nothing in `icons/`
+ships — `tools/package-extension.sh` does `cd Resources` before it zips, so the
+extension is exactly the contents of `Resources/` and nothing else.
+
+```
+icons/icon-original.png     master artwork          }  source, never shipped
+icons/icon-48.png           hand-drawn override     }
+        │
+        │  tools/render-icons.sh
+        ▼
+Resources/icons/icon-*.png  the seven manifest sizes    shipped
+```
+
+The output is **committed**, not built on demand, for the same reason
+`onix-codelists.js` and the content models are: *Load unpacked* points Chrome
+straight at `Resources/`, so that directory has to be complete and working on a
+fresh clone with no build step. Committed build output is the price of that.
+
+The confusing part is not the two directories but that the files share names:
+`icons/icon-48.png` (hand-drawn source) and `Resources/icons/icon-48.png`
+(output, in this case a verbatim copy of it) are different roles with the same
+name. If that bites, rename the overrides — `render-icons.sh` looks for
+`icons/icon-<size>.png` in exactly one place.
+
+The toolbar mark deliberately has **no file of its own**: it loads
+`Resources/icons/icon-48.png`, the app icon's 48px size, rather than a
+`logo-48.png` copy that would need keeping in step.
+
 ## Architecture: why we replace the document
 
 The browser's native XML viewer renders raw `application/xml` pages with an internal DOM that's largely opaque to extension content scripts. Trying to restyle it doesn't reliably work — selectors don't match, CSS injection lands on a Shadow-DOM-like structure, and there's no documented way in.
@@ -80,12 +113,12 @@ The pattern is:
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
 4. Build a fresh HTML shell via `DOMParser`, then `document.replaceChild(newRoot, document.documentElement)` to swap roots.
-5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-blocks.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
+5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
 6. Those scripts parse the original XML with `DOMParser` and render to plain DOM.
 
 When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), we fall back to `XMLSerializer().serializeToString(document)` — the browser has already parsed the XML for us, so reading the live document is a reliable second path. This means file:// works without any background script, at the cost of waiting for `DOMContentLoaded` before takeover instead of acting at `document_start`.
 
-**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`.
+**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`.
 
 Things that still won't work:
 - **Streaming huge XML**: we hold the full source in memory. Anything > ~10 MB causes a noticeable parse hang.
@@ -110,7 +143,7 @@ after them. The conversion was verified by diffing the rendered
 
 **Scripts and DOMParser.** When DOMParser parses HTML, any `<script>` it produces has the spec's "already started" flag set — those scripts will *not* execute when inserted into a live document. That's why we don't embed the script tags in the parsed shell; we create them dynamically afterward.
 
-**XHTML namespace gotcha.** Even after we replace `documentElement`, `document.contentType` remains `application/xml`. In an XML document, plain `document.createElement(tagName)` creates an element in the *null* namespace — not an HTMLElement, so it has no `.style`, no `.dataset`, etc. content.js uses `createElementNS(XHTML, "script")` for the script tags it injects, and `viewer.js` monkey-patches `document.createElement` at the top of its IIFE so every subsequent call (here and in `onix-blocks.js`) produces real HTMLElements with no per-callsite ceremony. The HTML elements that come back from `DOMParser` are already in the XHTML namespace, which is why the toolbar etc. render correctly without special handling.
+**XHTML namespace gotcha.** Even after we replace `documentElement`, `document.contentType` remains `application/xml`. In an XML document, plain `document.createElement(tagName)` creates an element in the *null* namespace — not an HTMLElement, so it has no `.style`, no `.dataset`, etc. content.js uses `createElementNS(XHTML, "script")` for the script tags it injects, and `viewer.js` monkey-patches `document.createElement` at the top of its IIFE so every subsequent call produces real HTMLElements with no per-callsite ceremony. The HTML elements that come back from `DOMParser` are already in the XHTML namespace, which is why the toolbar etc. render correctly without special handling.
 
 ## ONIX detection logic
 
@@ -141,7 +174,7 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 `.px-center` and `.px-right`:
 
 ```
-[ ⌄⌄ Expand   ⌃⌃ Collapse   Soft wrap   View as…   ⧉ Copy XML   🔍 ]
+[ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   🔍 ]
         [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB]  [✓ Valid]
                                                     … [ONIX 3.1, Issue 74]
 ```
@@ -151,6 +184,20 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   they hug the controls. The pill describes what you are looking at, so it
   reads as part of that group rather than as something stranded at the far
   edge.
+- **`.px-left`** opens with the **brand mark** (`#oxv-logo`), then the
+  controls. A raw XML URL gives no other clue which extension took the page
+  over. It is the app icon's own 48px size — `Resources/icons/icon-48.png`, listed in
+  `web_accessible_resources` because the toolbar lives in the *page's* world,
+  and displayed at 28px, which is exactly the toolbar's content height —
+  measured, 30px grows the bar from 45.6px to 47px. While the artwork was opaque
+  this had to be 24px plus a 2px chip hiding the baked background; a transparent
+  asset removed both.
+
+  A page with a restrictive **`img-src` CSP** can refuse a
+  `chrome-extension://` image even though the stylesheet loaded — they are
+  separate directives — so `setupToolbar()` removes the mark on `error` rather
+  than leave a broken-image glyph.
+
 - **`.px-left`** is a **flex row** (`align-items: center`), not a line of
   inline boxes. This matters once a button carries an icon: an `inline-flex`
   button takes its baseline from its first flex item, so `Expand`, `Collapse`
@@ -365,14 +412,19 @@ Validation runs **automatically on load**, and checks the document against a
 browser has none, and libxml2-via-WASM would add ~4 MB and needs
 `'wasm-unsafe-eval'`, which the viewer can't count on — its scripts run in the
 page's world under the page's CSP. Instead `tools/generate-content-model.js`
-compiles the structure XSD into `Resources/onix-content-model.js` (510
-elements, ~52 KB) and `Resources/onix-validate.js` interprets it.
+compiles the structure XSD into `Resources/onix-content-model.js` (511
+elements in 3.1, 512 in 3.0, ~66 KB) and `Resources/onix-validate.js`
+interprets it.
 
-That works because the ONIX schema is unusually regular: occurrence is only
-`minOccurs="0"` / `maxOccurs="unbounded"`, there is no `xs:any`, no
-substitution group, no `xs:all`, and **no compound particle repeats** — so
-every sequence and choice is matched at most once and the matcher needs no
-backtracking. XSD's Unique Particle Attribution rule makes the alternatives of
+That works because the ONIX schema is unusually regular: there is no `xs:any`,
+no substitution group, no `xs:all`, no `nillable`, no `abstract`, no
+`xsi:type`, no `xs:redefine`, and **no compound particle repeats** — so every
+sequence and choice is matched at most once and the matcher needs no
+backtracking. Element occurrence is nearly always `minOccurs="0"` /
+`maxOccurs="unbounded"`, with exactly one exception in either release —
+`<OrderQuantityMinimum maxOccurs="2">` — so the matcher enforces a finite
+bound rather than assuming there is none (there is a test for that third
+occurrence; it is the only thing keeping the check honest). XSD's Unique Particle Attribution rule makes the alternatives of
 a choice disjoint, so one-token lookahead is exact. The generator throws if a
 future schema breaks the no-repeating-compounds assumption rather than emit a
 model the matcher would quietly mis-match.
@@ -413,8 +465,11 @@ point of Acknowledgement support. Without this it reported every element as
 unknown.
 
 The **short-tag map merges both releases' short schemas** (530 pairs). It has
-to: 3.0 keeps about twenty tags 3.1 dropped — `Conference*`, `Reissue*`,
-`Gender`, `EpubLicense`, `AudienceCode`, `CurrencyZone` — and 3.1 adds its own.
+to: 3.0 keeps nineteen tags 3.1 dropped — `Conference*`, `Reissue*`, `Gender`,
+`AudienceCode`, `CurrencyZone`, `DateFormat`, `PromotionContact` — and 3.1 adds
+eighteen of its own. (`EpubLicense` was listed here as 3.0-only until 0.9.17,
+which was a symptom of the named-complexType gap rather than a fact about the
+schemas: it is in both releases.)
 No short tag means different things in the two releases, so the union is
 unambiguous; where they overlap the newer file wins.
 
@@ -442,11 +497,104 @@ A revision bump does **not** change the model registry key. The namespace stays
 `"3.1"`, so 3.1.1, 3.1.2 and 3.1.3 are all "3.1" as far as detection and the
 registry are concerned — a document cannot declare `release="3.1.3"`.
 
-We compile the **classic** XSD, not the `strict` variant. EDItEUR notes that
-the Specification's multilingual rules (each repeat of a field needing a unique
-`language` + `textscript` combination) are only enforced in the strict schema,
-so the same laxity applies here: duplicate `language` attributes on repeated
-`<Text>` will not be reported.
+We compile the **classic** XSD, not the `strict` variant.
+
+That does *not* cost the multilingual rules, which is what an earlier version of
+this note claimed. The classic schema carries them as identity constraints — 79
+on `@language` alone and 15 on the `(@language, @textscript)` pair — and they are
+enforced (see *Identity constraints* below). What it does mean is that
+`xs:unique`'s own rule applies: a node whose key is incomplete is outside the
+constraint. So two `<Text language="eng">` with no `textscript` are legal,
+because `<Text>`'s key is the pair; give both the same `textscript` too and it is
+reported. Two `<SourceTitle language="eng">`, whose key is `@language` alone, are
+reported immediately.
+
+### The `strict` (Advanced) schema — what it adds, and why we don't compile it
+
+EDItEUR ships a second schema per release alongside the classic one:
+`ONIX_BookProduct_3.1_reference_strict.xsd`, distributed as *ONIX for Books
+3.1.3 Advanced XSD Schema + Codelists Issue 74*. It is **XSD 1.1**, and it uses
+`xs:assert` — plus embedded Schematron for deprecation warnings — to express
+**over 500 rules** the 1.0 language simply cannot state. It began as an
+experiment in 2018 for 3.0.4 but is now maintained in step with the main
+schema.
+
+An earlier version of this note claimed strict "adds nothing we lack". **That
+was wrong.** What is true is narrower: strict adds almost no *identity
+constraints* we don't already enforce — `<RecordReference>` uniqueness,
+`<EditionType>`, `<ProductContentType>`/`<PrimaryContentType>`,
+`<PublishingDate>` roles and the multilingual `@language` rules are all in the
+classic schema and all enforced here. Nearly everything else strict checks is a
+**co-occurrence, arithmetic or cross-field rule**, which is a different kind of
+thing entirely:
+
+| Strict rule | Us |
+|---|---|
+| `<RecordReference>` unique; `<EditionType>`, content-type and date-role uniqueness; multilingual `@language` | enforced, from the classic schema's `xs:unique` |
+| ISBN-13, GTIN-13, ISBN-10 check digits | enforced by the `gtin` rule |
+| Check digits for UPC, ISNI, GLN, SAN, ORCID, ISMN-13; DOI plausibility; an ISBN-10 requiring the matching ISBN-13 | not checked |
+| Proprietary `<*IDType>` requiring `<IDTypeName>` | not checked |
+| Second-order code lists — lists 28, 98, 196 in `<ProductFormFeatureValue>`, `<AudienceCodeValue>`, whose list depends on a sibling type element | not checked; those elements are plain strings in our model |
+| Subject-scheme patterns (Thema, BIC, BISAC, CLIL) | not checked |
+| Tax arithmetic — `<PriceAmount>` = `<TaxableAmount>` + `<TaxAmount>`, `<Tax>` only on tax-inclusive prices | not checked |
+| Contributor `<SequenceNumber>` present for every contributor and consecutive from 1 | not checked |
+| `<SalesRightsType>` 00 forbidden; `<ROWSalesRightsType>` required when applicable | not checked |
+| Duplicate countries/regions inside one `<CountriesIncluded>` value; WORLD excluding all other regions | not checked (we check each member is a valid code, not that the set is sane) |
+| `<BarcodeType>` 'not barcoded' ⟺ `<PositionOnProduct>` omitted | not checked |
+| Dates matching their `dateformat`, start ≤ end, no date before 1000 CE | not checked |
+| `<Extent>` unique on (`<ExtentType>`, `<ExtentUnit>`) | not checked — one of the few identity constraints strict adds |
+| Leading/trailing whitespace in plain-text fields | not checked |
+
+**We don't compile it, and shouldn't.** `xs:assert` bodies are XPath 2.0
+expressions; interpreting them needs an XPath 2.0 engine, which is a far bigger
+thing than the content-model compiler, and it would land in the page's world
+under the page's CSP like everything else. Strict also carries copies of the
+second-order code lists inline, so it needs re-bundling per issue.
+
+The right home for these is **`registerRule`** — that seam exists precisely for
+rules no schema expresses, and each of the rows above is a few lines of
+JavaScript over a DOM we already have. Strict is best read as a *specification
+of the rule catalogue to implement*, not as an input to compile. Nothing about
+the classic model needs to change to add them.
+
+### Why the XSD and not the RNG (or the DTD)
+
+EDItEUR publishes the same release three ways — *ONIX for Books 3.1.3 XSD /
+RNG Schema + Codelists Issue 74*, with a DTD for 3.0 only — and **recommends
+XSD or RNG equally**; the DTD is legacy and discontinued for 3.1. So the choice
+of input is ours, and it matters, because the three do not carry the same rules.
+
+RELAX NG is *more* expressive than XSD 1.0 about **structure**: it has no
+Unique Particle Attribution rule, no Element Declarations Consistent
+restriction, and it has `interleave`. An element may have different content in
+different contexts, stated directly — which is precisely the `<EpubLicense>`
+case that forced EDItEUR's XSD into two named `complexType`s and forced our
+`in` variants. Read as a grammar, the RNG is the nicer document.
+
+But it expresses **strictly less of what we validate**, and the gap is not a
+detail of EDItEUR's authoring — it is definitional:
+
+| | XSD 1.0 (classic) | RNG |
+|---|---|---|
+| Content model | yes | yes, and unrestricted |
+| Code lists | yes | yes (bundled the same way) |
+| Datatypes | built in | delegated to the XSD datatype library |
+| **Identity constraints** | **142 in 3.1, 85 in 3.0** | **none — RELAX NG has no `xs:unique` equivalent at all** |
+| **Element defaults** | `default="C"` on 3 declarations | **none** — RELAX NG does no infoset augmentation (DTD-compatibility annotations cover *attribute* defaults only) |
+| Assertions | none (see `strict`) | none |
+
+RELAX NG's lack of identity constraints is a deliberate design decision, not an
+omission: James Clark's *The Design of RELAX NG* argues grammar processing and
+identity processing are better separated, tree automata being mature where
+identity constraints were then still a research area. ISO DSDL accordingly puts
+uniqueness elsewhere — which is why RELAX NG is conventionally paired with
+Schematron.
+
+For us that settles it. Generating from the RNG would cost all 227 identity
+constraints across the two releases and the three element defaults, to gain
+expressiveness for one element we have already handled. **The XSD is a superset
+of the RNG in every dimension we check.** There is nothing to gain by reading
+both, and the codelist data comes from the JSON regardless.
 
 ### Model encoding
 
@@ -456,15 +604,56 @@ so the same laxity applies here: duplicate `language` attributes on repeated
 ["c", min, ...parts]    choice, matched at most once
 ```
 
-Alongside `elements` and `datatypes`, each model carries a **`deprecated`**
+Alongside `elements` and `datatypes`, each model carries **`attributes`**
+(name → spec), **`attributeSets`** (the pooled name sets, indexed by each
+element's `a`) and a **`deprecated`**
 map — reference name → `{ since?, advice?, within? }` — compiled from the
 XSD's annotations (see *Deprecated elements* below).
 
 Leaves are `{list: N}` (code-list bound), `{text: "Type"}` (datatype),
-`{empty: 1}` or `{flow: 1}`. `flow` is the 28 `mixed="true"` elements that
-extend `Flow` from the XHTML subset schema — `<Text>`, `<BiographicalNote>`,
-… — whose content is markup rather than ONIX; the validator never looks
-inside them.
+`{empty: 1}` or `{flow: 1}`; identity constraints hang off the element as `u`,
+and two more optional fields carry the awkward cases: **`d`** is the value XSD
+supplies when the element is left empty, and **`in`** holds the content models
+that apply only under a named parent (both below).
+`flow` is the `mixed="true"` elements that
+extend `Flow` from the XHTML subset schema — 28 in 3.1, 29 in 3.0 — `<Text>`,
+`<BiographicalNote>`, … — whose content is markup rather than ONIX; the
+validator never looks inside them.
+
+### Elements declared by a named complexType
+
+Almost every element carries an inline `xs:complexType`, so the declaration and
+its content model are one node. **Five declarations in 3.1 name a type
+instead** — and all five are `<EpubLicense>`. Compiling only inline types left
+it out of the model altogether, so valid 3.1 reported `<EpubLicense>` as an
+unknown element and **nothing inside it was checked at all**. 3.0 has no named
+types, which is why the gap was release-specific.
+
+Its content genuinely depends on where it sits, which nothing else in either
+release needs:
+
+| Parent | Type | Allows `<EpubLicenseDate>` |
+|---|---|---|
+| `<Price>` | `EpubLicenseType` | no |
+| `<DescriptiveDetail>`, `<ContentItem>`, `<ResourceVersion>`, `<TextContent>` | `EpubLicenseWithDateType` | yes |
+
+The commonest variant becomes the element's own shape and the exceptions hang
+off it as **`in`**, keyed by parent reference name. `xs:extension` is resolved
+by concatenating the base type's particles ahead of the extension's own, which
+is what XSD means by it, and the attributes are the union along that chain.
+
+Every rule therefore reaches an element's shape through **`api.shapeOf(node)`**
+rather than indexing `model.elements` directly — that is the one place the
+parent is consulted. A rule that indexes the table itself silently gets the
+default variant.
+
+### Elements with an XSD default
+
+`<CopyrightType default="C">` means an empty `<CopyrightType/>` carries `"C"`,
+so demanding a value there is a false positive. The model records it as `d` and
+the structural rule skips its missing-value check when one is present. Three
+declarations across the two releases carry a default — `CopyrightType` in both,
+`ConferenceRole` in 3.0 — and none carries `fixed`.
 
 Names in the model are **reference names only**. Short-tag documents are
 validated by translating each name through the generated short-tag map first,
@@ -493,8 +682,8 @@ reword it.
    touching validation logic; the codes are the stable contract, not the prose.
 2. **`RULES`** — an ordered registry. The runner walks the document **once**
    and offers every element to every rule (`start` / `element` / `finish`), so
-   a new rule costs no extra traversal. Five ship today: `structure`,
-   `codelist`, `datatype`, `deprecation` and `gtin`.
+   a new rule costs no extra traversal. Seven ship today: `structure`,
+   `codelist`, `datatype`, `attribute`, `unique`, `deprecation` and `gtin`.
 3. **`OnixViewerContentModels`** — keyed by ONIX release. **Both releases
    since 3.0 ship**: `onix-content-model-3.0.js` and
    `onix-content-model-3.1.js`, one generator run each, each assigning into
@@ -517,11 +706,42 @@ reword it.
    The property this rests on is tested directly: every ONIX fixture must
    produce the same findings from its own model alone as it does from both.
 
-One rule the shape is designed for but that isn't written: **xs:unique** —
-the 3.1 schema carries 142 identity constraints (85 in 3.0), e.g. "no two `<Price>` with the
-same type, currency and territory". Collect keys in `element()`, report in
-`finish()`; there's a test that registers exactly that shape to prove the seam
-works.
+Everything the schema expresses is now checked, so the seam is demonstrated with
+a **house rule** instead — something no schema can express. The test registers
+one (this publisher's ISBNs must sit in its own 978-82 prefix range), with its
+own message template and its own severity, and asserts it fires without the walk
+changing.
+
+### Identity constraints (xs:unique)
+
+**All of them are enforced**: 142 constraints in ONIX 3.1, 85 in 3.0 — the
+generator throws rather than skip a shape it can't compile, and a test asserts
+those exact counts. They are the rules no content model can state: "no two
+`<Product>` with the same `<RecordReference>`", "no two `<Measure>` with the same
+type and unit", "each repeat of `<Text>` needs a distinct language and script".
+
+Compiled onto the host element as `u`, because the XPath shapes the schema uses
+are narrow enough to compile rather than interpret:
+
+```
+selector   one or two steps of onix:Name, optionally a "|" union of paths
+           (3 unions and 8 two-step paths in 3.1, all of them EpubLicense
+           or Contributor-inside-Collection)
+field      onix:Name (a child's text), @name (an attribute), or "." (the
+           selected element's own text)
+```
+
+So `<ONIXMessage>` carries `[{ s: [["Product"]], f: [{ c: "RecordReference" }] }]`.
+The rule resolves the selector against the host's own subtree once per
+constraint — a DOM luxury a streaming port would have to replace with a
+per-composite scratch frame.
+
+**The semantics worth keeping**: a node whose key is incomplete — *any* field
+absent — is outside the constraint, not a violation. Keys join their parts with
+`\u0000`, which cannot occur in XML character data, so no two field values can
+collide by concatenation. There's a test asserting no fixture and neither
+`Onix/` sample gains a duplicate finding, which is what would catch a
+mis-compiled selector.
 
 ### Deprecated elements
 
@@ -545,19 +765,138 @@ One deprecation is context-sensitive: `<TextSourceDescription>` is deprecated
 within `<TextContent>` but not within `<TextSource>`, so the model records
 `within` and the rule checks the parent.
 
+### Attributes
+
+ONIX has exactly **ten** attributes — `datestamp`, `sourcename`, `sourcetype`,
+`language`, `textscript`, `textformat`, `textcase`, `dateformat`,
+`collationkey`, `release` — and they went unchecked until 0.9.17: a
+`textformat="99"` sailed through while the same bad code in an element was
+reported. The `attribute` rule closes that, checking code-list membership,
+deprecated codes, datatypes, enumerations and the one required attribute.
+
+Three things make it cheap:
+
+- **Attribute names are identical in both dialects.** Only element names
+  shorten, so nothing needs translating — verified against both short schemas.
+- **The specs are global.** `language` is List 74 wherever it appears, so the
+  generator emits one spec table and asserts that no name is ever declared two
+  ways.
+- **Only ten distinct attribute *sets* exist** across all 511 elements, and 401 of
+  them share one. `attributeSets` pools the sets and each element stores an
+  index. Spelling the names out per element cost 25 KB to say the same thing;
+  pooled, the whole feature adds about 4 KB.
+
+`refname` and `shortname` are handled by rule rather than by table. Every
+element declares them, and the only legal value is that element's own name in
+each dialect — which the short-tag map already knows. Recording 511 pairs of
+single-value enumerations would have doubled the model to say nothing.
+
+**Only unqualified attributes are ours to judge.** Testing
+`namespaceURI === null` excludes `xmlns` declarations, `xsi:schemaLocation` and
+`xml:lang` in one go — all legal, none of them ONIX's.
+
+**An empty value is always a violation**, and was the one hole left in this
+rule: it bailed on a falsy value before reaching any check, so `language=""`
+and `datestamp=""` passed. None of the ten attributes has a legal empty value —
+each is code-list bound (no enumeration includes `""`), an enumeration of its
+own, or a datatype whose pattern demands a character. Whitespace-only counts as
+empty because every enumerated type in ONIX restricts **`xs:token`**, whose
+`whiteSpace: collapse` runs *before* validation — which is the same reason
+`language=" eng "` has to stay valid, and why the rule trims before comparing.
+
+Two fixes fell out of building this:
+
+- **`dt.DateOrDateTime` was opaque.** The generator saw `xs:union` and gave up,
+  so every `datestamp` *and* every date element went unchecked. That union has
+  exactly one member type, which carries the five date patterns — a union of
+  one is just that member, so `unwrapSingleMemberUnion()` now sees through it.
+  Checked against every fixture and both `Onix/` samples: no new findings, so
+  it was purely a missed check.
+- **35 of the 165 code lists had no name to print.** `OnixViewerCodeListMeta`
+  is keyed by element name, and those 35 are bound to attributes instead
+  (`textcase`, `textformat`, `dateformat`, …), so a finding about one read
+  "List 14 (List 14)". The generator now also emits
+  `OnixViewerCodeListTitles`, keyed by number.
+
+### Datatypes: facets *and* the base type
+
+19 `dt.*` types are compiled, and the base type matters as much as the facets.
+Four of them — `dt.Decimal`, `dt.Integer`, `dt.PositiveInteger`,
+`dt.PositiveIntegerOrZero` — carry **no facets at all**, so recording only facets
+left them entirely unchecked and `<EditionNumber>abc</EditionNumber>` passed.
+`LEXICAL` in `onix-validate.js` now covers the five XSD built-ins ONIX restricts
+(`decimal`, `int`, `integer`, `positiveInteger`, `nonNegativeInteger`), including
+`xs:int`'s 32-bit range.
+
+The two `xs:list` types (`dt.CountryCodeList`, `dt.RegionCodeList`) are
+whitespace-separated codes that together define a territory. The generator
+records what the list is *of* — `{list: 1, listOf: 91, minLength: 1}` — so
+`<CountriesIncluded>NO XX DK</CountriesIncluded>` now names `XX` instead of
+skipping the whole value.
+
 ### Identifier check digits
 
 `gtin` checks ISBN-13 and GTIN-13 (`ProductIDType` 15 and 03, alternating
 1/3 weights mod 10) and ISBN-10 (type 02, weights 10…2 mod 11, remainder 10
 written `X`). The schema cannot see these — all three are just strings to it —
-and a wrong check digit is a common real defect. Deliberately silent on two
-things: schemes with no check digit (proprietary `01`, DOI `06`, …) and values
-of the wrong length, which the datatype rule already reports; adding a check
-digit complaint on top would only be noise.
+and a wrong check digit is a common real defect.
+
+**It also owns the length**, which an earlier version of this note got wrong: it
+claimed a wrong-length value was "left to the datatype rule". That rule cannot
+see it. `<IDValue>` is typed `dt.NonEmptyString` — pattern `.*\S.*` — so the
+schema constrains neither length nor alphabet, and there is no facet for
+anything to catch. The result was that under `ProductIDType` 15 both
+`978-82-345-6789-6` (hyphenated, which real feeds do send) and `97882345`
+(truncated) passed in silence. `gtin.length` now reports them, and it reports
+before the check digit, since a digit cannot be computed for a value of the
+wrong shape.
+
+Deliberately silent on two things: schemes with no check digit (proprietary
+`01`, DOI `06`, …), and a lower-case `x` in an ISBN-10's check position — the
+standard writes it upper case, but the schema constrains neither, and rejecting
+it would fail feeds that are otherwise correct.
 
 It found bad digits in 12 of the test fixtures on its first run, which is why
 they now carry valid ones. `onix-3.1-invalid.xml` keeps its bad digit
 deliberately — it's the defect catalogue.
+
+### Nothing is skipped in silence
+
+The generator refuses a schema it does not fully understand rather than emit a
+model that is quietly short. Both releases use **exactly 27 XSD element kinds
+and all 27 are compiled**; `KNOWN_CONSTRUCTS` asserts that, so `xs:any`,
+`xs:all`, `xs:key`, a new facet — anything absent today — fails the build
+instead of being ignored. `REFUSED_ATTRIBUTES` does the same for `fixed`,
+`nillable`, `abstract`, `substitutionGroup` and `form`, none of which occurs in
+either release. Alongside those, the generator throws on:
+
+- a repeating compound particle (the matcher assumes none)
+- an `xs:unique` selector or field shape it cannot compile
+- an unresolved group, attributeGroup or complexType reference, or a cyclic extension
+- a local element declaration carrying an inline complexType
+- an attribute name declared two ways
+- a facet on a `dt.*` type that it does not read
+- **a datatype named by any element or attribute that it never compiled**
+
+That last one is the check worth having: a shape naming an uncompiled datatype
+is skipped by the datatype rule in complete silence — the element or attribute
+simply goes unchecked. It is how ONIX 3.0's `sourcetype`, `textcase` and
+`textformat` went unvalidated until 0.9.17, and the assertion now makes that
+class of gap impossible to ship. A test guards the shipped files the same way.
+
+Four things are genuinely not checked, for reasons no amount of code fixes:
+
+| Not checked | Why |
+|---|---|
+| XHTML `Flow` content — 28 elements in 3.1, 29 in 3.0 | The XHTML subset schema isn't bundled, and the content is markup rather than ONIX |
+| `<ReligiousTextIdentifier>`, bound to List 88 | EDItEUR publishes that list with no codes at all, so there is nothing to check a value against |
+| The `strict` (Advanced) schema's 500+ assertions | XSD 1.1 `xs:assert` needs an XPath 2.0 engine to interpret. Its identity constraints we already have; its co-occurrence and arithmetic rules belong in `registerRule` — see *The `strict` (Advanced) schema* above for the rule-by-rule position |
+| ONIX Specification prose | Rules no schema expresses — that is what `registerRule` is for |
+
+Code-list *contents* come from the Issue 74 JSON rather than the bundle's
+`ONIX_BookProduct_CodeLists.xsd`, which is deliberately not committed; the
+element→list *bindings* come from the XSD. The two could in principle drift
+apart at a future issue.
 
 ### Two subtleties worth keeping
 
@@ -566,6 +905,14 @@ choice whose second branch is `<xs:element minOccurs="0" ref="NoContributor"/>`
 — an optional alternative, so supplying neither a contributor nor
 `<NoContributor>` is legal. `nullable()` models this. Without it, EDItEUR's own
 sample reports a false error.
+
+**Character data in a composite is a violation.** No composite is
+`mixed="true"` — that is exactly what `flow` marks, and flow returns before the
+check — so text inside one breaks the schema. The matcher works from
+`childElements`, so it never saw it and a stray fragment between two composites
+passed in silence; `reportStrayText` closes that. Only a run containing a
+non-space character counts, because indentation is text too, and it reports
+once however many text nodes carry it.
 
 **Unknown elements are skipped, not matched.** An element the model has never
 heard of is reported once as `structure.unknown` and left out of its parent's
@@ -579,10 +926,17 @@ versus five with it.
 declared at the top of the IIFE because the toolbar setup uses it before the
 sections further down have been reached —
 `error`, `warning`, `ok`, `spinner`, `search`, `file`, `close`, `expand`,
-`collapse`, `copy` — on a shared `0 0 16 16` grid, stroked in `currentColor`
+`collapse`, `wrap`, `copy` — on a shared `0 0 16 16` grid, stroked in `currentColor`
 and sized to 12px by `.px-icon`, so one chip's colour carries its icon.
 Toolbar buttons scale theirs to 14px: at 12px, beside a 12px label at a
 button's scale, an icon reads as an afterthought.
+
+`wrap` is the return arrow, and it took three attempts to find a form that
+survives 14px. The first two drew the literal thing — a text rule plus a line
+wrapping round with an arrowhead — which needs an arc *and* a head inside about
+10px. Both read as a bar with a nub. The return arrow uses the whole box in two
+bold strokes instead, which is the constraint the rest of the set obeys: no icon
+here holds more than three strokes with no fine detail.
 
 `expand` and `collapse` are **two chevrons the same way up**, down and up
 respectively — not a pair pointing at each other. Inward-facing chevrons read
@@ -601,6 +955,11 @@ without colour.
 triangle with a bang inside it loses both shapes, and the amber chip already
 reads as a warning. Chips are `aria-hidden` on the icon with the wording on
 the chip's `aria-label`.
+
+Every labelled toolbar button now carries one — Expand, Collapse, Soft wrap and
+Copy XML — with a test asserting all four do. The dialect switch deliberately
+does not: its label names the *translation* and changes with the document, so
+the words are the load-bearing part and an icon beside them would compete.
 
 Still characters, deliberately: the fold chevrons (`▾`/`▸`, CSS `content`),
 the `⋮` gutter button, the `…` fold ellipsis and the `→` code-list arrow.
@@ -776,28 +1135,46 @@ The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
-## Currently disabled features
+## The structure pane, removed
 
-Two features are bundled and tested but hidden from the UI while the simpler tree-only experience is polished:
+There used to be a second view — a right pane rendering Products as
+cards-and-blocks, with a divider, a three-way XML / Split / Structure toggle and
+bidirectional collapse-sync to the tree. It was **bundled and tested but gated
+off in the UI**, in two places at once, and stayed that way long enough that it
+was shipping ~29 KB of `onix-blocks.js` plus 47 CSS rules and a divider drag
+handler to every install, for something no reader could reach. Removed in
+0.9.17.
 
-- **Structure / Split view** — a right pane that renders ONIX Products as cards with sections per P.x block (DescriptiveDetail, CollateralDetail, …), with bidirectional collapse-sync to the tree pane and click-to-highlight. Lives in `Resources/onix-blocks.js`. To re-enable: uncomment the `.px-view-group` block in `content.js` and delete the early-return at the top of `setupViewMode()` in `viewer.js`.
+What went with it: `Resources/onix-blocks.js`, `window.OnixViewerBlocks`,
+`setupViewMode` / `applyViewMode` / `renderBlocksPane` / `setupBlockSync` /
+`setupDivider`, the `pairMap` row↔card WeakMap and the
+`highlightInTree`/`highlightInBlocks` pair, the `#oxv-blocks-pane`,
+`#oxv-blocks` and `#oxv-divider` elements, the `body.oxv-view-*` classes and the
+`oxv-view-mode` localStorage key, and 339 lines of tests. The tree lost nothing:
+`setActiveTreeRow` stays, because the findings list uses it to jump to a row.
 
-  **The pane's cards are built on first reveal, not at load.** `renderBlocksPane()` in `viewer.js` runs the first time `applyViewMode()` is given a mode other than `xml`, and wires `setupBlockSync()` immediately after — the collapse-sync pairs tree rows with cards, so it can only run once the cards exist. Rendering it eagerly while it was hidden cost every ONIX page a second full pass whose output was then thrown away: 43k discarded DOM nodes on a 300-product feed, 144k on a 1000-product one, and roughly half the load time.
+Three things are deliberately **kept**, having looked like pane code and not
+been:
 
-  The meta pill's product count therefore comes from `OnixViewerOnix.productElements(doc).length`, not from the pane's return value — the label must not depend on a disabled feature having run.
+- **`.px-block-label`** — the tree's own `Block N` badge, built in `viewer.js`.
+- **`#oxv-block-list`** — the toolbar pill's `Blocks: 1, 2, 4, 5, 6` segment,
+  which is a different thing entirely from `#oxv-blocks`.
+- **`#oxv-main`** — still the flex row wrapping `#oxv-root`, now with one child.
 
-  Tests that assert on the pane go through `renderWithBlocks()` in `tests/run.js`, which reveals it the way a reader would.
+If the idea ever comes back it is in the history (`git show 53ea342:Resources/onix-blocks.js`, the last commit that carried it),
+and it should come back as its own thing rather than as a permanently-disabled
+branch of the viewer.
 
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, tagClass, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks, blockNames)
+- `window.OnixViewerOnix` — the ONIX module API (detect, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
+- `window.OnixViewerCodeListTitles` — list number → title, for the 35 lists no element binds
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
 - `window.OnixViewerShortTags` — generated short-tag → reference-name pairs (lower-cased keys); `onix.js` builds `SHORT_TO_REFERENCE` from it
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
-- `window.OnixViewerBlocks` — right-pane renderer (currently loaded but its render call is gated off)
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.0"`, `"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
@@ -822,13 +1199,52 @@ The `px-` CSS prefix was retained from the rename because changing it would touc
 
 A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings; the four LOW recommendations were applied in 0.9.8.
 
+## Keeping the extension easy to review
+
+A Chrome Web Store reviewer reads the manifest and `SECURITY.md`, then goes
+looking for the things those documents claim are absent. **A stale security
+note is worse than none** — a reviewer who finds one claim wrong stops trusting
+the rest — so the claims are asserted in the suite rather than maintained by
+hand. `describe("Reviewability")` in `tests/run.js` checks:
+
+| Claim | How it is held |
+|---|---|
+| "No remote code" | no `eval`, `new Function` or `document.write` in any shipped script, and no string in the code referencing a remote `.js` |
+| "One network call" | exactly one `fetch(` across the shipped scripts, and its argument must be `document.location.href` |
+| No HTML injection | no `innerHTML`/`outerHTML` assignment at all in the shipped scripts, and `insertAdjacentHTML` is banned |
+| "Zero permissions" | `permissions` is `[]`, and `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent |
+| `SECURITY.md` is accurate | its fenced manifest excerpt is parsed as JSON and compared field-by-field with the real manifest |
+| Injection actually works | every resource `content.js` builds a `getURL()` for is both web-accessible and present on disk |
+
+Each was verified to fail when the claim is broken — a planted `eval`, an added
+permission, an extra web-accessible resource, `root.innerHTML = SOURCE`.
+
+Two design choices carry most of the reviewability, and both should survive any
+refactor:
+
+- **The untrusted XML never becomes markup.** It reaches the page as
+  `textContent` on an inert `<script type="application/xml">` block and is
+  rendered to DOM nodes one at a time. The shell HTML is a template string, but
+  its only three interpolations are two `runtime.getURL()` values and an
+  `escapeHtml`'d page title — no document content goes near it.
+- **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
+  a rogue `fetch` to a third party is blocked by CORS in the browser, not
+  merely absent from the code. There is no capability for a page to borrow.
+
+`web_accessible_resources` is the one broad-looking entry that isn't a
+permission, and *is* asked about: the viewer runs in the page's world, so the
+page has to be allowed to load the eight scripts, the stylesheet and the icon
+that `content.js` appends. It exposes only static files that are public in this
+repository, and grants a page none of the extension's privileges — of which
+there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
+
 ## Dev workflow
 
 ### Test loop (fast — use this most of the time)
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 187-test jsdom suite (~7s)
+npm test        # runs the 203-test jsdom suite (~8s)
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
@@ -859,7 +1275,12 @@ tools/release.sh 0.9.X
 git push origin main v0.9.X
 ```
 
-Every push and pull request runs `.github/workflows/test.yml` — the same suite, plus a check that the generated files still match `tools/data/` (it re-runs all three generators and requires no diff, so editing an XSD without regenerating fails there rather than shipping stale data).
+Every push and pull request runs `.github/workflows/test.yml` — the same suite, plus two staleness checks:
+
+- **Generated data**: all three generators are re-run and any diff fails the build, so editing an XSD without regenerating fails there rather than shipping stale data.
+- **Icons** (`npm run check:icons`): the shipped `Resources/icons/icon-<size>.png` must be byte-identical to a hand-drawn `icons/icon-<size>.png` where one exists, every PNG's pixel size must match its name, and each must carry an alpha channel. It deliberately does **not** re-render: `render-icons.sh` needs `rsvg-convert`, whose output is not byte-stable between versions, so a re-render-and-diff check would fail on the renderer's version rather than on a real problem. Byte comparison and a PNG header read need no image tooling at all.
+
+  This exists because a stale icon did ship: `icons/icon-32.png` gained an alpha channel, which makes a hand-drawn size win over a downscale, but `render-icons.sh` was not re-run — so `Resources/icons/icon-32.png` stayed the downscale through a commit. The check also prints which sizes are still rendered from the master, so the hand-drawn set can be completed one size at a time.
 
 The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the zip is built, and a GitHub release is created with `onix-viewer-0.9.X.zip` attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
 
@@ -893,6 +1314,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.1-valid.xml` | A schema-valid ONIX 3.1 message: the validator's clean baseline. Uses the split `<NoPrefix/>` + `<TitleWithoutPrefix>` title form, since `<TitleText>` is deprecated in 3.1 and "valid" here means zero findings |
 | `onix-3.1-invalid.xml` | One instance of each finding kind: unknown element, bad code, deprecated code, deprecated element, missing required element, out-of-range value, bad ISBN-10 check digit |
 | `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
+| `onix-2.1-doctype.xml` | An ONIX 2.1 message with the standard `<!DOCTYPE … SYSTEM "…dtd">`: the DOCTYPE row keeps its `SYSTEM` keyword |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 
@@ -909,8 +1331,7 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **Generic XML rendering** (syntax highlighting, fold behavior, search, keyboard nav): live in `viewer.js` and `viewer.css`. Always add a corresponding fixture + test.
 - **ONIX detection / codelist resolution / Product summaries**: live in `onix.js`. The viewer calls into the ONIX module via the `window.OnixViewerOnix` API — keep that contract narrow so non-ONIX docs don't pay for ONIX features.
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
-- **Right-pane block changes** (only relevant if/when the structure view is re-enabled): live in `onix-blocks.js`. Uses native `<details>`/`<summary>` for collapse, no JS needed for that.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
-- **Icon changes**: edit `icons/image.png` (the cropped 546×546 source-of-truth), then `tools/render-icons.sh` rebakes all seven PNG sizes.
+- **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes all seven manifest sizes. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-48.png`, the app icon's own 48px size, so there is nothing to keep in step. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
 - **Store screenshots**: re-take into `Screenshots/` at 1280×800 and commit them. That directory is the record of what the listing shows — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.

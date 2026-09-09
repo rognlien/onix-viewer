@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "ONIX Viewer",
-  "version": "0.9.16",
+  "version": "0.9.17",
   "description": "Readable ONIX XML in Chrome: collapsible tree, product summaries, inline EDItEUR code-list labels and automatic validation.",
+  "minimum_chrome_version": "119",
 
   "icons": {
     "16": "icons/icon-16.png",
@@ -36,8 +37,8 @@
         "onix-content-model-3.1.js",
         "onix-content-model-3.0.js",
         "onix-validate.js",
-        "onix-blocks.js",
-        "onix-popup.js"
+        "onix-popup.js",
+        "icons/icon-48.png"
       ],
       "matches": ["<all_urls>"]
     }

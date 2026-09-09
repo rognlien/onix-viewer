@@ -39,7 +39,7 @@
   // lookups, so <b253> still resolves LanguageRole.
   //
   // The bulk is GENERATED into onix-codelists.js from EDItEUR's short-tag
-  // schema — all 505 pairs, keys lower-cased. It used to be a hand-kept
+  // schemas — all 530 pairs across both releases, keys lower-cased. It used to be a hand-kept
   // subset of ~30 tags, which left 145 of the 157 code-list-bound elements
   // unlabelled in short-tag documents.
   //
@@ -258,15 +258,6 @@
   }
 
   /**
-   * Classify a single element. Returns extra CSS classes to apply to its
-   * tag span: "px-onix-ref" or "px-onix-short" (or empty).
-   */
-  function tagClass(element, ctx) {
-    if (!ctx.isOnix) return "";
-    return ctx.dialect === "short" ? "px-onix-short" : "px-onix-ref";
-  }
-
-  /**
    * The same element's name in the other dialect, or null when there's no
    * translation (an unknown or extension element) or the name is already the
    * requested form. Powers the toolbar's Reference / Short toggle: the tree
@@ -421,7 +412,7 @@
   /**
    * For a codelist key (e.g. "ProductIDType"), return its EDItEUR list
    * metadata: `{ listName, listNumber, url }` or null when unknown.
-   * Used by the right-pane block view, which already knows the codelist key.
+   * Used by the code-list popup, which already knows the codelist key.
    */
   function codelistMeta(name) {
     const meta = (window.OnixViewerCodeListMeta || {})[name];
@@ -436,8 +427,8 @@
   }
 
   /**
-   * Build a small inline SVG external-link icon. Shared by both panes so
-   * the visual is consistent.
+   * Build a small inline SVG external-link icon. Shared by the tree and the
+   * code-list popup so the visual is consistent.
    */
   function externalLinkIcon() {
     const SVG_NS = "http://www.w3.org/2000/svg";
@@ -798,7 +789,6 @@
 
   window.OnixViewerOnix = {
     detect,
-    tagClass,
     resolveCodelist,
     resolveAttributeCodelist,
     codelistMeta,
@@ -810,6 +800,5 @@
     isProductElement,
     productElements,
     singleProductBlocks,
-    blockNames: new Set(BLOCK_NUMBERS.keys()),
   };
 })();

@@ -259,6 +259,17 @@ function render(lists, elementToList, shortToReference, schemaInfo) {
   out.push("  window.OnixViewerCodeListsByNumber = _lists;");
 
   out.push("");
+  out.push("  // Titles by list number. OnixViewerCodeListMeta reaches a title only");
+  out.push("  // through an element that binds the list, and 35 of the 165 lists are");
+  out.push("  // bound to attributes instead (textcase, textformat, dateformat, …) —");
+  out.push("  // so a finding about one of those had no name to print.");
+  out.push("  window.OnixViewerCodeListTitles = {");
+  for (const n of listNumbers) {
+    out.push(`    ${n}: ${jsString(lists[n].title)},`);
+  }
+  out.push("  };");
+
+  out.push("");
   out.push("  // Codes EDItEUR has withdrawn, by list number → code → the issue at");
   out.push("  // which each was deprecated. Still valid XML, but not to be sent.");
   out.push("  window.OnixViewerDeprecatedCodes = Object.create(null);");
