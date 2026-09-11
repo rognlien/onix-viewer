@@ -26,6 +26,7 @@ onix-viewer/
 ├── package.json                    jsdom dev dep + `npm test`
 ├── Resources/                      the actual web extension (load in chrome://extensions)
 │   ├── manifest.json               MV3, ZERO permissions, ZERO host_permissions
+│   ├── shell.js                    the HTML shell, one template for content.js and the tests
 │   ├── content.js                  detects raw XML, takes the page over
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
@@ -116,7 +117,7 @@ The pattern is:
 2. Check `document.contentType` against the MIME whitelist (`application/xml`, `text/xml`, `application/onix+xml`).
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
-4. Build a fresh HTML shell via `DOMParser`, then `document.replaceChild(newRoot, document.documentElement)` to swap roots.
+4. Build a fresh HTML shell via `DOMParser` — the markup comes from `shell.js`, a second content script loaded ahead of `content.js` so the two share one isolated-world global — then `document.replaceChild(newRoot, document.documentElement)` to swap roots. The test harness builds its jsdom window from the same template, which is the point of it being a module: a renamed id or a new toolbar button fails in the suite, where a hand-written copy used to drift.
 5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
 6. Those scripts parse the original XML with `DOMParser` and render to plain DOM.
 
@@ -1341,9 +1342,9 @@ refactor:
 
 - **The untrusted XML never becomes markup.** It reaches the page as
   `textContent` on an inert `<script type="application/xml">` block and is
-  rendered to DOM nodes one at a time. The shell HTML is a template string, but
-  its only three interpolations are two `runtime.getURL()` values and an
-  `escapeHtml`'d page title — no document content goes near it.
+  rendered to DOM nodes one at a time. The shell HTML is a template string in
+  `shell.js`, but its only three interpolations are two `runtime.getURL()`
+  values and an `escapeHtml`'d page title — no document content goes near it.
 - **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
   a rogue `fetch` to a third party is blocked by CORS in the browser, not
   merely absent from the code. There is no capability for a page to borrow.

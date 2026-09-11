@@ -22,7 +22,7 @@ This document explains how ONIX Viewer handles page content, what permissions it
     "run_at": "document_start",
     "all_frames": false,
     "match_origin_as_fallback": true,
-    "js": ["content.js"]
+    "js": ["shell.js", "content.js"]
   }],
   "web_accessible_resources": [{
     "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js",
@@ -48,7 +48,8 @@ Specifically:
 - **`web_accessible_resources`** lists the eight viewer scripts, the
   stylesheet and one icon, matched against `<all_urls>`. They have to be
   web-accessible because the viewer runs in the **page's** world, not the
-  content script's: `content.js` replaces the document and then appends
+  content script's: `content.js` replaces the document with the markup
+  `shell.js` supplies (a second content script, loaded first) and then appends
   ordinary `<script src="chrome-extension://…">` tags, which the page must be
   allowed to load. The `<all_urls>` match follows from the same fact as the
   content script's — ONIX can be served from any URL.

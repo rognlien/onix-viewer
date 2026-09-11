@@ -36,6 +36,8 @@ const validateJs = fs.readFileSync(path.join(RES, "onix-validate.js"), "utf8");
 const popupJs = fs.readFileSync(path.join(RES, "onix-popup.js"), "utf8");
 const viewerJs = fs.readFileSync(path.join(RES, "viewer.js"), "utf8");
 const viewerCss = fs.readFileSync(path.join(RES, "viewer.css"), "utf8");
+// shell.js publishes OnixViewerShell on globalThis, in node as in a page.
+require(path.join(RES, "shell.js"));
 
 // ---- minimal test framework ------------------------------------------------
 
@@ -106,36 +108,13 @@ function render(fixtureName, beforeScripts) {
 function renderSource(xml, label, beforeScripts, models) {
   const fixtureName = label || "inline.xml";
 
-  const html = `<!doctype html><html><head><style>${viewerCss}</style></head>
-<body>
-  <div id="oxv-toolbar">
-    <div class="px-left">
-      <img id="oxv-logo" src="icons/icon-48.png" width="28" height="28" alt="ONIX Viewer">
-      <button data-action="expand"></button>
-      <button data-action="collapse"></button>
-      <button data-action="toggle-wrap"></button>
-      <button data-action="copy-xml"></button>
-      <span class="px-dialect-group">
-        <button data-action="dialect-toggle" aria-pressed="false"></button>
-      </span>
-      <span class="px-search-group">
-        <button class="px-icon-btn" data-action="search" aria-expanded="false"></button>
-        <input id="oxv-search" tabindex="-1">
-        <span id="oxv-search-status"></span>
-      </span>
-    </div>
-    <div class="px-center">
-      <span id="oxv-meta"><span id="oxv-block-list"></span></span>
-      <span id="oxv-validation"></span>
-    </div>
-    <div class="px-right">
-      <span id="oxv-schema"></span>
-    </div>
-  </div>
-  <div id="oxv-main">
-    <main id="oxv-root" tabindex="0"></main>
-  </div>
-</body></html>`;
+  // The real shell, from the same template content.js parses — so a renamed
+  // id or a new toolbar button breaks here, not only in the browser. The
+  // stylesheet link becomes an inline <style>, since jsdom fetches nothing.
+  const html = globalThis.OnixViewerShell.html({
+    title: fixtureName, cssURL: "viewer.css", logoURL: "icons/icon-48.png",
+  }).replace('<link rel="stylesheet" href="viewer.css">', `<style>${viewerCss}</style>`);
+
 
   const vc = new VirtualConsole();
   vc.on("error", (e) => {
