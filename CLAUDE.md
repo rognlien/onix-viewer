@@ -57,7 +57,7 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (207 tests, ~8s; takes a name filter)
+│   ├── run.js                      jsdom harness (221 tests, ~8s; takes a name filter)
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -534,7 +534,7 @@ thing entirely:
 | ISBN-13, GTIN-13, ISBN-10 check digits | enforced by the `gtin` rule |
 | Check digits for UPC, ISNI, GLN, SAN, ORCID, ISMN-13; DOI plausibility; an ISBN-10 requiring the matching ISBN-13 | not checked |
 | Proprietary `<*IDType>` requiring `<IDTypeName>` | not checked |
-| Second-order code lists — lists 28, 98, 196 in `<ProductFormFeatureValue>`, `<AudienceCodeValue>`, whose list depends on a sibling type element | not checked; those elements are plain strings in our model |
+| Second-order code lists — `<ProductFormFeatureValue>` under type 09 is List 196, `<AudienceCodeValue>` under type 01 is List 28, … | enforced, from a table transcribed out of strict — see *Second-order code lists* below |
 | Subject-scheme patterns (Thema, BIC, BISAC, CLIL) | not checked |
 | Tax arithmetic — `<PriceAmount>` = `<TaxableAmount>` + `<TaxAmount>`, `<Tax>` only on tax-inclusive prices | not checked |
 | Contributor `<SequenceNumber>` present for every contributor and consecutive from 1 | not checked |
@@ -840,6 +840,75 @@ records what the list is *of* — `{list: 1, listOf: 91, minLength: 1}` — so
 `<CountriesIncluded>NO XX DK</CountriesIncluded>` now names `XX` instead of
 skipping the whole value.
 
+### Second-order code lists
+
+A handful of ONIX elements take their code from a list that a **sibling**
+selects. `<ProductFormFeatureValue>` is a cover colour from List 98 when
+`<ProductFormFeatureType>` is 01, an accessibility detail from List 196 when
+it is 09, an EPUB version from List 220 when it is 15 — and free text or a
+number under most other types. The classic XSD types these value elements as
+plain strings, so the generated bindings cannot know them, and until this was
+added every such value rendered bare and went unvalidated. Graham Bell of
+EDItEUR pointed it out, and named the lists: 28, 66, 76, 77, 90, 91, 98, 99,
+139, 143, 176, 178, 184, 196, 203, 204, 220, 227, 238, 242, 243, 256, 257,
+258, 262 — all of which were already bundled, just unbound.
+
+The mapping lives in **`DEPENDENT_CODELISTS`** in `onix.js`, keyed by the
+value element's reference name: the selecting sibling, and a map from that
+sibling's code to a list number. Ten value elements, forty-odd type codes.
+It was **transcribed from the `xs:assert` rules of the strict 3.1.3 schema**,
+which spells each one out (`(ProductFormFeatureType ne '09') or
+matches(ProductFormFeatureValue, '^(00|01|…)$')`), and not from the codelist
+JSON's prose notes — those cross-reference lists that are not dependencies at
+all (seventeen Product content types merely *mention* List 196). Two
+readings worth recording:
+
+- **Carbon/GHG types 41–46 all take List 262.** Strict carries two asserts
+  for them, one over 41–46 and a newer one over 41–45, and both are live, so
+  the union is what a document has to satisfy.
+- **The EUDR types 47–49 are `leading`**: the value is a List 91 country code
+  followed by an optional species and harvest date (`NO Picea abies 2024`),
+  so only the first whitespace-separated token is the code — for the badge
+  and for the verdict alike. `dependentCode()` does the split.
+
+`<FeatureValue>` is the one value element with **two selectors**, since it
+sits under both `<ResourceFeature>` and `<ResourceVersionFeature>`, whose
+type elements are named differently; its entry is an array.
+
+Three consumers share the table through `dependentCodelist(element)`, which
+compares names as reference names so both dialects work:
+
+- **The badge.** `codelistFor()` is the list an element is bound to, its own
+  or a sibling's choice, whether or not the value is in it; `resolveCodelist()`
+  is that plus the label, and null when the code is unknown. The viewer calls
+  both: a resolved code gets the label badge and the list chip, an unknown one
+  the **list chip alone**, so a row reporting `"NAVY" is not in List 98` also
+  offers List 98 to open. That holds for an element's own list too —
+  `<NotificationType>99</NotificationType>` gets a `List 1` chip. The result's `codelistKey` is **`list:196`** rather than
+  an element name — no element is bound to the list — and `codelistMeta()`
+  and `codelistEntries()` both understand that form, taking the title from
+  `OnixViewerCodeListTitles`. The result also carries a `context`
+  (`ProductFormFeatureValue when ProductFormFeatureType is 09`), built from
+  the nodes' own names so a short-tag file reads `b335 when b334 is 09`.
+- **The popup.** `show(key, value, context)` prints the context in the
+  eyebrow where the element name would go.
+- **The validator.** The `codelist` rule asks `codelistFor()` too, so the
+  verdict and the chip can never disagree about which list applies; there is
+  no second copy of the binding logic. A code outside a second-order list is
+  **`codelist.dependent`** —
+  `"XX" is not in List 196 (E-publication Accessibility Details), which
+  applies when <ProductFormFeatureType> is 09` — a distinct code from
+  `codelist.unknown` because the reader's file does not say why that list
+  applies. A deprecated code is the ordinary `codelist.deprecated` warning.
+  A type code the table does not map (07, system requirements) is judged by
+  nothing, since the value is free text.
+
+The table is guarded by a test that walks every row, asserts each element is
+in the 3.1 model and has a short tag, each list is bundled, and that the
+union of lists selected is exactly Graham's twenty-five. The strict schemas
+themselves are in `Onix/` for reference and are **not** an input to any
+generator — see *The `strict` (Advanced) schema* above for why.
+
 ### Identifier check digits
 
 `gtin` checks ISBN-13 and GTIN-13 (`ProductIDType` 15 and 03, alternating
@@ -973,7 +1042,8 @@ so a row reads as one line of pills. Three earlier designs were rejected on
 sight: a neutral grey pill, which the reader wanted coloured; a solid red or amber block with a
 white cross or bare exclamation on it, and an outlined icon on a pale
 severity tint with a hairline border. A lone finding shows its message in
-the pill (`.px-finding-text`, ellipsised past `min(72ch, 55vw)`); a row that
+the pill (`.px-finding-text`, ellipsised past `min(110ch, 70vw)` — wide enough
+for a second-order finding to show its selector); a row that
 collects several drops the text for a count. The tooltip carries every
 message in full either way. Pills are `aria-hidden` on the icon with the
 wording on the pill's `aria-label`.
@@ -1197,14 +1267,14 @@ branch of the viewer.
 ## Identifier conventions
 
 After the rename from "PrettyXML" to "ONIX Viewer":
-- `window.OnixViewerOnix` — the ONIX module API (detect, resolveCodelist, resolveAttributeCodelist, nodeSummary, translatedName, translateNode, codelistMeta, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks)
+- `window.OnixViewerOnix` — the ONIX module API (detect, resolveCodelist, codelistFor, resolveAttributeCodelist, dependentCodelist, nodeSummary, translatedName, translateNode, codelistMeta, codelistEntries, externalLinkIcon, blockNumber, isProductElement, productElements, singleProductBlocks)
 - `window.OnixViewerCodeLists` — codelist data keyed by element name (each value is a `Map<code, label>`)
 - `window.OnixViewerCodeListsByNumber` — same data keyed by list number (for attribute lookups where there's no parent element)
 - `window.OnixViewerCodeListTitles` — list number → title, for the 35 lists no element binds
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
 - `window.OnixViewerShortTags` — generated short-tag → reference-name pairs (lower-cased keys); `onix.js` builds `SHORT_TO_REFERENCE` from it
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
-- `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?)`, `close()`)
+- `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?, context?)`, `close()`); the key is an element name or `list:N` for a list no element binds
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.0"`, `"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
 - `window.OnixViewerValidation` — `run`, `start` (sliced session), `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
@@ -1273,7 +1343,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 207-test jsdom suite (~8s)
+npm test        # runs the 221-test jsdom suite (~8s)
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
@@ -1344,6 +1414,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.1-invalid.xml` | One instance of each finding kind: unknown element, bad code, deprecated code, deprecated element, missing required element, out-of-range value, bad ISBN-10 check digit |
 | `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
 | `onix-2.1-doctype.xml` | An ONIX 2.1 message with the standard `<!DOCTYPE … SYSTEM "…dtd">`: the DOCTYPE row keeps its `SYSTEM` keyword |
+| `onix-3.1-dependent-codelists.xml` | Second-order code lists: one value element per selector (`ProductFormFeatureType` 01, 09 and 47, `AudienceCodeType`, `AudienceRangeQualifier`, `SalesOutletIDType`, `ReturnsCodeType`) plus a type 07 value that must stay plain. Schema-valid, so also the clean baseline; its short-tag twin is made in the test with `translateNode` |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.
 

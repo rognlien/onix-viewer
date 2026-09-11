@@ -518,7 +518,10 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   align-items: center;
   gap: 4px;
   height: 16px;
-  max-width: min(72ch, 55vw);
+  /* Wide enough for a second-order finding — `"NAVY" is not in List 98
+     (Binding or page edge color), which applies when <ProductFormFeatureType>
+     is 01` — to show the selector before it ellipsises. */
+  max-width: min(110ch, 70vw);
   margin-left: 6px;
   padding: 0 7px 0 3px;
   border-radius: 999px;

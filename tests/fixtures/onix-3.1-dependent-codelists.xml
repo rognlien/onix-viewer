@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Second-order code lists: value elements whose list is chosen by a sibling
+     type element. Schema-valid, so the validator's clean baseline for them. -->
+<ONIXMessage release="3.1" xmlns="http://ns.editeur.org/onix/3.1/reference">
+  <Header>
+    <Sender>
+      <SenderName>Bokbasen AS</SenderName>
+    </Sender>
+    <SentDateTime>20260911T1200</SentDateTime>
+  </Header>
+  <Product>
+    <RecordReference>dependent-9788234567896</RecordReference>
+    <NotificationType>03</NotificationType>
+    <ProductIdentifier>
+      <ProductIDType>15</ProductIDType>
+      <IDValue>9788234567896</IDValue>
+    </ProductIdentifier>
+    <DescriptiveDetail>
+      <ProductComposition>00</ProductComposition>
+      <ProductForm>BB</ProductForm>
+      <ProductFormFeature>
+        <ProductFormFeatureType>01</ProductFormFeatureType>
+        <ProductFormFeatureValue>BLU</ProductFormFeatureValue>
+      </ProductFormFeature>
+      <ProductFormFeature>
+        <ProductFormFeatureType>09</ProductFormFeatureType>
+        <ProductFormFeatureValue>52</ProductFormFeatureValue>
+      </ProductFormFeature>
+      <ProductFormFeature>
+        <ProductFormFeatureType>47</ProductFormFeatureType>
+        <ProductFormFeatureValue>NO Picea abies (gran) 2024</ProductFormFeatureValue>
+        <ProductFormFeatureDescription>59.91 10.75</ProductFormFeatureDescription>
+      </ProductFormFeature>
+      <ProductFormFeature>
+        <ProductFormFeatureType>07</ProductFormFeatureType>
+        <ProductFormFeatureValue>01</ProductFormFeatureValue>
+        <ProductFormFeatureDescription>Requires a web browser</ProductFormFeatureDescription>
+      </ProductFormFeature>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <NoPrefix/>
+          <TitleWithoutPrefix>Boken med andreordens kodelister</TitleWithoutPrefix>
+        </TitleElement>
+      </TitleDetail>
+      <Contributor>
+        <SequenceNumber>1</SequenceNumber>
+        <ContributorRole>A01</ContributorRole>
+        <PersonName>Kari Nordmann</PersonName>
+      </Contributor>
+      <Language>
+        <LanguageRole>01</LanguageRole>
+        <LanguageCode>nob</LanguageCode>
+      </Language>
+      <Audience>
+        <AudienceCodeType>01</AudienceCodeType>
+        <AudienceCodeValue>03</AudienceCodeValue>
+      </Audience>
+      <AudienceRange>
+        <AudienceRangeQualifier>11</AudienceRangeQualifier>
+        <AudienceRangePrecision>03</AudienceRangePrecision>
+        <AudienceRangeValue>5</AudienceRangeValue>
+        <AudienceRangePrecision>04</AudienceRangePrecision>
+        <AudienceRangeValue>8</AudienceRangeValue>
+      </AudienceRange>
+    </DescriptiveDetail>
+    <PublishingDetail>
+      <Imprint>
+        <ImprintName>Eksempelforlaget</ImprintName>
+      </Imprint>
+      <PublishingStatus>04</PublishingStatus>
+      <SalesRights>
+        <SalesRightsType>01</SalesRightsType>
+        <Territory>
+          <RegionsIncluded>WORLD</RegionsIncluded>
+        </Territory>
+        <SalesRestriction>
+          <SalesRestrictionType>04</SalesRestrictionType>
+          <SalesOutlet>
+            <SalesOutletIdentifier>
+              <SalesOutletIDType>03</SalesOutletIDType>
+              <IDValue>AMZ</IDValue>
+            </SalesOutletIdentifier>
+          </SalesOutlet>
+        </SalesRestriction>
+      </SalesRights>
+    </PublishingDetail>
+    <ProductSupply>
+      <SupplyDetail>
+        <Supplier>
+          <SupplierRole>01</SupplierRole>
+          <SupplierName>Forlagssentralen</SupplierName>
+        </Supplier>
+        <ReturnsConditions>
+          <ReturnsCodeType>02</ReturnsCodeType>
+          <ReturnsCode>Y</ReturnsCode>
+        </ReturnsConditions>
+        <ProductAvailability>20</ProductAvailability>
+        <UnpricedItemType>01</UnpricedItemType>
+      </SupplyDetail>
+    </ProductSupply>
+  </Product>
+</ONIXMessage>

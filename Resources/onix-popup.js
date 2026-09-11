@@ -4,7 +4,12 @@
 // definition. Triggered by clicks on the "List N" badges in either pane.
 //
 // Public API:
-//   window.OnixViewerPopup.show(codelistKey, currentValue?)
+//   window.OnixViewerPopup.show(codelistKey, currentValue?, context?)
+//
+// `codelistKey` is an element name, or `list:N` for a list no element is
+// bound to — a second-order list picked by a sibling's code. `context` then
+// says which ("ProductFormFeatureValue when ProductFormFeatureType is 09")
+// and takes the element name's place in the eyebrow.
 //
 // Lifecycle: a single overlay node is mounted lazily on first show() and
 // reused across opens. Esc, the close button, or a click on the backdrop
@@ -18,14 +23,14 @@
   let lastFocus = null;
   let escListener = null;
 
-  function show(codelistKey, currentValue) {
+  function show(codelistKey, currentValue, context) {
     if (!window.OnixViewerOnix || !window.OnixViewerCodeLists) return;
     const meta = window.OnixViewerOnix.codelistMeta(codelistKey);
-    const entries = window.OnixViewerCodeLists[codelistKey];
+    const entries = window.OnixViewerOnix.codelistEntries(codelistKey);
     if (!meta || !entries) return;
 
     ensureMounted();
-    populate(meta, entries, currentValue);
+    populate(meta, entries, currentValue, context);
     open();
   }
 
@@ -49,7 +54,7 @@
     document.body.appendChild(overlay);
   }
 
-  function populate(meta, entries, currentValue) {
+  function populate(meta, entries, currentValue, context) {
     while (dialog.firstChild) dialog.removeChild(dialog.firstChild);
 
     // Header — list name / title / close
@@ -61,7 +66,7 @@
 
     const eyebrow = document.createElement("div");
     eyebrow.className = "px-popup-eyebrow";
-    eyebrow.textContent = `${meta.listName} · ${meta.key}`;
+    eyebrow.textContent = `${meta.listName} · ${context || meta.key}`;
     titleWrap.appendChild(eyebrow);
 
     const title = document.createElement("h2");
