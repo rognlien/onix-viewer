@@ -50,6 +50,11 @@ Requires Chrome 119 or later.
 
 ## Install
 
+**From the Chrome Web Store.** The preferred way:
+[ONIX Viewer](https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife).
+Updates arrive on their own. To open local `.xml` files, enable **Allow
+access to file URLs** under the extension's **Details** in `chrome://extensions`.
+
 **From a release zip.** Download `onix-viewer-<version>.zip` from the
 [releases page](https://github.com/rognlien/onix-viewer/releases), unzip it
 somewhere permanent, then in `chrome://extensions` turn on **Developer mode**,
