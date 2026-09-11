@@ -23,7 +23,8 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
-├── package.json                    jsdom dev dep + `npm test`
+├── package.json                    jsdom + eslint dev deps; `npm test`, `npm run lint`
+├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
 │   ├── manifest.json               MV3, ZERO permissions, ZERO host_permissions
 │   ├── shell.js                    the HTML shell, one template for content.js and the tests
@@ -1365,6 +1366,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 npm install     # one-time, installs jsdom
 npm test        # runs the 246-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
+npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```

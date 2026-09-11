@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, meta, findingsFor, findings, findingsCoded, described,
+  test, describe, assert, render, findingsFor, findingsCoded, described,
 } = require("../harness");
 
 describe("Attributes", () => {

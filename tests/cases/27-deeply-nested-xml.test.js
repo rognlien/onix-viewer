@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, renderSource, $$, meta,
+  test, describe, assert, renderSource, $$, meta,
 } = require("../harness");
 
 describe("Deeply nested XML", () => {

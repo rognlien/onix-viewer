@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, $$, meta, rowsNamed, badges, summariesOf, codes,
+  test, describe, assert, render, $$, meta, rowsNamed, badges, summariesOf,
 } = require("../harness");
 
 describe("ONIX 3.0 reference", () => {

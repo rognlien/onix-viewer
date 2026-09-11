@@ -24,6 +24,9 @@ jobs:
       - run: npm ci
 
       - run: npm test
+      # Undefined globals and unused bindings in scripts that only ever run
+      # inside a page are the class of slip no fixture exercises.
+      - run: npm run lint
 
       # Resources/onix-codelists.js and the two content models are generated
       # from the XSDs and JSON in tools/data/. Editing an input without

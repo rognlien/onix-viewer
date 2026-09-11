@@ -617,7 +617,7 @@
       let expression = patternCache[typeName];
       if (expression === undefined) {
         try { expression = new RegExp(`^(?:${facets.re})$`); }
-        catch (_) { expression = null; } // XSD regex dialect we can't compile
+        catch { expression = null; } // XSD regex dialect we can't compile
         patternCache[typeName] = expression;
       }
       if (expression && !expression.test(value)) return { kind: "pattern" };

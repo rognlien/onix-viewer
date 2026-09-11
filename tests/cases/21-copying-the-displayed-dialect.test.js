@@ -14,7 +14,7 @@ describe("Copying the displayed dialect", () => {
     return copied;
   }
   function elementNames(xml) {
-    return new Set([...xml.matchAll(/<([A-Za-z][A-Za-z0-9]*)[\s>\/]/g)].map((m) => m[1]));
+    return new Set([...xml.matchAll(/<([A-Za-z][A-Za-z0-9]*)[\s>/]/g)].map((m) => m[1]));
   }
 
   test("untranslated, Copy XML still hands over the source byte for byte", () => {

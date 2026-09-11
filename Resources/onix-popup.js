@@ -97,9 +97,7 @@
     // preserves insertion order, unlike Object.keys (which would reorder
     // canonical-numeric string keys ahead of zero-padded ones).
     let highlighted = null;
-    let count = 0;
     for (const [code, label] of entries) {
-      count++;
       // HTML5 allows wrapping each <dt>/<dd> pair in a <div>, which is the
       // ergonomic way to apply zebra striping and current-row highlighting.
       const row = document.createElement("div");
@@ -194,7 +192,7 @@
       escListener = null;
     }
     if (lastFocus && typeof lastFocus.focus === "function") {
-      try { lastFocus.focus(); } catch (_) {}
+      try { lastFocus.focus(); } catch { /* it may have left the document */ }
     }
   }
 

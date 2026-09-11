@@ -161,7 +161,7 @@
           let xml = "";
           for (const child of wrap.childNodes) {
             try { xml += serializer.serializeToString(child); }
-            catch (_) { /* skip nodes the serializer can't handle */ }
+            catch { /* skip nodes the serializer can't handle */ }
           }
           if (xml.trim()) return xml;
         }
@@ -169,7 +169,7 @@
           try {
             const s = serializer.serializeToString(document.documentElement);
             if (s && s.trim()) return s;
-          } catch (_) {}
+          } catch { /* a document the serializer refuses is no source either */ }
         }
         return null;
       };

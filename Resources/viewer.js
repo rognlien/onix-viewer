@@ -581,7 +581,8 @@
     let preferred = onixCtx.dialect;
     if (onixCtx.isOnix && onixCtx.dialect) {
       let stored = null;
-      try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); } catch (_) {}
+      try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); }
+      catch { /* storage may be blocked; the document's own dialect stands */ }
       if (stored === "reference" || stored === "short") preferred = stored;
     }
     return preferred;
@@ -638,7 +639,8 @@
         }
       }
       displayDialect = target;
-      try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); } catch (_) {}
+      try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); }
+      catch { /* storage may be blocked; the choice then lasts the page */ }
     }
 
     markPressedDialect();
@@ -1317,7 +1319,7 @@
     if (!findingsModal || findingsModal.hidden) return;
     findingsModal.hidden = true;
     if (findingsLastFocus && typeof findingsLastFocus.focus === "function") {
-      try { findingsLastFocus.focus(); } catch (_) {}
+      try { findingsLastFocus.focus(); } catch { /* it may have left the document */ }
     }
     findingsLastFocus = null;
   }
@@ -1381,7 +1383,7 @@
     document.body.appendChild(ta);
     ta.select();
     let ok = false;
-    try { ok = document.execCommand("copy"); } catch (_) {}
+    try { ok = document.execCommand("copy"); } catch { /* refused: ok stays false */ }
     document.body.removeChild(ta);
     return ok;
   }

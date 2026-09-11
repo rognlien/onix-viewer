@@ -3,7 +3,6 @@ const {
 } = require("../harness");
 
 describe("Deprecated elements", () => {
-  const fsd = require("fs");
   function deprecations(window, xml) {
     return findingsCoded(window, xml, "element.deprecated");
   }

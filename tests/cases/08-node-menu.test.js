@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, $$, meta, rowsNamed, badges, stubClipboard,
+  test, describe, assert, render, $$, rowsNamed, stubClipboard,
 } = require("../harness");
 
 describe("Node menu", () => {

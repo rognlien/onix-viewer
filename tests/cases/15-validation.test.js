@@ -1,6 +1,6 @@
 const path = require("path");
 const {
-  test, describe, assert, render, renderSource, $$, rowsNamed, badges, findingsFor, findings, codes, validationLabel, FIXTURES, SAMPLES,
+  test, describe, assert, render, renderSource, $$, rowsNamed, findingsFor, findings, codes, validationLabel, FIXTURES, SAMPLES,
 } = require("../harness");
 
 describe("Validation", () => {
