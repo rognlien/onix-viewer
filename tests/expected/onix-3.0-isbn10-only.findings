@@ -1,0 +1,3 @@
+warning codelist.deprecated /ONIXMessage/Product/ProductIdentifier/ProductIDType
+error structure.missing /ONIXMessage/Product/DescriptiveDetail
+error structure.missing /ONIXMessage/Product/DescriptiveDetail/TitleDetail/TitleElement

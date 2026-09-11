@@ -1,0 +1,2 @@
+error structure.missing /ONIXMessage/Product[1]/DescriptiveDetail
+error structure.missing /ONIXMessage/Product[2]/DescriptiveDetail

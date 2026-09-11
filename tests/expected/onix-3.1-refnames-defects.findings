@@ -1,0 +1,11 @@
+warning element.deprecated /ONIXMessage/Header/DefaultLanguageOfText
+error gtin.checkdigit /ONIXMessage/Product/ProductIdentifier[2]/IDValue
+warning codelist.deprecated /ONIXMessage/Product/ProductIdentifier[3]/ProductIDType
+error datatype.lexical /ONIXMessage/Product/DescriptiveDetail/Measure[3]/Measurement
+warning element.deprecated /ONIXMessage/Product/DescriptiveDetail/TitleDetail[2]/TitleElement/TitleText
+error structure.unexpected /ONIXMessage/Product/DescriptiveDetail/Contributor[3]/SequenceNumber
+error codelist.unknown /ONIXMessage/Product/DescriptiveDetail/Language[1]/LanguageCode
+error structure.missing /ONIXMessage/Product/DescriptiveDetail/Extent[2]
+error attribute.code /ONIXMessage/Product/CollateralDetail/TextContent[3]/Text
+warning element.deprecated /ONIXMessage/Product/CollateralDetail/TextContent[4]/TextSourceCorporate
+warning codelist.deprecated /ONIXMessage/Product/RelatedMaterial/RelatedWork/WorkIdentifier/WorkIDType

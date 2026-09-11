@@ -62,7 +62,8 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (221 tests, ~8s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (246 tests, ~9s)
+│   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -1362,7 +1363,8 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 221-test jsdom suite (~8s)
+npm test        # runs the 246-test jsdom suite (~9s)
+npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
@@ -1376,6 +1378,22 @@ block. Skipped blocks print no heading, the summary says how many were filtered
 out, and a filter matching nothing exits non-zero rather than reporting success
 over an empty run. Filtering also cuts the run to ~0.2s, since only the matching
 tests build a jsdom window.
+
+### The findings on record
+
+`tests/expected/<document>.findings` holds, for every ONIX fixture and every
+sample in `Onix/`, one line per finding: severity, code, and the path of the
+node it is pinned to. `tests/cases/31-expected-findings.test.js` compares the
+live run against it and names what went missing or appeared. This is the one
+check that promises *every* rule still fires on *every* document — each rule's
+own tests prove only that it fires where they look — and it is what would have
+caught the two silent gaps in this file's history, the unchecked
+`<EpubLicense>` and the unwrapped date union. The defect samples are its
+strongest cases: 122 findings on `onix-errors-and-warnings.xml`.
+
+When a change is meant to alter the findings, `npm run test:update-expected`
+rewrites the records; read the diff before committing it, since that diff *is*
+the review of what the change did.
 
 ### Browser loop
 

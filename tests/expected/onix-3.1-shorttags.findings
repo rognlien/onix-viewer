@@ -1,0 +1,2 @@
+warning element.deprecated /ONIXmessage/product/descriptivedetail/titledetail[2]/titleelement/b203
+warning codelist.deprecated /ONIXmessage/product/relatedmaterial/relatedwork/workidentifier/b201
