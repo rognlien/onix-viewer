@@ -57,7 +57,9 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (221 tests, ~8s; takes a name filter)
+│   ├── run.js                      loads every case and prints the summary (takes a name filter)
+│   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (221 tests, ~8s)
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -1304,7 +1306,7 @@ A Chrome Web Store reviewer reads the manifest and `SECURITY.md`, then goes
 looking for the things those documents claim are absent. **A stale security
 note is worse than none** — a reviewer who finds one claim wrong stops trusting
 the rest — so the claims are asserted in the suite rather than maintained by
-hand. `describe("Reviewability")` in `tests/run.js` checks:
+hand. `tests/cases/29-reviewability.test.js` checks:
 
 | Claim | How it is held |
 |---|---|
@@ -1348,7 +1350,7 @@ npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
 
-The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
+The harness lives in `tests/harness.js`: it loads the viewer scripts in jsdom against fixtures in `tests/fixtures/` and exports `test`, `describe`, `assert`, the render helpers (`render`, `renderSource`, `$$`, `rowsNamed`, …) and the validation helpers (`findingsFor`, `findings`, `codes`, `validationLabel`, `shortTwin`), so no case file defines its own. The cases are `tests/cases/NN-<area>.test.js`, one `describe` block each, loaded in name order by `tests/run.js`. Add a fixture + a `test()` call in the right file when introducing new behavior — much faster than reloading the extension in the browser.
 
 `test()` is hand-rolled but takes an optional case-insensitive substring
 filter, matched against the test name *and* its `describe` label — so
