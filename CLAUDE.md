@@ -1428,6 +1428,11 @@ Every push and pull request runs `.github/workflows/test.yml` — the same suite
 
 The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the zip is built, and a GitHub release is created with `onix-viewer-0.9.X.zip` attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
 
+Two more things belong to a release and are easy to forget:
+
+- **The store link in `site/index.html`** carries the CWS item ID, and reads `REPLACE-WITH-ITEM-ID` until the listing exists. Fill it in with the release, then copy `site/` into the maendeleo-site repo, which is how the page is published.
+- **Rebuilding a release** that has not been uploaded to the store is done by deleting the GitHub release (`gh release delete vX.Y.Z`), moving the tag (`git tag -f`), and force-pushing it; the workflow's `gh release create` refuses an existing release, so the delete has to come first. Once a version has been uploaded to the store it cannot be re-uploaded, so bump instead.
+
 ## Test fixtures and what they prove
 
 Each fixture in `tests/fixtures/` is intentionally minimal — just enough to exercise one behavior.
