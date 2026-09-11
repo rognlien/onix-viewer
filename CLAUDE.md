@@ -300,9 +300,9 @@ Two details that took a second pass to get right:
 
 - **Only step 1 reveals as it folds.** `foldRows(rows, { reveal: true })`
   unfolds each row's ancestors first, which is what makes step 1 read as "one
-  line per composite" on a feed whose Products are auto-collapsed. Doing it in
-  the later steps reopened what the previous press had just folded — press 3
-  visibly *expanded* the header and the products again.
+  line per composite" on a feed the reader has already folded by hand. Doing
+  it in the later steps reopened what the previous press had just folded —
+  press 3 visibly *expanded* the header and the products again.
 - **Step 3 only considers visible rows** (`isRowVisible()`). Without that,
   after step 2 the deepest unfolded rows are ones buried inside a folded
   `<Header>` or `<Product>`, so several presses in a row appear to do nothing
@@ -1198,12 +1198,12 @@ Two things about the toggle that took a bug each to find:
   it is when the reader had already moved it elsewhere.
 
 **Why it wasn't simply deleted.** It looks redundant next to the browser's own
-find, but `Ctrl+F` cannot see `display: none` content, and `<Product>` blocks
-are auto-collapsed on any multi-product feed — so on exactly the large files
-where searching matters, browser find reports nothing. `runSearch` walks every
-text node in the tree, and `gotoMatch` unfolds the ancestors of the current
-match. There's a test for that: a contributor's name inside a folded Product
-is found and its Product unfolded. (The test deliberately searches a
+find, but `Ctrl+F` cannot see `display: none` content, and on exactly the
+large feeds where searching matters the reader will have pressed Collapse, so
+browser find reports nothing. `runSearch` walks every text node in the tree,
+and `gotoMatch` unfolds the ancestors of the current match. There's a test for
+that: a contributor's name inside a Product folded by hand is found and its
+Product unfolded. (The test deliberately searches a
 contributor rather than a title, because a title also appears in the folded
 row's own summary chip, where there would be nothing to unfold.)
 
@@ -1444,7 +1444,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `with-cdata.xml` | CDATA wrapped in `.px-cdata-marker` spans |
 | `malformed.xml` | Parse error UI shown instead of crash |
 | `rss.xml` | Non-ONIX XML doesn't get misidentified as ONIX |
-| `onix-3.0-reference.xml` | Reference dialect: codelist resolution, tag classes, Product auto-collapse, summaries |
+| `onix-3.0-reference.xml` | Reference dialect: codelist resolution, tag classes, everything open on load, summaries |
 | `onix-3.0-short.xml` | Short-tag dialect: detection, styling, `SHORT_TO_REFERENCE` map |
 | `onix-short-no-namespace.xml` | `<ONIXmessage>` root with no namespace: dialect from the root spelling, version from `release` |
 | `onix-3.0-short-codelists.xml` | Short-tag code lists that the old hand-kept map missed (`b253`, `b252`, `x415`, `b394`, `x462`), and the `<price>` chip in short dialect |

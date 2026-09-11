@@ -50,8 +50,8 @@ Features
   • Read and copy the other dialect: one switch shows a short-tag
     file under reference names, or the reverse, and the copy follows
     what you see
-  • <Product> blocks auto-collapse to a one-line summary
-    (ISBN · form · title), so a 10,000-product feed stays scannable
+  • <Product> blocks fold to a one-line summary (ISBN · form · title),
+    so two presses of Collapse make a 10,000-product feed scannable
   • Code-list labels (ProductIDType, ProductForm, ContributorRole,
     LanguageCode, CountryCode, …) shown beside every value
   • One-click popup listing every entry of a code list, linked to

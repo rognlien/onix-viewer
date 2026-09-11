@@ -21,8 +21,9 @@ searchable tree, and adds:
   lists a sibling selects: `<ProductFormFeatureValue>` resolves through List
   196 when its `<ProductFormFeatureType>` is 09, List 98 when it is 01.
 - **Summaries on folded rows.** A `<Product>` folds to `ISBN · form · title`;
-  identifiers, contributors, titles and prices fold to one line too. On a
-  multi-product feed the Products start folded, so thousands stay scannable.
+  identifiers, contributors, titles and prices fold to one line too. A file
+  opens fully expanded; two presses of Collapse turn a feed of thousands into
+  one line per product.
 - **Block badges.** Each block inside a `<Product>` is labelled `Block N`, and
   a single-Product document lists its blocks in the toolbar.
 - **Stepped Expand and Collapse.** Each press works one level. Collapse

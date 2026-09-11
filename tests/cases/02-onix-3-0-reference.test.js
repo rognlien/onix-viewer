@@ -29,26 +29,14 @@ describe("ONIX 3.0 reference", () => {
     assert(badges(w).some((b) => b.includes("By (author)")), "Contributor role badge missing");
   });
 
-  test("auto-collapses Product blocks when there are multiple", () => {
-    const w = render("onix-3.0-reference.xml");
-    const productRows = $$(w, "#oxv-root .px-row.px-collapsible").filter((r) => {
-      const tags = r.querySelectorAll(".px-tag");
-      return tags.length >= 2 && tags[1].textContent === "Product";
-    });
-    assert(productRows.length >= 2, `expected ≥2 product rows, got ${productRows.length}`);
-    assert(productRows.every((r) => r.classList.contains("px-folded")), "products not folded");
-  });
-
-  test("leaves the lone Product expanded when there is only one", () => {
-    const w = render("onix-3.1-standalone-product.xml");
-    // The standalone fixture's root *is* a Product, which renders as a leaf
-    // collapsible row; no Product child exists. Ensure no Product row was folded.
-    const productRows = $$(w, "#oxv-root .px-row.px-collapsible").filter((r) => {
-      const tags = r.querySelectorAll(".px-tag");
-      return tags.length >= 2 && tags[1].textContent === "Product";
-    });
-    for (const row of productRows) {
-      assert(!row.classList.contains("px-folded"), "single Product should not be folded");
+  test("opens fully expanded, however many Products there are", () => {
+    // Products used to start folded on a multi-product feed. A file opens on
+    // its content now; Collapse is there for the reader who wants chips.
+    for (const fixture of ["onix-3.0-reference.xml", "onix-3.1-standalone-product.xml"]) {
+      const w = render(fixture);
+      const folded = $$(w, "#oxv-root .px-row.px-folded");
+      assert(folded.length === 0, `${fixture}: ${folded.length} rows start folded`);
+      assert(rowsNamed(w, "Product").length >= 1, `${fixture}: expected a Product row`);
     }
   });
 

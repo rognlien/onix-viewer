@@ -12,10 +12,10 @@ describe("Stepped collapse and expand", () => {
   test("step 1 folds each Product's contents and the header, leaving Products open", () => {
     const w = render("onix-3.0-reference.xml");
     const products = rowsNamed(w, "Product");
-    assert(products.every((r) => r.classList.contains("px-folded")), "products start auto-folded");
+    assert(products.every((r) => !r.classList.contains("px-folded")), "products start expanded");
     collapse(w);
     assert(products.every((r) => !r.classList.contains("px-folded")),
-      "step 1 opens the Products so their one-line children are visible");
+      "step 1 leaves the Products open so their one-line children are visible");
     const blocks = [...rowsNamed(w, "DescriptiveDetail"), ...rowsNamed(w, "PublishingDetail")];
     assert(blocks.length >= 2, "expected block rows in the fixture");
     assert(blocks.every((r) => r.classList.contains("px-folded")), "block rows should be folded");

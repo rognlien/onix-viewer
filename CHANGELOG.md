@@ -26,6 +26,9 @@ the main branch.
   and ESLint runs in CI. The suite is split into one file per area.
 
 ### Changed
+- **A file opens fully expanded.** Products no longer start folded on a
+  multi-product feed; the tree shows its content, and two presses of Collapse
+  give one line per product for the reader who wants the overview.
 - **Finding pills are wider** — the message ellipsises past `min(110ch, 70vw)`
   instead of `min(72ch, 55vw)`, enough for a second-order finding to show its
   selector.

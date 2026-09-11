@@ -104,11 +104,12 @@ describe("Search", () => {
   });
 
   test("it still searches, and still finds text inside folded rows", () => {
-    // The reason it survives at all: browser find skips display:none, and
-    // Products are auto-collapsed on a multi-product feed.
+    // The reason it survives at all: browser find skips display:none, and a
+    // reader who has pressed Collapse on a large feed has folded most of it.
     const w = render("onix-3.0-reference.xml");
     const products = rowsNamed(w, "Product");
-    assert(products.every((r) => r.classList.contains("px-folded")), "products start folded");
+    // Fold them by hand, the way a reader who pressed Collapse twice would have.
+    for (const row of products) row.classList.add("px-folded");
     searchButton(w).click();
     // A contributor name, not the title: a title also appears in the folded
     // row's own summary chip, where there would be nothing to unfold.

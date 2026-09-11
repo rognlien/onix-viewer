@@ -4,8 +4,8 @@
 //
 // Design notes:
 //  - We render to plain DOM (not innerHTML strings) for safety against XSS
-//    when XML contains markup-looking text. Everything is rendered up front;
-//    Products are auto-collapsed on a multi-product feed so it stays scannable.
+//    when XML contains markup-looking text. Everything is rendered up front
+//    and opens fully expanded; Collapse folds a level at a time from there.
 //  - One row per logical "line": opening tag, text, closing tag are separate
 //    rows when the element has children, but combined into one row for
 //    leaf elements (more compact, easier to scan).
@@ -198,11 +198,10 @@
     ? window.OnixViewerOnix.productElements(doc).length
     : 0;
 
-  if (onixCtx.isOnix) {
-    // Auto-collapse Product blocks for big ONIX feeds — otherwise scrolling
-    // through 50,000 products is hostile.
-    autoCollapseProducts();
-  }
+  // The tree opens fully expanded, whatever its size: a reader who opens a
+  // file expects to see it, and two presses of Collapse give one line per
+  // Product when that is what they want. (Products used to start folded on a
+  // multi-product feed, which made every file open on a list of chips.)
   fillMetaPill(sizeKB, productCount);
 
   setupToolbar();
@@ -700,15 +699,6 @@
     if (!elementRows.has(element)) elementRows.set(element, row);
   }
 
-  function autoCollapseProducts() {
-    // With more than one Product we collapse them so a long feed is
-    // scannable; with a single product we leave it expanded, since the user
-    // is clearly inspecting that one record.
-    const productRows = collapsibleRows().filter(isProductRow);
-    if (productRows.length <= 1) return;
-    for (const row of productRows) row.classList.add("px-folded");
-  }
-
   // ---- toolbar --------------------------------------------------------------
 
   function setupToolbar() {
@@ -872,8 +862,8 @@
   }
 
   // `reveal` unfolds each row's ancestors as it goes, which is what makes step
-  // 1 read as "one line per composite" on a feed whose Products are
-  // auto-collapsed. The later steps must not do it — they are folding things
+  // 1 read as "one line per composite" on a feed the reader has already
+  // folded by hand. The later steps must not do it — they are folding things
   // up, and reopening an ancestor would undo the step before.
   function foldRows(rows, options) {
     for (const row of rows) {
@@ -1577,9 +1567,9 @@
 
   // The field is collapsed to its icon until wanted, so it costs a button's
   // width in the toolbar instead of 420px. Browser find is not a substitute:
-  // it cannot see folded rows, and Products are auto-collapsed on any
-  // multi-product feed — this search walks every text node and unfolds the
-  // ancestors of each match.
+  // it cannot see folded rows, and a reader who has pressed Collapse on a
+  // large feed has folded most of it — this search walks every text node
+  // and unfolds the ancestors of each match.
   function setupSearch() {
     const button = document.querySelector('#oxv-toolbar [data-action="search"]');
     if (button && !button.firstChild) button.appendChild(icon("search"));
