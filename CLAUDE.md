@@ -54,7 +54,9 @@ onix-viewer/
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
 │       ├── ONIX_BookProduct_3.0_reference.xsd  (input, 3.0 content model)
 │       ├── ONIX_BookProduct_3.0_short.xsd      (input, 3.0 short tags)
-│       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
+│       ├── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
+│       ├── ONIX_BookProduct_3.1_reference_strict.xsd  (input, second-order code lists only)
+│       └── ONIX_BookProduct_3.1_short_strict.xsd      (reference; not read by anything)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
@@ -477,7 +479,9 @@ unambiguous; where they overlap the newer file wins.
 
 ### Which schema, and how to bump it
 
-The structure XSDs come from EDItEUR's per-issue bundles, one per release:
+The structure XSDs come from EDItEUR's per-issue bundles, one per release
+(and the strict schema from the *Advanced* bundle, needed only when the
+second-order assertions change):
 `https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.{0,1}_XSDs+codes_Issue_<N>.zip`.
 Take `ONIX_BookProduct_3.x_{reference,short}.xsd` from each into
 `tools/data/`, then re-run the generators:
@@ -855,15 +859,24 @@ EDItEUR pointed it out, and named the lists: 28, 66, 76, 77, 90, 91, 98, 99,
 139, 143, 176, 178, 184, 196, 203, 204, 220, 227, 238, 242, 243, 256, 257,
 258, 262 — all of which were already bundled, just unbound.
 
-The mapping lives in **`DEPENDENT_CODELISTS`** in `onix.js`, keyed by the
-value element's reference name: the selecting sibling, and a map from that
-sibling's code to a list number. Ten value elements, forty-odd type codes.
-It was **transcribed from the `xs:assert` rules of the strict 3.1.3 schema**,
-which spells each one out (`(ProductFormFeatureType ne '09') or
-matches(ProductFormFeatureValue, '^(00|01|…)$')`), and not from the codelist
-JSON's prose notes — those cross-reference lists that are not dependencies at
-all (seventeen Product content types merely *mention* List 196). Two
-readings worth recording:
+The mapping is **`window.OnixViewerDependentCodeLists`**, generated into
+`onix-codelists.js` and read by `onix.js` as `DEPENDENT_CODELISTS`: keyed by
+the value element's reference name, a list of selectors, each the selecting
+sibling and a map from that sibling's code to a list number. Ten value
+elements, forty-odd type codes. `tools/generate-codelists.js` **compiles it
+from the `xs:assert` rules of the strict 3.1.3 schema**
+(`tools/data/ONIX_BookProduct_3.1_reference_strict.xsd`), which spells each
+one out — `(ProductFormFeatureType ne '09') or
+matches(ProductFormFeatureValue, '^(00|01|…)$')` — and not from the codelist
+JSON's prose notes, which cross-reference lists that are not dependencies at
+all (seventeen Product content types merely *mention* List 196). The
+generator reads three assertion shapes, skips the grade-*ordering* rules by
+their `substring-before` alone, and throws on any other shape that names a
+list, so a new kind of assertion cannot be dropped in silence. It takes the
+list *number* from the assertion's comment and the codes from the bundled
+JSON, not from the assertion's inline copy, so an issue bump does not need
+the strict schema refreshed. CI regenerates and diffs it like the rest of the
+file. Two readings worth recording:
 
 - **Carbon/GHG types 41–46 all take List 262.** Strict carries two asserts
   for them, one over 41–46 and a newer one over 41–45, and both are live, so
@@ -875,7 +888,8 @@ readings worth recording:
 
 `<FeatureValue>` is the one value element with **two selectors**, since it
 sits under both `<ResourceFeature>` and `<ResourceVersionFeature>`, whose
-type elements are named differently; its entry is an array.
+type elements are named differently. (Every entry is an array; that one has
+two members.)
 
 Three consumers share the table through `dependentCodelist(element)`, which
 compares names as reference names so both dialects work:
@@ -907,9 +921,11 @@ compares names as reference names so both dialects work:
 
 The table is guarded by a test that walks every row, asserts each element is
 in the 3.1 model and has a short tag, each list is bundled, and that the
-union of lists selected is exactly Graham's twenty-five. The strict schemas
-themselves are in `Onix/` for reference and are **not** an input to any
-generator — see *The `strict` (Advanced) schema* above for why.
+union of lists selected is exactly Graham's twenty-five. The strict schema is
+an input to the codelist generator for this table **and nothing else**: its
+500-odd other assertions are not compiled — see *The `strict` (Advanced)
+schema* above for why. The short-tag strict schema sits beside it in
+`tools/data/` for reference only.
 
 ### Identifier check digits
 

@@ -6521,5 +6521,21 @@
   window.OnixViewerShortTags["x592"] = "PublisherNameInverted";
   window.OnixViewerShortTags["x593"] = "ImprintNameInverted";
 
+  // Second-order code lists: value element → the siblings that select
+  // its list, each mapping the sibling's code to a list number. `leading`
+  // names the codes whose value carries more than the code (the EUDR
+  // country-plus-species entries), so only its first token is looked up.
+  // From the strict schema's assertions; see tools/generate-codelists.js.
+  window.OnixViewerDependentCodeLists = Object.create(null);
+  window.OnixViewerDependentCodeLists["AudienceCodeValue"] = [{ type: "AudienceCodeType", lists: { "01": 28, "22": 203 } }];
+  window.OnixViewerDependentCodeLists["AudienceRangeValue"] = [{ type: "AudienceRangeQualifier", lists: { "11": 77, "26": 77, "29": 227, "31": 238 } }];
+  window.OnixViewerDependentCodeLists["FeatureValue"] = [{ type: "ResourceFeatureType", lists: { "09": 256 } }, { type: "ResourceVersionFeatureType", lists: { "01": 178 } }];
+  window.OnixViewerDependentCodeLists["IDValue"] = [{ type: "SalesOutletIDType", lists: { "03": 139 } }];
+  window.OnixViewerDependentCodeLists["ProductFormFeatureValue"] = [{ type: "ProductFormFeatureType", lists: { "01": 98, "02": 98, "04": 99, "05": 76, "06": 176, "09": 196, "12": 143, "13": 184, "15": 220, "19": 242, "21": 243, "26": 98, "27": 98, "41": 262, "42": 262, "43": 262, "44": 262, "45": 262, "46": 262, "47": 91, "48": 91, "49": 91, "55": 98, "57": 98, "58": 98, "59": 98 }, leading: ["47", "48", "49"] }];
+  window.OnixViewerDependentCodeLists["ReligiousTextFeatureCode"] = [{ type: "ReligiousTextFeatureType", lists: { "01": 90 } }];
+  window.OnixViewerDependentCodeLists["ResourceFileFeatureValue"] = [{ type: "ResourceFileFeatureType", lists: { "01": 178 } }];
+  window.OnixViewerDependentCodeLists["ReturnsCode"] = [{ type: "ReturnsCodeType", lists: { "02": 66, "04": 204 } }];
+  window.OnixViewerDependentCodeLists["SpecificationFeatureValue"] = [{ type: "SpecificationFeatureType", lists: { "43": 257, "45": 258 } }];
+
   window.OnixViewerCodeListSchema = {"version":"3.1","issue":74,"releaseDate":null};
 })();

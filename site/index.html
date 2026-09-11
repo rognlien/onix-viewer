@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ONIX Viewer for Chrome</title>
+<meta name="description" content="A Chrome extension that turns raw ONIX XML into a readable, collapsible tree with EDItEUR code-list labels inline and automatic validation.">
+<link rel="icon" href="icon-128.png">
+<style>
+  html { background: linear-gradient(180deg, #f7fbff, #e7f1fb) fixed; }
+  body {
+    margin: 0;
+    padding: 48px 24px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    color: #15202b;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 20px; margin-bottom: 8px; }
+  header img { width: 72px; height: 72px; flex: none; }
+  h1 { font-size: clamp(28px, 6vw, 44px); letter-spacing: -0.02em; margin: 0; }
+  .tagline { font-size: clamp(16px, 2.5vw, 20px); color: #5b6b7a; margin: 12px 0 28px; }
+  h2 { font-size: 22px; letter-spacing: -0.01em; margin: 44px 0 12px; }
+  h3 { font-size: 17px; margin: 24px 0 6px; }
+  ol { padding-left: 22px; }
+  p, li { max-width: 68ch; }
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  a { color: #1d5e9e; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .button {
+    display: inline-block;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: #1d5e9e;
+    color: #fff;
+    font-weight: 600;
+  }
+  .button:hover { background: #17507f; text-decoration: none; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+  figure { margin: 24px 0; }
+  figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(21, 32, 43, 0.14);
+  }
+  figcaption { font-size: 15px; color: #5b6b7a; margin-top: 8px; }
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    padding: 1px 6px;
+    border: 1px solid #c5d2de;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: #fff;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 15px;
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 16px;
+    border-top: 1px solid #c5d2de;
+    font-size: 15px;
+    color: #5b6b7a;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon-128.png" alt="">
+    <h1>ONIX Viewer</h1>
+  </header>
+  <p class="tagline">Readable ONIX XML in Chrome: a collapsible tree, product summaries, EDItEUR code-list labels inline, and automatic validation.</p>
+
+  <p class="actions">
+    <a class="button" href="https://chromewebstore.google.com/detail/onix-viewer/REPLACE-WITH-ITEM-ID">Install from the Chrome Web Store</a>
+    <a href="#installation">Manual installation</a>
+    <a href="https://github.com/rognlien/onix-viewer">Source on GitHub</a>
+  </p>
+
+  <figure>
+    <img src="Main.png" alt="An ONIX message rendered as a folded tree, with code-list labels beside each value" width="1280" height="800">
+    <figcaption>A product record: code-list labels beside each value, and findings pinned to the rows they concern.</figcaption>
+  </figure>
+
+  <h2>What it does</h2>
+  <p>Open any ONIX file in Chrome, from a URL or from disk, and instead of a wall of tags you get a syntax-highlighted tree you can fold, search and copy from. The extension only activates on documents that are actually ONIX. Other XML is left to the browser.</p>
+  <ul>
+    <li><strong>Code-list labels.</strong> Every value from the bundled EDItEUR lists gets its label beside it, and a click opens the whole list with a link to EDItEUR's definition page. All 165 lists are bundled, so it works offline.</li>
+    <li><strong>Product summaries.</strong> A folded <code>&lt;Product&gt;</code> reads <em>ISBN · form · title</em>, so a feed with thousands of products stays scannable.</li>
+    <li><strong>Validation.</strong> Every file is checked against the ONIX 3.0 or 3.1 content model as it loads: missing, misplaced or unknown elements, codes outside their list, deprecated codes and elements with EDItEUR's advised replacement, datatype violations, uniqueness rules and ISBN and GTIN check digits. Each finding is pinned to its row, and the toolbar count opens a list you can jump from.</li>
+    <li><strong>Both dialects.</strong> View a short-tag file under reference names or the reverse with one switch. Copying follows what you see.</li>
+    <li><strong>Supports</strong> ONIX 2.1, 3.0 and 3.1, reference and short tags, and the ONIX Acknowledgement message.</li>
+  </ul>
+
+  <figure>
+    <img src="Violations.png" alt="The findings list open over a file with several schema violations" width="1280" height="800">
+    <figcaption>Validation findings, each linked to the row it concerns.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="CodeList.png" alt="The code-list popup listing every entry of an EDItEUR list" width="1280" height="800">
+    <figcaption>The code-list popup, one click from any value.</figcaption>
+  </figure>
+
+  <h2 id="installation">Installation</h2>
+  <p>ONIX Viewer needs Chrome 119 or later. There are two ways to install it.</p>
+  <h3>From the Chrome Web Store</h3>
+  <p>The preferred way. Open <a href="https://chromewebstore.google.com/detail/onix-viewer/REPLACE-WITH-ITEM-ID">ONIX Viewer in the Chrome Web Store</a> and click <strong>Add to Chrome</strong>. Chrome keeps it up to date from then on.</p>
+  <h3>Manually</h3>
+  <p>If you would rather not use the store, or want a specific version:</p>
+  <ol>
+    <li>Download <code>onix-viewer-&lt;version&gt;.zip</code> from the <a href="https://github.com/rognlien/onix-viewer/releases/latest">releases page on GitHub</a>.</li>
+    <li>Unzip it somewhere permanent. Chrome loads the extension from that folder, so do not delete or move it afterwards.</li>
+    <li>Open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong> in the top right.</li>
+    <li>Click <strong>Load unpacked</strong> and pick the unzipped folder.</li>
+  </ol>
+  <p>Chrome shows a developer-mode notice on restart for extensions loaded this way, and updates are manual: replace the folder's contents with the new release and press the reload arrow on the extension's card.</p>
+  <h3>Local files</h3>
+  <p>Either way, to open <code>.xml</code> files from disk, enable <strong>Allow access to file URLs</strong> under the extension's <strong>Details</strong> in <code>chrome://extensions</code>.</p>
+
+  <h2>Keyboard shortcuts</h2>
+  <ul>
+    <li><kbd>/</kbd> search, <kbd>Enter</kbd> and <kbd>Shift</kbd>+<kbd>Enter</kbd> step through matches, <kbd>Esc</kbd> closes</li>
+    <li><kbd>e</kbd> expand one level, <kbd>c</kbd> collapse one level</li>
+    <li><kbd>t</kbd> switch between reference names and short tags</li>
+    <li><kbd>v</kbd> open the findings list</li>
+    <li><kbd>w</kbd> toggle soft wrap</li>
+  </ul>
+
+  <h2>Privacy</h2>
+  <p>ONIX Viewer collects no data. It declares no permissions and no host permissions, has no background process, and makes exactly one network request: a same-origin re-fetch of the page you are already viewing, to read its XML source. Nothing is stored, sent anywhere, or shared with anyone. The full threat model and how to verify it are in <a href="https://github.com/rognlien/onix-viewer/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+
+  <footer>
+    <p>ONIX for Books and its code lists are developed and maintained by <a href="https://www.editeur.org/8/ONIX/">EDItEUR</a>, which holds the copyright and makes them freely available. ONIX Viewer is an independent tool, not affiliated with or endorsed by EDItEUR.</p>
+    <p><a href="https://github.com/rognlien/onix-viewer/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/rognlien/onix-viewer/issues">Issues</a> · <a href="https://maendeleo.io/">maendeleo.io</a></p>
+  </footer>
+</main>
+</body>
+</html>
