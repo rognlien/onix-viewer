@@ -22,6 +22,17 @@ describe("Documentation", () => {
   // carries its own copies of the screenshots and the icon. Copies drift —
   // two screenshots in dist/listing/ once fell two UI revisions behind — so
   // each is held byte for byte to the file it was copied from.
+  // The store item ID is derived from the signing key and never changes, so
+  // the page links it directly. It carried a placeholder once.
+  test("site/ links the Chrome Web Store listing by its item ID", () => {
+    const page = fs.readFileSync(path.join(ROOT, "site", "index.html"), "utf8");
+    const links = [...page.matchAll(/https:\/\/chromewebstore\.google\.com\/detail\/[^"]+/g)].map((m) => m[0]);
+    assert(links.length > 0, "the page should link the store");
+    for (const link of links) {
+      assert(link.endsWith("/afdfkehnjkpgfhkgpacimefkkgfgkife"), `store link with the wrong item ID: ${link}`);
+    }
+  });
+
   test("site/'s screenshots and icon are the committed ones, byte for byte", () => {
     const pairs = {
       "site/Main.png": "Screenshots/Main.png",

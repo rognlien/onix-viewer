@@ -1430,7 +1430,7 @@ The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-
 
 Two more things belong to a release and are easy to forget:
 
-- **The store link in `site/index.html`** carries the CWS item ID, and reads `REPLACE-WITH-ITEM-ID` until the listing exists. Fill it in with the release, then copy the contents of `site/` to `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), which is how the page is published.
+- **The store link in `site/index.html`** carries the CWS item ID, `afdfkehnjkpgfhkgpacimefkkgfgkife`, which Chrome derives from the signing key and which therefore never changes between versions; the `onix-viewer` slug before it follows the name and is optional. `tests/cases/30-documentation.test.js` holds the page to that ID, so the placeholder it once carried cannot come back. After the page changes, copy the contents of `site/` to `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), which is how the page is published.
 - **Rebuilding a release** that has not been uploaded to the store is done by deleting the GitHub release (`gh release delete vX.Y.Z`), moving the tag (`git tag -f`), and force-pushing it; the workflow's `gh release create` refuses an existing release, so the delete has to come first. Once a version has been uploaded to the store it cannot be re-uploaded, so bump instead.
 
 ## Test fixtures and what they prove

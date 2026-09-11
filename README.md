@@ -127,10 +127,11 @@ git push origin main v0.9.19   # the tag push builds the zip and creates a GitHu
 Then upload that zip in the Chrome Web Store dashboard under **Package** and
 submit for review. `CWS_LISTING.md` has the listing copy and reviewer notes.
 
-`site/index.html` links the store listing by its item ID, which is
-`REPLACE-WITH-ITEM-ID` until the listing exists: fill it in as part of the
-release, then copy `site/` to `onix-viewer/` in the maendeleo-site repo to
-publish the page.
+The store listing is https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife;
+the item ID is derived from the signing key and does not change between
+versions. `site/index.html` links it, and a test holds it to that ID. After
+changing the page, copy `site/` to `onix-viewer/` in the maendeleo-site repo to
+publish it.
 
 ## Known limitations
 
