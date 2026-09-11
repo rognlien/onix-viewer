@@ -17,7 +17,9 @@ searchable tree, and adds:
 - **Code-list labels.** Every value the bundled EDItEUR lists know about gets a
   `→ ISBN-13` style badge, plus a `List N` chip that opens a popup listing the
   whole list with a link to EDItEUR's page. Attributes such as `textformat`
-  and `language` are resolved the same way.
+  and `language` are resolved the same way, and so are the second-order
+  lists a sibling selects: `<ProductFormFeatureValue>` resolves through List
+  196 when its `<ProductFormFeatureType>` is 09, List 98 when it is 01.
 - **Summaries on folded rows.** A `<Product>` folds to `ISBN · form · title`;
   identifiers, contributors, titles and prices fold to one line too. On a
   multi-product feed the Products start folded, so thousands stay scannable.
@@ -32,7 +34,9 @@ searchable tree, and adds:
   translated it is the converted ONIX with the matching namespace.
 - **Validation.** Runs automatically against the bundled ONIX 3.0 or 3.1
   content model: missing, misplaced or unknown elements, codes outside their
-  list, deprecated codes and elements with EDItEUR's advised replacement,
+  list — including the second-order lists a sibling selects, such as
+  `<ProductFormFeatureValue>` under an accessibility, colour or hazard type —
+  deprecated codes and elements with EDItEUR's advised replacement,
   datatype and attribute violations, uniqueness constraints, and ISBN-13,
   GTIN-13 and ISBN-10 check digits. Each finding is a pill on its row with the
   message in it; a row with several shows the first and `+n more`. Click a pill

@@ -47,6 +47,7 @@
     "attribute.range": "{name}=\"{value}\" is out of range for {type}",
     "datatype.range": "\"{value}\" is out of range for {type}",
     "codelist.unknown": "\"{value}\" is not in List {list} ({title})",
+    "codelist.dependent": "\"{value}\" is not in List {list} ({title}), which applies when <{type}> is {typeCode}",
     "codelist.deprecated": "\"{value}\" ({label}) was deprecated in List {list} at issue {issue}",
     // {since} and {advice} carry their own leading connective, because EDItEUR
     // supplies neither for every element: a 3.0 note names the replacement but
@@ -519,27 +520,30 @@
   registerRule({
     name: "codelist",
     element(node, api) {
-      const lists = window.OnixViewerCodeLists;
-      const meta = window.OnixViewerCodeListMeta;
-      if (!lists) return true;
-      const name = api.referenceName(node);
-      const list = lists[name];
-      if (!list || node.children.length) return true;
-      const value = api.textOf(node);
-      if (!value) return true;
+      const onix = window.OnixViewerOnix;
+      if (!onix || node.children.length) return true;
+      // The list bound to the element, its own or a sibling's choice, is
+      // onix.js's call — the same one the viewer makes for the badge — so the
+      // verdict and the chip can never disagree about which list applies.
+      const found = onix.codelistFor(node, api.onixCtx);
+      const list = found && found.value ? onix.codelistEntries(found.codelistKey) : null;
+      if (!list) return true;
 
-      const listNumber = meta && meta[name] ? meta[name].listNumber : null;
-      const problem = codeProblem(value, listNumber, list);
+      const problem = codeProblem(found.value, found.listNumber, list);
       if (!problem) return true;
-      if (problem.kind === "unknown") {
-        api.report("codelist.unknown", node, {
-          value, list: listNumber,
-          title: meta && meta[name] ? meta[name].title : name,
-        });
-      } else {
+      const data = { value: found.value, list: found.listNumber, title: found.title || `List ${found.listNumber}` };
+      if (problem.kind !== "unknown") {
         api.report("codelist.deprecated", node, {
-          value, list: listNumber, issue: problem.issue, label: problem.label,
+          value: found.value, list: found.listNumber, issue: problem.issue, label: problem.label,
         });
+      } else if (found.selector) {
+        // Say why that list applies: the reader's file may not make it obvious
+        // that <ProductFormFeatureValue> is a colour here and a file format
+        // three rows down.
+        api.report("codelist.dependent", node,
+          Object.assign(data, { type: found.selector.name, typeCode: found.selector.code }));
+      } else {
+        api.report("codelist.unknown", node, data);
       }
       return true;
     },

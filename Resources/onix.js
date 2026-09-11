@@ -157,6 +157,127 @@
   // onix-codelists.js loads before this module, so the global tables exist.
   registerAcknowledgementBindings();
 
+  // Second-order code lists. A few elements take their code from a list that
+  // a sibling selects: <ProductFormFeatureValue> is a cover colour from List
+  // 98 when <ProductFormFeatureType> is 01, an accessibility detail from List
+  // 196 when it is 09, and free text under most other types. The classic
+  // schema types these value elements as plain strings, so the generated
+  // bindings cannot know about them. This table is transcribed from the
+  // xs:assert rules of EDItEUR's strict (Advanced) 3.1.3 schema, which spells
+  // every one of them out — see CLAUDE.md, "Second-order code lists".
+  //
+  // Keyed by the value element's reference name: `type` is the sibling whose
+  // code picks the list, `lists` maps that code to a list number. `leading`
+  // names the type codes whose value is a code followed by more text — the
+  // EUDR entries carry a country code, then an optional species and harvest
+  // date — so only the first token is looked up.
+  const DEPENDENT_CODELISTS = Object.assign(Object.create(null), {
+    ProductFormFeatureValue: {
+      type: "ProductFormFeatureType",
+      lists: {
+        "01": 98, "02": 98, "26": 98, "27": 98, "55": 98, "57": 98, "58": 98, "59": 98,
+        "04": 99, "05": 76, "06": 176, "09": 196, "12": 143, "13": 184, "15": 220,
+        "19": 242, "21": 243,
+        "41": 262, "42": 262, "43": 262, "44": 262, "45": 262, "46": 262,
+        "47": 91, "48": 91, "49": 91,
+      },
+      leading: ["47", "48", "49"],
+    },
+    AudienceCodeValue: {
+      type: "AudienceCodeType",
+      lists: { "01": 28, "22": 203 },
+    },
+    AudienceRangeValue: {
+      type: "AudienceRangeQualifier",
+      lists: { "11": 77, "26": 77, "29": 227, "31": 238 },
+    },
+    ReturnsCode: {
+      type: "ReturnsCodeType",
+      lists: { "02": 66, "04": 204 },
+    },
+    ReligiousTextFeatureCode: {
+      type: "ReligiousTextFeatureType",
+      lists: { "01": 90 },
+    },
+    IDValue: {
+      type: "SalesOutletIDType",
+      lists: { "03": 139 },
+    },
+    // <FeatureValue> sits under two composites with differently named type
+    // elements, so it names both selectors.
+    FeatureValue: [
+      { type: "ResourceFeatureType", lists: { "09": 256 } },
+      { type: "ResourceVersionFeatureType", lists: { "01": 178 } },
+    ],
+    ResourceFileFeatureValue: {
+      type: "ResourceFileFeatureType",
+      lists: { "01": 178 },
+    },
+    SpecificationFeatureValue: {
+      type: "SpecificationFeatureType",
+      lists: { "43": 257, "45": 258 },
+    },
+  });
+
+  function dependentEntries(name) {
+    const entry = DEPENDENT_CODELISTS[name];
+    return entry ? [].concat(entry) : [];
+  }
+
+  function siblingNamed(element, siblingReferenceName) {
+    let found = null;
+    const parent = element.parentNode;
+    if (parent && parent.nodeType === Node.ELEMENT_NODE) {
+      for (const sibling of parent.children) {
+        if (sibling !== element && referenceName(sibling) === siblingReferenceName) {
+          found = sibling;
+          break;
+        }
+      }
+    }
+    return found;
+  }
+
+  /**
+   * The second-order list an element's value is drawn from, chosen by the
+   * code in its type sibling. Returns null when the element is not one of
+   * the value elements above, its type sibling is missing, or that sibling's
+   * code selects no list (the value is then free text or a number).
+   *
+   * Otherwise `{ listNumber, typeElement, typeCode, leading }`, where
+   * `leading` means only the value's first whitespace-separated token is the
+   * code. Both dialects work: names are compared as reference names, and the
+   * type element is handed back as-is so a caller can name it the way the
+   * document spells it.
+   */
+  function dependentCodelist(element) {
+    let result = null;
+    for (const entry of dependentEntries(referenceName(element))) {
+      const typeElement = siblingNamed(element, entry.type);
+      const typeCode = typeElement ? (typeElement.textContent || "").trim() : "";
+      const listNumber = entry.lists[typeCode];
+      if (listNumber) {
+        const leading = Boolean(entry.leading && entry.leading.includes(typeCode));
+        result = { listNumber, typeElement, typeCode, leading };
+        break;
+      }
+    }
+    return result;
+  }
+
+  // The code within a value, for a list found through dependentCodelist().
+  function dependentCode(value, dependent) {
+    return dependent && dependent.leading ? value.split(/\s+/)[0] : value;
+  }
+
+  // A code-list key that names a list by number rather than by element —
+  // what a second-order list resolves to, since no element is bound to it.
+  const LIST_KEY = /^list:(\d+)$/;
+
+  function listKey(listNumber) {
+    return `list:${listNumber}`;
+  }
+
   // Direct-child element names that mark an un-namespaced <Product> root as
   // genuine ONIX. <Product> alone is too generic to trust (plenty of non-ONIX
   // vocabularies use it), so a standalone Product is only treated as ONIX when
@@ -361,52 +482,95 @@
   }
 
   /**
+   * The code list an element's value must come from, whether or not the value
+   * is in it: the list the schema binds to the element, or failing that the
+   * one a sibling selects (see DEPENDENT_CODELISTS). This is what lets a row
+   * whose code is wrong still offer the list it should have come from.
+   *
+   * Returns null when the element is bound to no list, or has element
+   * children (code-list elements never have mixed content in valid ONIX).
+   * Otherwise `{ codelistKey, value, listName, listNumber, title, url,
+   * selector, context }`, where `value` is the code as written — possibly
+   * empty, possibly unknown. For a second-order list `selector` is the
+   * sibling that chose it, `{ name, code }`, in the document's own spelling,
+   * and `context` says the same in prose — "b335 when b334 is 09" over a
+   * short-tag file — for the popup's eyebrow. Both are null otherwise.
+   */
+  function codelistFor(element, ctx) {
+    let found = null;
+    const bound = ctx.isOnix ? boundList(element, ctx) : null;
+    const value = bound ? codeOf(element, bound.dependent) : null;
+    const meta = bound && value !== null ? codelistMeta(bound.key) : null;
+    if (meta) {
+      const selector = bound.dependent ? selectorOf(bound.dependent) : null;
+      found = {
+        codelistKey: meta.key,
+        value,
+        listName: meta.listName,
+        listNumber: meta.listNumber,
+        title: meta.title,
+        url: meta.url,
+        selector,
+        context: selector ? `${element.localName || element.nodeName} when ${selector.name} is ${selector.code}` : null,
+      };
+    }
+    return found;
+  }
+
+  function selectorOf(dependent) {
+    return {
+      name: dependent.typeElement.localName || dependent.typeElement.nodeName,
+      code: dependent.typeCode,
+    };
+  }
+
+  /**
    * For an element with a text-node child whose tag is a known codelist key,
    * resolve the code to a human-readable label. The viewer renders this as a
    * small badge after the value, optionally followed by a link to the
    * canonical EDItEUR list page.
    *
    * Returns `null` when the code (or the list itself) is unknown, or
-   * `{ value, label, listName, listNumber, url }` otherwise.
+   * codelistFor()'s shape plus `label` otherwise.
    */
   function resolveCodelist(element, ctx) {
-    if (!ctx.isOnix) return null;
-    const lists = window.OnixViewerCodeLists;
-    if (!lists) return null;
+    let resolved = null;
+    const found = codelistFor(element, ctx);
+    const list = found && found.value ? codelistEntries(found.codelistKey) : null;
+    const label = list ? list.get(found.value) : null;
+    if (label) {
+      resolved = Object.assign({ label }, found);
+    }
+    return resolved;
+  }
 
+  // The list bound to an element — its own, or a sibling's choice — as
+  // `{ key, dependent }`, where `key` is what codelistMeta() and
+  // codelistEntries() take. Null when there is neither.
+  function boundList(element, ctx) {
+    let bound = null;
     let name = element.localName || element.nodeName;
     // Map short tags to reference names so the same lookup table works for both.
     if (ctx.dialect === "short") {
-      const ref = SHORT_TO_REFERENCE[name.toLowerCase()];
-      if (ref) name = ref;
+      name = SHORT_TO_REFERENCE[name.toLowerCase()] || name;
     }
-
-    const list = lists[name];
-    if (!list) return null;
-
-    // Read the element's direct text content (trimmed). We only resolve
-    // when there's exactly one text-node child — codelist elements never
-    // have mixed content in valid ONIX.
-    let value = "";
-    for (const child of element.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE) value += child.nodeValue;
-      else if (child.nodeType === Node.ELEMENT_NODE) return null; // mixed
+    const lists = window.OnixViewerCodeLists;
+    if (lists && lists[name]) {
+      bound = { key: name, dependent: null };
+    } else {
+      const dependent = dependentCodelist(element);
+      if (dependent) bound = { key: listKey(dependent.listNumber), dependent };
     }
-    value = value.trim();
-    if (!value) return null;
+    return bound;
+  }
 
-    const label = list.get(value);
-    if (!label) return null;
-
-    const meta = codelistMeta(name);
-    return {
-      codelistKey: name,
-      value,
-      label,
-      listName: meta ? meta.listName : null,
-      listNumber: meta ? meta.listNumber : null,
-      url: meta ? meta.url : null,
-    };
+  // The element's own text, trimmed, reduced to its code for a `leading`
+  // list. Null for mixed content.
+  function codeOf(element, dependent) {
+    const nodes = Array.from(element.childNodes);
+    const mixed = nodes.some((node) => node.nodeType === Node.ELEMENT_NODE);
+    const text = nodes.filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.nodeValue).join("");
+    return mixed ? null : dependentCode(text.trim(), dependent);
   }
 
   /**
@@ -415,15 +579,42 @@
    * Used by the code-list popup, which already knows the codelist key.
    */
   function codelistMeta(name) {
-    const meta = (window.OnixViewerCodeListMeta || {})[name];
-    if (!meta) return null;
-    return {
-      key: name,
-      listName: `List ${meta.listNumber}`,
-      listNumber: meta.listNumber,
-      title: meta.title || null,
-      url: `https://ns.editeur.org/onix/en/${meta.listNumber}`,
-    };
+    let result = null;
+    const byNumber = LIST_KEY.exec(String(name || ""));
+    const meta = byNumber ? metaForListNumber(Number(byNumber[1])) : (window.OnixViewerCodeListMeta || {})[name];
+    if (meta) {
+      result = {
+        key: name,
+        listName: `List ${meta.listNumber}`,
+        listNumber: meta.listNumber,
+        title: meta.title || null,
+        url: `https://ns.editeur.org/onix/en/${meta.listNumber}`,
+      };
+    }
+    return result;
+  }
+
+  // The 35 lists no element binds — attribute lists and the second-order
+  // lists — have their titles by number only.
+  function metaForListNumber(listNumber) {
+    const byNumber = window.OnixViewerCodeListsByNumber;
+    const titles = window.OnixViewerCodeListTitles;
+    let meta = null;
+    if (byNumber && byNumber[listNumber]) {
+      meta = { listNumber, title: (titles && titles[listNumber]) || null };
+    }
+    return meta;
+  }
+
+  /**
+   * The `Map<code, label>` behind a codelist key — an element name, or a
+   * `list:N` key for a list reached by number. Null when unknown.
+   */
+  function codelistEntries(name) {
+    const byNumber = LIST_KEY.exec(String(name || ""));
+    const lists = window.OnixViewerCodeLists || {};
+    const numbered = window.OnixViewerCodeListsByNumber || {};
+    return (byNumber ? numbered[Number(byNumber[1])] : lists[name]) || null;
   }
 
   /**
@@ -790,8 +981,11 @@
   window.OnixViewerOnix = {
     detect,
     resolveCodelist,
+    codelistFor,
     resolveAttributeCodelist,
+    dependentCodelist,
     codelistMeta,
+    codelistEntries,
     externalLinkIcon,
     nodeSummary,
     translatedName,

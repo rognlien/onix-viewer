@@ -364,16 +364,20 @@
   }
 
   // <Tag>text</Tag> — one row, with a code-list badge when the value resolves.
+  // A value that does not resolve but is bound to a list all the same — a
+  // code the list lacks — still gets the list chip, so the reader can open
+  // the list the code should have come from.
   function renderTextElement(el, parent, depth, children) {
-    const resolved = window.OnixViewerOnix
-      ? window.OnixViewerOnix.resolveCodelist(el, onixCtx)
-      : null;
+    const onix = window.OnixViewerOnix;
+    const resolved = onix ? onix.resolveCodelist(el, onixCtx) : null;
+    const bound = !resolved && onix ? onix.codelistFor(el, onixCtx) : null;
     const textClass = resolved ? "px-text px-codelist-value" : "px-text";
     const row = appendRow(parent, depth, false, (r) => {
       writeOpenTag(r, el, false);
       for (const child of children) appendTextContent(r, child, textClass);
       writeCloseTag(r, el);
       if (resolved) appendCodelistBadge(r, el, resolved);
+      else if (bound && bound.url) r.appendChild(buildListLink(bound));
     });
     attachNodeMenu(row, el);
   }
@@ -401,7 +405,9 @@
     const badge = document.createElement("span");
     badge.className = "px-codelist";
     badge.textContent = `\u2192 ${resolved.label}`;
-    badge.title = `${el.localName || el.nodeName}: code resolved via ONIX code list`;
+    badge.title = resolved.context
+      ? `${resolved.context}: code resolved via ONIX ${resolved.listName}`
+      : `${el.localName || el.nodeName}: code resolved via ONIX code list`;
     row.appendChild(badge);
     if (resolved.url) row.appendChild(buildListLink(resolved));
   }
@@ -661,7 +667,7 @@
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
       if (!window.OnixViewerPopup) return;
       ev.preventDefault();
-      window.OnixViewerPopup.show(resolved.codelistKey, resolved.value);
+      window.OnixViewerPopup.show(resolved.codelistKey, resolved.value, resolved.context);
     });
     return a;
   }
