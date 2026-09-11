@@ -72,9 +72,9 @@ onix-viewer/
 │   └── Violations.png              the findings
 ├── site/                           the extension's web page: index.html plus byte copies of
 │                                   the three screenshots and the 128px icon. Published by
-│                                   copying the directory into the maendeleo-site repo by hand;
-│                                   nothing here serves it. A test holds the copies to their
-│                                   sources
+│                                   copying its contents to ~/git/maendeleo-site/onix-viewer/
+│                                   by hand; nothing here serves it. A test holds the copies
+│                                   to their sources
 ├── dist/                           build output — gitignored in full
 │   └── listing/                    upload staging for the GENERATED assets only:
 │                                   icon-128 (copied from Resources/icons/) plus the
@@ -1430,7 +1430,7 @@ The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-
 
 Two more things belong to a release and are easy to forget:
 
-- **The store link in `site/index.html`** carries the CWS item ID, and reads `REPLACE-WITH-ITEM-ID` until the listing exists. Fill it in with the release, then copy `site/` into the maendeleo-site repo, which is how the page is published.
+- **The store link in `site/index.html`** carries the CWS item ID, and reads `REPLACE-WITH-ITEM-ID` until the listing exists. Fill it in with the release, then copy the contents of `site/` to `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), which is how the page is published.
 - **Rebuilding a release** that has not been uploaded to the store is done by deleting the GitHub release (`gh release delete vX.Y.Z`), moving the tag (`git tag -f`), and force-pushing it; the workflow's `gh release create` refuses an existing release, so the delete has to come first. Once a version has been uploaded to the store it cannot be re-uploaded, so bump instead.
 
 ## Test fixtures and what they prove

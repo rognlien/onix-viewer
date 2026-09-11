@@ -129,7 +129,8 @@ submit for review. `CWS_LISTING.md` has the listing copy and reviewer notes.
 
 `site/index.html` links the store listing by its item ID, which is
 `REPLACE-WITH-ITEM-ID` until the listing exists: fill it in as part of the
-release, then copy `site/` into the maendeleo-site repo to publish the page.
+release, then copy `site/` to `onix-viewer/` in the maendeleo-site repo to
+publish the page.
 
 ## Known limitations
 
