@@ -5,9 +5,13 @@
   "description": "Chrome extension that pretty-prints raw XML pages with ONIX-aware features.",
   "scripts": {
     "test": "node tests/run.js",
-    "check:icons": "node tools/check-icons.js"
+    "test:update-expected": "UPDATE_EXPECTED=1 node tests/run.js expected",
+    "check:icons": "node tools/check-icons.js",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
     "jsdom": "^24.0.0"
   }
 }

@@ -1,0 +1,4 @@
+error structure.missing /ONIXMessage/Product[1]/DescriptiveDetail
+error structure.expected-one-of /ONIXMessage/Product[1]/PublishingDetail
+error structure.missing /ONIXMessage/Product[2]
+error structure.missing /ONIXMessage/Product[2]/DescriptiveDetail

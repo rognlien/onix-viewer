@@ -23,9 +23,11 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
-├── package.json                    jsdom dev dep + `npm test`
+├── package.json                    jsdom + eslint dev deps; `npm test`, `npm run lint`
+├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
 │   ├── manifest.json               MV3, ZERO permissions, ZERO host_permissions
+│   ├── shell.js                    the HTML shell, one template for content.js and the tests
 │   ├── content.js                  detects raw XML, takes the page over
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
@@ -54,10 +56,15 @@ onix-viewer/
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
 │       ├── ONIX_BookProduct_3.0_reference.xsd  (input, 3.0 content model)
 │       ├── ONIX_BookProduct_3.0_short.xsd      (input, 3.0 short tags)
-│       └── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
+│       ├── ONIX_BookProduct_3.1_short.xsd      (input, short-tag→reference names only)
+│       ├── ONIX_BookProduct_3.1_reference_strict.xsd  (input, second-order code lists only)
+│       └── ONIX_BookProduct_3.1_short_strict.xsd      (reference; not read by anything)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      jsdom harness (221 tests, ~8s; takes a name filter)
+│   ├── run.js                      loads every case and prints the summary (takes a name filter)
+│   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (246 tests, ~9s)
+│   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
@@ -112,7 +119,7 @@ The pattern is:
 2. Check `document.contentType` against the MIME whitelist (`application/xml`, `text/xml`, `application/onix+xml`).
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
-4. Build a fresh HTML shell via `DOMParser`, then `document.replaceChild(newRoot, document.documentElement)` to swap roots.
+4. Build a fresh HTML shell via `DOMParser` — the markup comes from `shell.js`, a second content script loaded ahead of `content.js` so the two share one isolated-world global — then `document.replaceChild(newRoot, document.documentElement)` to swap roots. The test harness builds its jsdom window from the same template, which is the point of it being a module: a renamed id or a new toolbar button fails in the suite, where a hand-written copy used to drift.
 5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
 6. Those scripts parse the original XML with `DOMParser` and render to plain DOM.
 
@@ -475,7 +482,9 @@ unambiguous; where they overlap the newer file wins.
 
 ### Which schema, and how to bump it
 
-The structure XSDs come from EDItEUR's per-issue bundles, one per release:
+The structure XSDs come from EDItEUR's per-issue bundles, one per release
+(and the strict schema from the *Advanced* bundle, needed only when the
+second-order assertions change):
 `https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.{0,1}_XSDs+codes_Issue_<N>.zip`.
 Take `ONIX_BookProduct_3.x_{reference,short}.xsd` from each into
 `tools/data/`, then re-run the generators:
@@ -853,15 +862,24 @@ EDItEUR pointed it out, and named the lists: 28, 66, 76, 77, 90, 91, 98, 99,
 139, 143, 176, 178, 184, 196, 203, 204, 220, 227, 238, 242, 243, 256, 257,
 258, 262 — all of which were already bundled, just unbound.
 
-The mapping lives in **`DEPENDENT_CODELISTS`** in `onix.js`, keyed by the
-value element's reference name: the selecting sibling, and a map from that
-sibling's code to a list number. Ten value elements, forty-odd type codes.
-It was **transcribed from the `xs:assert` rules of the strict 3.1.3 schema**,
-which spells each one out (`(ProductFormFeatureType ne '09') or
-matches(ProductFormFeatureValue, '^(00|01|…)$')`), and not from the codelist
-JSON's prose notes — those cross-reference lists that are not dependencies at
-all (seventeen Product content types merely *mention* List 196). Two
-readings worth recording:
+The mapping is **`window.OnixViewerDependentCodeLists`**, generated into
+`onix-codelists.js` and read by `onix.js` as `DEPENDENT_CODELISTS`: keyed by
+the value element's reference name, a list of selectors, each the selecting
+sibling and a map from that sibling's code to a list number. Ten value
+elements, forty-odd type codes. `tools/generate-codelists.js` **compiles it
+from the `xs:assert` rules of the strict 3.1.3 schema**
+(`tools/data/ONIX_BookProduct_3.1_reference_strict.xsd`), which spells each
+one out — `(ProductFormFeatureType ne '09') or
+matches(ProductFormFeatureValue, '^(00|01|…)$')` — and not from the codelist
+JSON's prose notes, which cross-reference lists that are not dependencies at
+all (seventeen Product content types merely *mention* List 196). The
+generator reads three assertion shapes, skips the grade-*ordering* rules by
+their `substring-before` alone, and throws on any other shape that names a
+list, so a new kind of assertion cannot be dropped in silence. It takes the
+list *number* from the assertion's comment and the codes from the bundled
+JSON, not from the assertion's inline copy, so an issue bump does not need
+the strict schema refreshed. CI regenerates and diffs it like the rest of the
+file. Two readings worth recording:
 
 - **Carbon/GHG types 41–46 all take List 262.** Strict carries two asserts
   for them, one over 41–46 and a newer one over 41–45, and both are live, so
@@ -873,7 +891,8 @@ readings worth recording:
 
 `<FeatureValue>` is the one value element with **two selectors**, since it
 sits under both `<ResourceFeature>` and `<ResourceVersionFeature>`, whose
-type elements are named differently; its entry is an array.
+type elements are named differently. (Every entry is an array; that one has
+two members.)
 
 Three consumers share the table through `dependentCodelist(element)`, which
 compares names as reference names so both dialects work:
@@ -905,9 +924,11 @@ compares names as reference names so both dialects work:
 
 The table is guarded by a test that walks every row, asserts each element is
 in the 3.1 model and has a short tag, each list is bundled, and that the
-union of lists selected is exactly Graham's twenty-five. The strict schemas
-themselves are in `Onix/` for reference and are **not** an input to any
-generator — see *The `strict` (Advanced) schema* above for why.
+union of lists selected is exactly Graham's twenty-five. The strict schema is
+an input to the codelist generator for this table **and nothing else**: its
+500-odd other assertions are not compiled — see *The `strict` (Advanced)
+schema* above for why. The short-tag strict schema sits beside it in
+`tools/data/` for reference only.
 
 ### Identifier check digits
 
@@ -1304,7 +1325,7 @@ A Chrome Web Store reviewer reads the manifest and `SECURITY.md`, then goes
 looking for the things those documents claim are absent. **A stale security
 note is worse than none** — a reviewer who finds one claim wrong stops trusting
 the rest — so the claims are asserted in the suite rather than maintained by
-hand. `describe("Reviewability")` in `tests/run.js` checks:
+hand. `tests/cases/29-reviewability.test.js` checks:
 
 | Claim | How it is held |
 |---|---|
@@ -1323,9 +1344,9 @@ refactor:
 
 - **The untrusted XML never becomes markup.** It reaches the page as
   `textContent` on an inert `<script type="application/xml">` block and is
-  rendered to DOM nodes one at a time. The shell HTML is a template string, but
-  its only three interpolations are two `runtime.getURL()` values and an
-  `escapeHtml`'d page title — no document content goes near it.
+  rendered to DOM nodes one at a time. The shell HTML is a template string in
+  `shell.js`, but its only three interpolations are two `runtime.getURL()`
+  values and an `escapeHtml`'d page title — no document content goes near it.
 - **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
   a rogue `fetch` to a third party is blocked by CORS in the browser, not
   merely absent from the code. There is no capability for a page to borrow.
@@ -1343,12 +1364,14 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 221-test jsdom suite (~8s)
+npm test        # runs the 246-test jsdom suite (~9s)
+npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
+npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
 
-The harness lives in `tests/run.js`. It loads viewer scripts in jsdom against fixtures in `tests/fixtures/`, then asserts on the rendered DOM. Add a fixture + a `test()` call when introducing new behavior — much faster than reloading the extension in the browser.
+The harness lives in `tests/harness.js`: it loads the viewer scripts in jsdom against fixtures in `tests/fixtures/` and exports `test`, `describe`, `assert`, the render helpers (`render`, `renderSource`, `$$`, `rowsNamed`, …) and the validation helpers (`findingsFor`, `findings`, `codes`, `validationLabel`, `shortTwin`), so no case file defines its own. The cases are `tests/cases/NN-<area>.test.js`, one `describe` block each, loaded in name order by `tests/run.js`. Add a fixture + a `test()` call in the right file when introducing new behavior — much faster than reloading the extension in the browser.
 
 `test()` is hand-rolled but takes an optional case-insensitive substring
 filter, matched against the test name *and* its `describe` label — so
@@ -1357,6 +1380,22 @@ block. Skipped blocks print no heading, the summary says how many were filtered
 out, and a filter matching nothing exits non-zero rather than reporting success
 over an empty run. Filtering also cuts the run to ~0.2s, since only the matching
 tests build a jsdom window.
+
+### The findings on record
+
+`tests/expected/<document>.findings` holds, for every ONIX fixture and every
+sample in `Onix/`, one line per finding: severity, code, and the path of the
+node it is pinned to. `tests/cases/31-expected-findings.test.js` compares the
+live run against it and names what went missing or appeared. This is the one
+check that promises *every* rule still fires on *every* document — each rule's
+own tests prove only that it fires where they look — and it is what would have
+caught the two silent gaps in this file's history, the unchecked
+`<EpubLicense>` and the unwrapped date union. The defect samples are its
+strongest cases: 122 findings on `onix-errors-and-warnings.xml`.
+
+When a change is meant to alter the findings, `npm run test:update-expected`
+rewrites the records; read the diff before committing it, since that diff *is*
+the review of what the change did.
 
 ### Browser loop
 

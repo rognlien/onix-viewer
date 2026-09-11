@@ -1,0 +1,2 @@
+warning element.deprecated /ONIXMessage/Product/DescriptiveDetail/TitleDetail[2]/TitleElement/TitleText
+warning codelist.deprecated /ONIXMessage/Product/RelatedMaterial/RelatedWork/WorkIdentifier/WorkIDType

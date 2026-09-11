@@ -161,67 +161,21 @@
   // a sibling selects: <ProductFormFeatureValue> is a cover colour from List
   // 98 when <ProductFormFeatureType> is 01, an accessibility detail from List
   // 196 when it is 09, and free text under most other types. The classic
-  // schema types these value elements as plain strings, so the generated
-  // bindings cannot know about them. This table is transcribed from the
-  // xs:assert rules of EDItEUR's strict (Advanced) 3.1.3 schema, which spells
-  // every one of them out — see CLAUDE.md, "Second-order code lists".
+  // schema types these value elements as plain strings, so the ordinary
+  // bindings cannot know about them; the table is generated from the strict
+  // schema's assertions instead (tools/generate-codelists.js) — see
+  // CLAUDE.md, "Second-order code lists".
   //
-  // Keyed by the value element's reference name: `type` is the sibling whose
-  // code picks the list, `lists` maps that code to a list number. `leading`
-  // names the type codes whose value is a code followed by more text — the
-  // EUDR entries carry a country code, then an optional species and harvest
-  // date — so only the first token is looked up.
-  const DEPENDENT_CODELISTS = Object.assign(Object.create(null), {
-    ProductFormFeatureValue: {
-      type: "ProductFormFeatureType",
-      lists: {
-        "01": 98, "02": 98, "26": 98, "27": 98, "55": 98, "57": 98, "58": 98, "59": 98,
-        "04": 99, "05": 76, "06": 176, "09": 196, "12": 143, "13": 184, "15": 220,
-        "19": 242, "21": 243,
-        "41": 262, "42": 262, "43": 262, "44": 262, "45": 262, "46": 262,
-        "47": 91, "48": 91, "49": 91,
-      },
-      leading: ["47", "48", "49"],
-    },
-    AudienceCodeValue: {
-      type: "AudienceCodeType",
-      lists: { "01": 28, "22": 203 },
-    },
-    AudienceRangeValue: {
-      type: "AudienceRangeQualifier",
-      lists: { "11": 77, "26": 77, "29": 227, "31": 238 },
-    },
-    ReturnsCode: {
-      type: "ReturnsCodeType",
-      lists: { "02": 66, "04": 204 },
-    },
-    ReligiousTextFeatureCode: {
-      type: "ReligiousTextFeatureType",
-      lists: { "01": 90 },
-    },
-    IDValue: {
-      type: "SalesOutletIDType",
-      lists: { "03": 139 },
-    },
-    // <FeatureValue> sits under two composites with differently named type
-    // elements, so it names both selectors.
-    FeatureValue: [
-      { type: "ResourceFeatureType", lists: { "09": 256 } },
-      { type: "ResourceVersionFeatureType", lists: { "01": 178 } },
-    ],
-    ResourceFileFeatureValue: {
-      type: "ResourceFileFeatureType",
-      lists: { "01": 178 },
-    },
-    SpecificationFeatureValue: {
-      type: "SpecificationFeatureType",
-      lists: { "43": 257, "45": 258 },
-    },
-  });
+  // Keyed by the value element's reference name, each entry a list of
+  // selectors: `type` is the sibling whose code picks the list, `lists` maps
+  // that code to a list number, and `leading` names the type codes whose
+  // value is a code followed by more text — the EUDR entries carry a country
+  // code, then an optional species and harvest date — so only the first
+  // token is looked up.
+  const DEPENDENT_CODELISTS = window.OnixViewerDependentCodeLists || Object.create(null);
 
   function dependentEntries(name) {
-    const entry = DEPENDENT_CODELISTS[name];
-    return entry ? [].concat(entry) : [];
+    return DEPENDENT_CODELISTS[name] || [];
   }
 
   function siblingNamed(element, siblingReferenceName) {

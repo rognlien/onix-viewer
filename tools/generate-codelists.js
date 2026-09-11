@@ -21,6 +21,7 @@
 //   node tools/generate-codelists.js --json=<path>       # override JSON source
 //   node tools/generate-codelists.js --xsd=<path>        # override reference XSD
 //   node tools/generate-codelists.js --short-xsd=<a>,<b>  # override short XSDs
+//   node tools/generate-codelists.js --strict-xsd=<path>  # override the strict XSD
 //
 // The short XSD supplies the short-tag → reference-name map. Short tags are
 // opaque codes (b253, x415), so without that map a short-tag document
@@ -42,6 +43,14 @@ const { JSDOM } = require("jsdom");
 
 const XS = "http://www.w3.org/2001/XMLSchema";
 
+// The shapes of the strict schema's second-order assertions; see
+// parseDependentLists below.
+const MEMBERSHIP = /matches\((\w+)(?:\[\d\])?, ?'\^\(([^)]+)\)(.*?)'\)/;
+const SINGLE_CODE = /^\((\w+) ne '([^']+)'\) or |^not\((\w+) eq '([^']+)'\) or /;
+const SEVERAL_CODES = /^not\(matches\((\w+), ?'\^\(([^)]+)\)\$'\)\) or /;
+const ORDERING = /substring-before\(/;
+
+
 const JSON_PATH = parseArg("--json=") ||
   path.join(__dirname, "data", "onix-codelists.json");
 const XSD_PATH = parseArg("--xsd=") ||
@@ -55,6 +64,11 @@ const SHORT_XSD_PATHS = (parseArg("--short-xsd=") || [
   path.join(__dirname, "data", "ONIX_BookProduct_3.1_short.xsd"),
   path.join(__dirname, "data", "ONIX_BookProduct_3.0_short.xsd"),
 ].join(",")).split(",");
+// The strict (Advanced) schema, read for one thing only: its xs:assert rules
+// are where EDItEUR states the second-order code lists — which list a value
+// element draws from, by the code in a sibling. See parseDependentLists.
+const STRICT_XSD_PATH = parseArg("--strict-xsd=") ||
+  path.join(__dirname, "data", "ONIX_BookProduct_3.1_reference_strict.xsd");
 const OUT_FILE = path.join(__dirname, "..", "Resources", "onix-codelists.js");
 
 main();
@@ -75,7 +89,9 @@ function main() {
     }
   }
 
-  const output = render(lists, elementToList, shortToReference, schemaInfo);
+  const dependent = parseDependentLists(parseXsd(STRICT_XSD_PATH), lists);
+
+  const output = render(lists, elementToList, shortToReference, dependent, schemaInfo);
   fs.writeFileSync(OUT_FILE, output);
 
   const numLists = Object.keys(lists).length;
@@ -87,6 +103,9 @@ function main() {
   console.log(`  EDItEUR ONIX ${schemaInfo.version}, Issue ${schemaInfo.issue}`);
   console.log(`  ${numLists} lists, ${numEntries} entries, ${numElements} element bindings, ${sizeKB} KB`);
   console.log(`  ${numShortTags} short-tag → reference-name pairs`);
+  const selectors = Object.values(dependent).reduce((n, list) => n + list.length, 0);
+  const selected = new Set(Object.values(dependent).flat().flatMap((s) => Object.values(s.lists)));
+  console.log(`  ${Object.keys(dependent).length} second-order value elements, ${selectors} selectors, ${selected.size} lists`);
 }
 
 // --------------------------------------------------------------------------
@@ -208,10 +227,79 @@ function refnameOf(element) {
 }
 
 // --------------------------------------------------------------------------
+// Second-order code lists, from the strict schema's assertions
+// --------------------------------------------------------------------------
+//
+// A few elements take their code from a list a sibling selects —
+// <ProductFormFeatureValue> is a colour from List 98 under
+// <ProductFormFeatureType> 01 — and the classic schema types them as plain
+// strings. The strict schema states each case as an xs:assert of one shape:
+//
+//   (: ... from ONIX Codelist 98 :) (ProductFormFeatureType ne '01') or
+//       matches(ProductFormFeatureValue, '^(BLK|BLU|...)$')
+//
+// with the condition also written as not(matches(T, '^(a|b)$')) for several
+// type codes, or not(T eq 'c'); the value sometimes indexed, as
+// AudienceRangeValue[1]; and, for the EUDR entries, the pattern going on past
+// the code group, because the value is a country code followed by a species
+// and a date. Only the first token is the code then, which `leading` records.
+//
+// The list number is the one the comment names; the codes come from the
+// bundled lists, not from the assertion's inline copy, so the table survives
+// an issue bump without the strict schema being refreshed. An assertion that
+// names a list but is not a membership test — the grade-ordering rules, which
+// compare positions in the list — is skipped by that shape alone; anything
+// else unrecognised is an error, so a new shape cannot be dropped in silence.
+
+function parseDependentLists(doc, lists) {
+  const table = Object.create(null);
+  const asserts = Array.from(doc.getElementsByTagNameNS(XS, "assert"));
+  for (const assertion of asserts) {
+    const test = assertion.getAttribute("test").replace(/\s+/g, " ");
+    const named = /(?:code ?list|List) (\d+)\b/i.exec(test);
+    if (!named) continue;
+    const body = test.replace(/\(:.*?:\)/g, "").trim();
+    if (ORDERING.test(body)) continue;
+    const listNumber = Number(named[1]);
+    if (!lists[listNumber]) throw new Error(`strict schema names List ${listNumber}, which the JSON does not carry: ${test}`);
+    const selector = parseSelector(body, test);
+    for (const code of selector.codes) {
+      const entry = selectorEntry(table, selector.valueElement, selector.typeElement);
+      entry.lists[code] = listNumber;
+      if (selector.leading) entry.leading.push(code);
+    }
+  }
+  if (!Object.keys(table).length) throw new Error("no second-order code lists found in the strict schema");
+  return table;
+}
+
+function parseSelector(body, test) {
+  const single = SINGLE_CODE.exec(body);
+  const several = single ? null : SEVERAL_CODES.exec(body);
+  const condition = single || several;
+  if (!condition) throw new Error(`cannot read the type condition of: ${test}`);
+  const typeElement = single ? (single[1] || single[3]) : several[1];
+  const codes = single ? [single[2] || single[4]] : several[2].split("|");
+  const membership = MEMBERSHIP.exec(body.slice(condition[0].length));
+  if (!membership) throw new Error(`cannot read the value membership of: ${test}`);
+  return { typeElement, codes, valueElement: membership[1], leading: membership[3] !== "$" };
+}
+
+function selectorEntry(table, valueElement, typeElement) {
+  if (!table[valueElement]) table[valueElement] = [];
+  let entry = table[valueElement].find((s) => s.type === typeElement);
+  if (!entry) {
+    entry = { type: typeElement, lists: {}, leading: [] };
+    table[valueElement].push(entry);
+  }
+  return entry;
+}
+
+// --------------------------------------------------------------------------
 // Output renderer
 // --------------------------------------------------------------------------
 
-function render(lists, elementToList, shortToReference, schemaInfo) {
+function render(lists, elementToList, shortToReference, dependent, schemaInfo) {
   const issueStr = schemaInfo.issue != null ? `issue ${schemaInfo.issue}` : "(unknown issue)";
   const out = [];
   out.push("// onix-codelists.js — AUTO-GENERATED. Do not edit by hand.");
@@ -288,6 +376,21 @@ function render(lists, elementToList, shortToReference, schemaInfo) {
     out.push(`  window.OnixViewerShortTags[${jsString(shortTag)}] = ${jsString(shortToReference[shortTag])};`);
   }
 
+  out.push("");
+  out.push("  // Second-order code lists: value element → the siblings that select");
+  out.push("  // its list, each mapping the sibling's code to a list number. `leading`");
+  out.push("  // names the codes whose value carries more than the code (the EUDR");
+  out.push("  // country-plus-species entries), so only its first token is looked up.");
+  out.push("  // From the strict schema's assertions; see tools/generate-codelists.js.");
+  out.push("  window.OnixViewerDependentCodeLists = Object.create(null);");
+  for (const valueElement of Object.keys(dependent).sort()) {
+    const selectors = dependent[valueElement].map((s) => {
+      const codes = Object.keys(s.lists).sort().map((c) => `${jsString(c)}: ${s.lists[c]}`).join(", ");
+      const leading = s.leading.length ? `, leading: [${s.leading.sort().map(jsString).join(", ")}]` : "";
+      return `{ type: ${jsString(s.type)}, lists: { ${codes} }${leading} }`;
+    });
+    out.push(`  window.OnixViewerDependentCodeLists[${jsString(valueElement)}] = [${selectors.join(", ")}];`);
+  }
   out.push("");
   out.push("  window.OnixViewerCodeListSchema = " + JSON.stringify({
     version: schemaInfo.version,

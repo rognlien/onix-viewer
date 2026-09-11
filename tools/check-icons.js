@@ -22,7 +22,6 @@ const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
 const SOURCE_DIR = path.join(ROOT, "icons");
-const SHIPPED_DIR = path.join(ROOT, "Resources", "icons");
 const MANIFEST = path.join(ROOT, "Resources", "manifest.json");
 
 function pngHeader(file) {

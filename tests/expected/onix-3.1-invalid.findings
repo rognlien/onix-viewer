@@ -1,0 +1,7 @@
+error codelist.unknown /ONIXMessage/Product/NotificationType
+warning codelist.deprecated /ONIXMessage/Product/ProductIdentifier/ProductIDType
+error gtin.checkdigit /ONIXMessage/Product/ProductIdentifier/IDValue
+error structure.unknown /ONIXMessage/Product/DescriptiveDetail/ProductFrom
+warning element.deprecated /ONIXMessage/Product/DescriptiveDetail/TitleDetail/TitleElement/TitleText
+error datatype.range /ONIXMessage/Product/DescriptiveDetail/Extent/ExtentValue
+error structure.expected-one-of /ONIXMessage/Product/PublishingDetail

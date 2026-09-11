@@ -23,7 +23,7 @@
       "run_at": "document_start",
       "all_frames": false,
       "match_origin_as_fallback": true,
-      "js": ["content.js"]
+      "js": ["shell.js", "content.js"]
     }
   ],
 
