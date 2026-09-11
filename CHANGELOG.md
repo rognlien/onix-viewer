@@ -22,6 +22,8 @@ the main branch.
   from is one click away. This holds for an element's own list too.
 - `Onix/onix-3.1-refnames-defects.xml`, a defects sample for the store
   screenshots, and the two strict 3.1 schemas in `Onix/` for reference.
+- The findings for every fixture and sample are on record in `tests/expected/`,
+  and ESLint runs in CI. The suite is split into one file per area.
 
 ### Changed
 - **Finding pills are wider** — the message ellipsises past `min(110ch, 70vw)`
@@ -29,8 +31,6 @@ the main branch.
   selector.
 - **The 128px icon is hand-drawn**, replacing the downscale of the master, so
   the store listing and the extensions page get a crisp mark.
-
-### Changed
 - **The viewer's HTML shell is its own file.** `shell.js` holds the markup
   and is listed in the manifest as a second content script, loaded ahead of
   `content.js`; the test suite now renders from the same template rather than
@@ -41,10 +41,6 @@ the main branch.
 - **`site/`**, the extension's web page, is tracked; it is published by copying
   it into the maendeleo-site repo. Its screenshots and icon are held to the
   committed originals by a test.
-
-### Added
-- The findings for every fixture and sample are on record in `tests/expected/`,
-  and ESLint runs in CI. The suite is split into one file per area.
 
 ## 0.9.18 — 2026-09-09
 
