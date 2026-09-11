@@ -68,7 +68,13 @@ onix-viewer/
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
 │   ├── Main.png                    the tree
-│   └── CodeList.png                the code-list popup
+│   ├── CodeList.png                the code-list popup
+│   └── Violations.png              the findings
+├── site/                           the extension's web page: index.html plus byte copies of
+│                                   the three screenshots and the 128px icon. Published by
+│                                   copying the directory into the maendeleo-site repo by hand;
+│                                   nothing here serves it. A test holds the copies to their
+│                                   sources
 ├── dist/                           build output — gitignored in full
 │   └── listing/                    upload staging for the GENERATED assets only:
 │                                   icon-128 (copied from Resources/icons/) plus the
@@ -543,7 +549,7 @@ thing entirely:
 | ISBN-13, GTIN-13, ISBN-10 check digits | enforced by the `gtin` rule |
 | Check digits for UPC, ISNI, GLN, SAN, ORCID, ISMN-13; DOI plausibility; an ISBN-10 requiring the matching ISBN-13 | not checked |
 | Proprietary `<*IDType>` requiring `<IDTypeName>` | not checked |
-| Second-order code lists — `<ProductFormFeatureValue>` under type 09 is List 196, `<AudienceCodeValue>` under type 01 is List 28, … | enforced, from a table transcribed out of strict — see *Second-order code lists* below |
+| Second-order code lists — `<ProductFormFeatureValue>` under type 09 is List 196, `<AudienceCodeValue>` under type 01 is List 28, … | enforced, from a table generated out of strict's own assertions — see *Second-order code lists* below |
 | Subject-scheme patterns (Thema, BIC, BISAC, CLIL) | not checked |
 | Tax arithmetic — `<PriceAmount>` = `<TaxableAmount>` + `<TaxAmount>`, `<Tax>` only on tax-inclusive prices | not checked |
 | Contributor `<SequenceNumber>` present for every contributor and consecutive from 1 | not checked |
@@ -1472,5 +1478,5 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
 - **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes all seven manifest sizes. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-48.png`, the app icon's own 48px size, so there is nothing to keep in step. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
-- **Store screenshots**: re-take into `Screenshots/` at 1280×800 and commit them. That directory is the record of what the listing shows — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`.
+- **Store screenshots**: re-take into `Screenshots/` at 1280×800 and commit them. That directory is the record of what the listing shows — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source, so re-taking a screenshot means copying it there too.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.

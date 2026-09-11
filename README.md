@@ -76,9 +76,17 @@ an edit, press the reload arrow on the card and refresh the page.
 
 ```bash
 npm install
-npm test                  # the jsdom suite, 207 tests, about 8 seconds
+npm test                  # the jsdom suite, under ten seconds
 npm test -- validation    # only tests whose name or block matches
+npm run lint              # ESLint over the scripts, tools and tests
 ```
+
+The suite is one file per area under `tests/cases/`, over fixtures in
+`tests/fixtures/`. Every ONIX fixture and sample also has its validation
+findings on record in `tests/expected/`, one line each, and a change in what
+the validator reports fails until the record is regenerated with
+`npm run test:update-expected` and the diff read. CI runs the suite, the lint,
+and a check that the generated files still match their inputs.
 
 For a visual check, load the extension unpacked and open one of the samples in
 `Onix/`: the same record in both dialects, one with a handful of realistic
@@ -88,9 +96,12 @@ defects, and one that trips every finding kind. A generic XML page such as
 ## Code lists and schemas
 
 `Resources/onix-codelists.js` and the two content models are generated from
-the inputs in `tools/data/`: EDItEUR's code-list JSON (Issue 74) and the ONIX
-3.0 and 3.1 reference and short-tag schemas. They are committed so a fresh
-clone works with no build step, and CI fails if they drift from their inputs.
+the inputs in `tools/data/`: EDItEUR's code-list JSON (Issue 74), the ONIX
+3.0 and 3.1 reference and short-tag schemas, and the 3.1 strict schema, read
+for one thing only: its assertions say which list a value such as
+`<ProductFormFeatureValue>` draws from under each sibling type code, which the
+ordinary schema cannot express. They are committed so a fresh clone works
+with no build step, and CI fails if they drift from their inputs.
 
 To move to a new EDItEUR issue, replace the inputs and regenerate:
 
@@ -102,7 +113,8 @@ node tools/generate-content-model.js --version=3.0
 
 Code lists come from
 https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/ and the
-schemas from EDItEUR's per-issue XSD bundles.
+schemas from EDItEUR's per-issue XSD bundles, the strict one from the
+*Advanced* bundle.
 
 ## Release
 

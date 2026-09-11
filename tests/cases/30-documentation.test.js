@@ -17,4 +17,21 @@ describe("Documentation", () => {
     assert(undocumented.length === 0, `fixtures with no row in CLAUDE.md: ${undocumented.join(", ")}`);
     assert(missing.length === 0, `rows in CLAUDE.md with no fixture: ${missing.join(", ")}`);
   });
+
+  // site/ is the extension's web page, copied elsewhere to publish, so it
+  // carries its own copies of the screenshots and the icon. Copies drift —
+  // two screenshots in dist/listing/ once fell two UI revisions behind — so
+  // each is held byte for byte to the file it was copied from.
+  test("site/'s screenshots and icon are the committed ones, byte for byte", () => {
+    const pairs = {
+      "site/Main.png": "Screenshots/Main.png",
+      "site/CodeList.png": "Screenshots/CodeList.png",
+      "site/Violations.png": "Screenshots/Violations.png",
+      "site/icon-128.png": "Resources/icons/icon-128.png",
+    };
+    for (const [copy, source] of Object.entries(pairs)) {
+      const same = fs.readFileSync(path.join(ROOT, copy)).equals(fs.readFileSync(path.join(ROOT, source)));
+      assert(same, `${copy} differs from ${source}; copy it over again`);
+    }
+  });
 });

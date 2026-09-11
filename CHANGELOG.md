@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## 0.9.19 — 2026-09-11
+## 0.9.19 — 2026-09-12
 
 ### Added
 - **Second-order code lists are resolved and validated.** A few elements take
@@ -29,6 +29,22 @@ the main branch.
   selector.
 - **The 128px icon is hand-drawn**, replacing the downscale of the master, so
   the store listing and the extensions page get a crisp mark.
+
+### Changed
+- **The viewer's HTML shell is its own file.** `shell.js` holds the markup
+  and is listed in the manifest as a second content script, loaded ahead of
+  `content.js`; the test suite now renders from the same template rather than
+  a copy of it. Nothing changes for the reader.
+- **The second-order code-list table is generated**, from the assertions in
+  EDItEUR's strict schema, instead of transcribed by hand. Same table, and CI
+  now fails if it drifts from the schema.
+- **`site/`**, the extension's web page, is tracked; it is published by copying
+  it into the maendeleo-site repo. Its screenshots and icon are held to the
+  committed originals by a test.
+
+### Added
+- The findings for every fixture and sample are on record in `tests/expected/`,
+  and ESLint runs in CI. The suite is split into one file per area.
 
 ## 0.9.18 — 2026-09-09
 

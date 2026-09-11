@@ -41,7 +41,9 @@ Features
   • Collapsible, syntax-highlighted XML tree
   • Automatic validation against the bundled ONIX 3.0 and 3.1
     content models: missing or misplaced elements, codes that aren't
-    in their EDItEUR list, codes and elements EDItEUR has deprecated
+    in their EDItEUR list (including the lists a sibling selects, such
+    as accessibility details, cover colours and hazard warnings),
+    codes and elements EDItEUR has deprecated
     (naming the replacement), ISBN-13 / GTIN-13 / ISBN-10 check
     digits, and values that break their datatype — each pinned to
     the row it concerns, with a jump-to-row list
@@ -96,7 +98,7 @@ ONIX file, not a second feature, and the wording should say so.
 | Permission | Justification |
 |---|---|
 | `content_scripts.matches: <all_urls>` | No `permissions` and no `host_permissions` are declared at all; this is the content script's match pattern. Two-layer activation: (1) only on pages whose response Content-Type is `application/xml`, `text/xml`, or `application/onix+xml`; (2) only on documents whose source carries the EDItEUR ONIX namespace (`ns.editeur.org/onix`), an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. Any other page — HTML, JSON, RSS, generic XML — is left untouched, and the browser's own viewer handles it. The pattern has to be broad because a server can return ONIX from any URL; the gate is the Content-Type and the sniff, not the pattern. |
-| `web_accessible_resources.matches: <all_urls>` | The viewer runs in the **page's** world, not the content script's: `content.js` replaces the document and appends ordinary `<script src="chrome-extension://…">` tags for the eight viewer scripts, the stylesheet and one icon, so the page has to be allowed to load them. The match pattern is `<all_urls>` for the same reason as above — ONIX can be served from any URL. What this exposes is the extension's own static files, which are public in the repository and in the package; it grants the page none of the extension's privileges, and there are no permissions to borrow. |
+| `web_accessible_resources.matches: <all_urls>` | The viewer runs in the **page's** world, not the content script's: `content.js` replaces the document and appends ordinary `<script src="chrome-extension://…">` tags for the viewer scripts, the stylesheet and one icon, so the page has to be allowed to load them. The match pattern is `<all_urls>` for the same reason as above — ONIX can be served from any URL. What this exposes is the extension's own static files, which are public in the repository and in the package; it grants the page none of the extension's privileges, and there are no permissions to borrow. |
 
 Worth stating plainly in the same field: **`permissions` and
 `host_permissions` are both empty arrays.** Reviewers scanning for sensitive
@@ -187,9 +189,11 @@ Summary for review:
   - One network request in the whole bundle: a same-origin re-fetch of the
     page's own URL to read the XML source.
   - No telemetry, no analytics, no third-party libraries at runtime.
-  - The only broad declaration is the content script's match pattern, which
+  - The only broad declaration is the content scripts' match pattern, which
     has to be broad because a server can return ONIX from any URL. The
     activation gate is the Content-Type and the sniff below, not the pattern.
+  - Two content scripts: shell.js holds the HTML the viewer renders into and
+    does nothing else; content.js decides whether to act and swaps it in.
 
 Activation gate (both must pass, or the page is left untouched):
   1. Content-Type is application/xml, text/xml or application/onix+xml.

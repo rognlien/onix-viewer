@@ -45,7 +45,7 @@ Specifically:
 - **No background service worker.** No persistent runtime, no data buffer that outlives a tab.
 - **`content_scripts.matches: ["<all_urls>"]`** is needed so the content script *runs* on any page (XML can be served from any URL). It bails immediately on the first 10 lines of `content.js` for any page whose Content-Type isn't `application/xml`, `text/xml`, or `application/onix+xml`. It then bails again unless the XML body contains the EDItEUR ONIX namespace, an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. On every other page it does nothing.
 
-- **`web_accessible_resources`** lists the eight viewer scripts, the
+- **`web_accessible_resources`** lists the viewer scripts, the
   stylesheet and one icon, matched against `<all_urls>`. They have to be
   web-accessible because the viewer runs in the **page's** world, not the
   content script's: `content.js` replaces the document with the markup
@@ -84,7 +84,7 @@ When you click the **List N** chip and then click the link in the popup footer, 
 
 ## How can I verify all this?
 
-1. **Read the source.** The whole bundle is small — about 220 KB of hand-written code, plus roughly 330 KB of auto-generated data: the EDItEUR code lists and the two compiled content models, all three of which are tables rather than logic. Look at `Resources/content.js` for the network call, then grep for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `eval`, `Function(` in the whole tree. There should be exactly the one fetch above.
+1. **Read the source.** The whole bundle is small — under 200 KB of hand-written code, plus roughly 330 KB of auto-generated data: the EDItEUR code lists and the two compiled content models, all three of which are tables rather than logic. Look at `Resources/content.js` for the network call, then grep for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `eval`, `Function(` in the whole tree. There should be exactly the one fetch above. The test suite asserts the same claims — no `eval` or `new Function`, exactly one `fetch` and it targets the page's own URL, no `innerHTML`, an empty permissions list, and that this document's manifest excerpt matches the real manifest — and ESLint runs over every script in CI, so a stale claim here fails the build rather than waiting for a reviewer to find it.
 
 2. **Inspect the installed extension.** Open `chrome://extensions`, enable Developer mode, click **Details** on ONIX Viewer, then **Inspect views: service worker** (there isn't one — that's intentional) and the **Source** view. The files there are the same files in this repo.
 
