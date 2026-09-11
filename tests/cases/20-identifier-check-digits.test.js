@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, findingsFor,
+  test, describe, assert, render, findingsCoded, described,
 } = require("../harness");
 
 describe("Identifier check digits", () => {
@@ -17,9 +17,7 @@ describe("Identifier check digits", () => {
       "<ProductForm>BB</ProductForm></DescriptiveDetail></Product></ONIXMessage>";
   }
   function checkDigitFindings(window, type, value) {
-    return findingsFor(window, record(type, value)).findings
-      .filter((f) => f.code === "gtin.checkdigit")
-      .map((f) => window.OnixViewerValidation.message(f));
+    return findingsCoded(window, record(type, value), "gtin.checkdigit");
   }
 
   test("real ISBN-13s pass", () => {
@@ -32,10 +30,11 @@ describe("Identifier check digits", () => {
 
   test("a wrong check digit is reported, with the digit it should be", () => {
     const w = render("onix-3.1-valid.xml");
-    const messages = checkDigitFindings(w, "15", "9788234567892");
-    assert(messages.length === 1, `expected one finding, got: ${messages.join(" | ")}`);
-    assert(messages[0] === '"9788234567892" has an invalid check digit for ISBN-13 (expected 6)',
-      `got: ${messages[0]}`);
+    const found = checkDigitFindings(w, "15", "9788234567892");
+    assert(found.length === 1, `expected one finding, got: ${described(w, found)}`);
+    const { value, scheme, expected } = found[0].data;
+    assert(value === "9788234567892" && scheme === "ISBN-13" && String(expected) === "6",
+      `got: ${described(w, found)}`);
   });
 
   test("GTIN-13 and ISBN-10 are checked, ISBN-10's X included", () => {
@@ -69,15 +68,12 @@ describe("Identifier check digits", () => {
     // knows, and reports it instead of the check digit, which cannot be
     // computed for a value of the wrong shape.
     const w = render("onix-3.1-valid.xml");
-    const lengthFindings = (type, value) =>
-      findingsFor(w, record(type, value)).findings
-        .filter((f) => f.code === "gtin.length")
-        .map((f) => w.OnixViewerValidation.message(f));
+    const lengthFindings = (type, value) => findingsCoded(w, record(type, value), "gtin.length");
 
     for (const [type, value] of [["15", "978-82-345-6789-6"], ["15", "97882345"],
                                  ["03", "978823456789"], ["02", "03854908"]]) {
       const found = lengthFindings(type, value);
-      assert(found.length === 1, `${type}/${value} should report its length; got: ${found.join("; ") || "nothing"}`);
+      assert(found.length === 1, `${type}/${value} should report its length; got: ${described(w, found)}`);
       assert(checkDigitFindings(w, type, value).length === 0,
         `${type}/${value} must not also complain about the check digit`);
     }
@@ -97,7 +93,7 @@ describe("Identifier check digits", () => {
     const w = render("onix-3.1-valid.xml");
     for (const value of ["038549081X", "038549081x"]) {
       assert(checkDigitFindings(w, "02", value).length === 0,
-        `${value} should pass; got: ${checkDigitFindings(w, "02", value).join("; ")}`);
+        `${value} should pass; got: ${described(w, checkDigitFindings(w, "02", value))}`);
     }
   });
 

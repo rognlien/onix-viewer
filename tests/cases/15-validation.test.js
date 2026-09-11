@@ -110,9 +110,8 @@ describe("Validation", () => {
     assert(codes(result).includes("model.missing"), `got: ${codes(result).join(", ")}`);
     assert(!result.checkedStructure, "structure must not be checked against the wrong schema");
     const warning = result.findings.find((f) => f.code === "model.missing");
-    const text = w.OnixViewerValidation.message(warning);
-    assert(text.includes("3.0") && text.includes("3.1"),
-      `the warning should name both bundled releases, got: ${text}`);
+    assert(warning.data.available === "3.0, 3.1",
+      `the warning should name both bundled releases, got: ${JSON.stringify(warning.data)}`);
   });
 
   // An element declared by a named complexType rather than an inline one.
@@ -247,8 +246,8 @@ describe("Validation", () => {
     const tooMany = findingsFor(w, supply([1, 2, 3]));
     assert(codes(tooMany).join() === "structure.repeated",
       `a third must be reported; got: ${codes(tooMany).join(", ")}`);
-    const message = w.OnixViewerValidation.message(tooMany.findings[0]);
-    assert(message.includes("at most 2"), `the limit should be named; got: ${message}`);
+    assert(tooMany.findings[0].data.max === 2,
+      `the limit should be named; got: ${JSON.stringify(tooMany.findings[0].data)}`);
   });
 
   test("an XSD element default makes an empty element valid", () => {
@@ -562,12 +561,10 @@ describe("Validation", () => {
     assert(codes(reference).join() === codes(short).join(),
       `codes should match: ${codes(reference).join()} vs ${codes(short).join()}`);
     // ...described in each file's own dialect.
-    const w = render("onix-3.1-valid.xml");
-    const messageOf = (result, code) => w.OnixViewerValidation.message(
-      result.findings.find((f) => f.code === code));
-    assert(messageOf(reference, "element.deprecated").includes("<TitleText>"),
+    const nameOf = (result, code) => result.findings.find((f) => f.code === code).data.name;
+    assert(nameOf(reference, "element.deprecated") === "TitleText",
       "the reference file should be told about <TitleText>");
-    assert(messageOf(short, "element.deprecated").includes("<b203>"),
+    assert(nameOf(short, "element.deprecated") === "b203",
       "the short-tag file should be told about <b203>");
   });
 
@@ -779,8 +776,8 @@ describe("Validation", () => {
     assert(!result.checkedStructure, "no version, so no model");
     const note = result.findings.find((f) => f.code === "model.missing");
     assert(note, `expected model.missing; got: ${codes(result).join(", ")}`);
-    assert(w.OnixViewerValidation.message(note).includes("bundled: 3.0, 3.1"),
-      `the message should name what is available: ${w.OnixViewerValidation.message(note)}`);
+    assert(note.data.available === "3.0, 3.1",
+      `the finding should name what is available: ${JSON.stringify(note.data)}`);
     assert(codes(result).some((c) => c.startsWith("codelist.")) || true,
       "code lists are release-independent and still run");
   });

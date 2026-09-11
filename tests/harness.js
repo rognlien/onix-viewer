@@ -216,6 +216,16 @@ function findings(window) {
 function codes(result) {
   return result.findings.map((f) => f.code);
 }
+// The findings whose code is `code`, or starts with it when it ends in a dot.
+function findingsCoded(window, xml, code) {
+  return findingsFor(window, xml).findings
+    .filter((f) => (code.endsWith(".") ? f.code.startsWith(code) : f.code === code));
+}
+// Findings as text, for a failure message. Assertions compare `code` and
+// `data` — the wording is free to change, the codes and fields are not.
+function described(window, list) {
+  return list.map((f) => `${f.code}: ${window.OnixViewerValidation.message(f)}`).join("; ") || "nothing";
+}
 // The toolbar's validation label, which is also the button that opens the list.
 function validationLabel(window) {
   return window.document.getElementById("oxv-validation");
@@ -252,7 +262,8 @@ function summary() {
 module.exports = {
   test, describe, assert, render, renderSource, $$,
   meta, rowsNamed, badges, stubClipboard, summariesOf, findingsFor,
-  findings, codes, validationLabel, shortTwin, withDescriptiveDetail, ROOT,
-  RES, FIXTURES, SAMPLES, contentModelFor, contentModelJs, codelistsJs,
-  onixJs, validateJs, popupJs, viewerJs, viewerCss, summary,
+  findings, codes, described, findingsCoded, validationLabel, shortTwin,
+  withDescriptiveDetail, ROOT, RES, FIXTURES, SAMPLES, contentModelFor,
+  contentModelJs, codelistsJs, onixJs, validateJs, popupJs, viewerJs,
+  viewerCss, summary,
 };

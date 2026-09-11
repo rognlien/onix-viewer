@@ -1,24 +1,24 @@
 const {
-  test, describe, assert, render, findingsFor,
+  test, describe, assert, render, findingsCoded, described,
 } = require("../harness");
 
 describe("Deprecated elements", () => {
   const fsd = require("fs");
   function deprecations(window, xml) {
-    return findingsFor(window, xml).findings
-      .filter((f) => f.code === "element.deprecated")
-      .map((f) => window.OnixViewerValidation.message(f));
+    return findingsCoded(window, xml, "element.deprecated");
   }
 
   test("a deprecated element is reported as a warning, naming the replacement", () => {
     const w = render("onix-3.1-standalone-product.xml");
-    const messages = deprecations(w, w.__OXV_SOURCE__);
-    assert(messages.length === 1, `expected one deprecation, got: ${messages.join(" | ")}`);
-    assert(messages[0] === "<TitleText> is deprecated from release 3.1 — use either " +
-      "<TitlePrefix> or <NoPrefix/>, plus <TitleWithoutPrefix> instead", `got: ${messages[0]}`);
-    const finding = findingsFor(w, w.__OXV_SOURCE__).findings
-      .find((f) => f.code === "element.deprecated");
-    assert(finding.severity === "warning", "deprecation is valid ONIX, so a warning");
+    const found = deprecations(w, w.__OXV_SOURCE__);
+    assert(found.length === 1, `expected one deprecation, got: ${described(w, found)}`);
+    assert(found[0].data.name === "TitleText" && found[0].severity === "warning",
+      "deprecation is valid ONIX, so a warning about <TitleText>");
+    // The one place the wording is pinned: {since} and {advice} each carry
+    // their own connective, and this is what proves they compose.
+    const message = w.OnixViewerValidation.message(found[0]);
+    assert(message === "<TitleText> is deprecated from release 3.1 — use either " +
+      "<TitlePrefix> or <NoPrefix/>, plus <TitleWithoutPrefix> instead", `got: ${message}`);
   });
 
   test("a note about an element's children does not deprecate the element", () => {
@@ -34,7 +34,7 @@ describe("Deprecated elements", () => {
     }
     // And the fixture using both of them reports nothing.
     assert(deprecations(w, w.__OXV_SOURCE__).length === 0,
-      `a valid 3.1 document should carry no deprecation: ${deprecations(w, w.__OXV_SOURCE__).join(" | ")}`);
+      `a valid 3.1 document should carry no deprecation: ${described(w, deprecations(w, w.__OXV_SOURCE__))}`);
   });
 
   test("a deprecation limited to one parent fires only there", () => {

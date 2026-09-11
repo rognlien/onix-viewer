@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, meta, findingsFor, findings,
+  test, describe, assert, render, meta, findingsFor, findings, findingsCoded, described,
 } = require("../harness");
 
 describe("Attributes", () => {
@@ -23,15 +23,17 @@ describe("Attributes", () => {
       "</TitleElement></TitleDetail></DescriptiveDetail></Product></ONIXMessage>";
   }
   function attributeFindings(window, xml) {
-    return findingsFor(window, xml).findings
-      .filter((f) => f.code.startsWith("attribute."))
-      .map((f) => `${f.code}: ${window.OnixViewerValidation.message(f)}`);
+    return findingsCoded(window, xml, "attribute.");
   }
+  // One finding, summarised as "code name=value" for the assertions below.
+  const only = (list) => list.length === 1 ? list[0] : null;
+  const is = (f, code, fields) => Boolean(f) && f.code === code &&
+    Object.entries(fields).every(([k, v]) => f.data[k] === v);
 
   test("the baseline message has no attribute findings", () => {
     const w = render("onix-3.1-valid.xml");
     assert(findingsFor(w, message()).total === 0,
-      `expected a clean baseline, got: ${attributeFindings(w, message()).join("; ")}`);
+      `expected a clean baseline, got: ${described(w, attributeFindings(w, message()))}`);
   });
 
   test("legal attribute values pass", () => {
@@ -40,18 +42,18 @@ describe("Attributes", () => {
       titleAttrs: ' language="nob" textcase="02" collationkey="T" datestamp="20260101"',
       formAttrs: ' sourcename="Bokbasen" sourcetype="01"',
     }));
-    assert(found.length === 0, `expected none, got: ${found.join("; ")}`);
+    assert(found.length === 0, `expected none, got: ${described(w, found)}`);
   });
 
   test("an attribute that does not belong to the element is reported", () => {
     const w = render("onix-3.1-valid.xml");
     const found = attributeFindings(w, message({ formAttrs: ' colour="red"' }));
-    assert(found.length === 1 && found[0].includes("colour is not an attribute of <ProductForm>"),
-      `got: ${found.join("; ")}`);
+    assert(is(only(found), "attribute.unknown", { name: "colour", element: "ProductForm" }),
+      `got: ${described(w, found)}`);
     // language is a real ONIX attribute, but not on <ProductForm>.
     const wrongPlace = attributeFindings(w, message({ formAttrs: ' language="nob"' }));
-    assert(wrongPlace.length === 1 && wrongPlace[0].includes("language is not an attribute"),
-      `a real attribute in the wrong place should still be reported; got: ${wrongPlace.join("; ")}`);
+    assert(is(only(wrongPlace), "attribute.unknown", { name: "language", element: "ProductForm" }),
+      `a real attribute in the wrong place should still be reported; got: ${described(w, wrongPlace)}`);
   });
 
   test("a bad code in an attribute is reported, and the list is named", () => {
@@ -59,8 +61,8 @@ describe("Attributes", () => {
     const found = attributeFindings(w, message({ titleAttrs: ' textcase="99"' }));
     // List 14 is bound to an attribute, not to any element, so naming it
     // needs the by-number titles rather than the element meta.
-    assert(found.length === 1 && found[0] ===
-      'attribute.code: textcase="99" is not in List 14 (Text case flag)', `got: ${found.join("; ")}`);
+    assert(is(only(found), "attribute.code", { name: "textcase", value: "99", list: 14, title: "Text case flag" }),
+      `got: ${described(w, found)}`);
   });
 
   test("a deprecated code in an attribute is a warning, not an error", () => {
@@ -74,8 +76,8 @@ describe("Attributes", () => {
   test("an attribute that breaks its datatype is reported", () => {
     const w = render("onix-3.1-valid.xml");
     const found = attributeFindings(w, message({ formAttrs: ' datestamp="not-a-date"' }));
-    assert(found.length === 1 && found[0].includes("is not a valid DateOrDateTime"),
-      `got: ${found.join("; ")}`);
+    assert(is(only(found), "attribute.pattern", { name: "datestamp", type: "DateOrDateTime" }),
+      `got: ${described(w, found)}`);
     // A well-formed datestamp passes.
     assert(attributeFindings(w, message({ formAttrs: ' datestamp="20260101"' })).length === 0,
       "a valid date should pass");
@@ -84,11 +86,11 @@ describe("Attributes", () => {
   test("release is required on the message root, and must say 3.1", () => {
     const w = render("onix-3.1-valid.xml");
     const missing = attributeFindings(w, message({ release: "" }));
-    assert(missing.some((f) => f.includes("missing its required release attribute")),
-      `got: ${missing.join("; ")}`);
+    assert(missing.some((f) => is(f, "attribute.missing", { name: "release" })),
+      `got: ${described(w, missing)}`);
     const wrong = attributeFindings(w, message({ release: 'release="3.2"' }));
-    assert(wrong.some((f) => f.includes('release must be "3.1", not "3.2"')),
-      `got: ${wrong.join("; ")}`);
+    assert(wrong.some((f) => is(f, "attribute.value", { name: "release", value: "3.2", expected: '"3.1"' })),
+      `got: ${described(w, wrong)}`);
   });
 
   test("refname and shortname must match the element they sit on", () => {
@@ -98,11 +100,11 @@ describe("Attributes", () => {
       formAttrs: ' refname="ProductForm" shortname="b012"' })).length === 0,
       "the element's own names should pass");
     const wrong = attributeFindings(w, message({ formAttrs: ' refname="ProductFrom"' }));
-    assert(wrong.length === 1 && wrong[0].includes('refname must be "ProductForm"'),
-      `got: ${wrong.join("; ")}`);
+    assert(is(only(wrong), "attribute.value", { name: "refname", expected: '"ProductForm"' }),
+      `got: ${described(w, wrong)}`);
     const wrongShort = attributeFindings(w, message({ formAttrs: ' shortname="b999"' }));
-    assert(wrongShort.length === 1 && wrongShort[0].includes('shortname must be "b012"'),
-      `got: ${wrongShort.join("; ")}`);
+    assert(is(only(wrongShort), "attribute.value", { name: "shortname", expected: '"b012"' }),
+      `got: ${described(w, wrongShort)}`);
   });
 
   test("namespace, xsi and xml attributes are not ONIX's to judge", () => {
@@ -113,7 +115,7 @@ describe("Attributes", () => {
     });
     const found = attributeFindings(w, xml);
     assert(found.length === 0,
-      `xmlns/xsi/xml:lang are legal and not ONIX's; got: ${found.join("; ")}`);
+      `xmlns/xsi/xml:lang are legal and not ONIX's; got: ${described(w, found)}`);
   });
 
   test("short-tag documents use the same attribute names", () => {
@@ -129,8 +131,8 @@ describe("Attributes", () => {
       "</descriptivedetail></product></ONIXmessage>";
     const w = render("onix-3.1-valid.xml");
     const found = attributeFindings(w, short);
-    assert(found.length === 1 && found[0].includes("textcase=\"99\""),
-      `the same attribute check should apply in short tags; got: ${found.join("; ")}`);
+    assert(is(only(found), "attribute.code", { name: "textcase", value: "99" }),
+      `the same attribute check should apply in short tags; got: ${described(w, found)}`);
   });
   test("an empty attribute value is reported, whatever the attribute's type", () => {
     // No ONIX attribute has a legal empty value: each is code-list bound, an
@@ -141,19 +143,19 @@ describe("Attributes", () => {
     for (const attribute of ["language", "collationkey", "datestamp"]) {
       const xml = message({ titleAttrs: ` ${attribute}=""` });
       const found = attributeFindings(w, xml);
-      assert(found.length === 1 && found[0].startsWith("attribute.empty"),
-        `${attribute}="" should be reported empty; got: ${found.join("; ") || "nothing"}`);
+      assert(is(only(found), "attribute.empty", { name: attribute }),
+        `${attribute}="" should be reported empty; got: ${described(w, found)}`);
     }
 
     // Whitespace-only is the empty string too: every enumerated type in ONIX
     // restricts xs:token, which collapses whitespace before validating.
     const blank = attributeFindings(w, message({ titleAttrs: ' language="   "' }));
-    assert(blank.length === 1 && blank[0].startsWith("attribute.empty"),
-      `whitespace-only collapses to empty; got: ${blank.join("; ") || "nothing"}`);
+    assert(is(only(blank), "attribute.empty", { name: "language" }),
+      `whitespace-only collapses to empty; got: ${described(w, blank)}`);
 
     // Which is also why a padded but real code has to stay valid.
     const padded = attributeFindings(w, message({ titleAttrs: ' language=" eng "' }));
-    assert(padded.length === 0, `language=" eng " must stay valid; got: ${padded.join("; ")}`);
+    assert(padded.length === 0, `language=" eng " must stay valid; got: ${described(w, padded)}`);
   });
 
   test("an ONIX-namespaced attribute is reported, a foreign one is not", () => {
@@ -174,12 +176,12 @@ describe("Attributes", () => {
 
     for (const attrs of ['onix:language="zzz"', 'onix:language="eng"', 'onix:bogus="1"']) {
       const found = attributeFindings(w, withNs(attrs));
-      assert(found.length === 1 && found[0].startsWith("attribute.qualified"),
-        `${attrs} should be reported; got: ${found.join("; ") || "nothing"}`);
+      assert(is(only(found), "attribute.qualified", {}),
+        `${attrs} should be reported; got: ${described(w, found)}`);
     }
     for (const attrs of ['foo:anything="1"', 'xml:lang="en"']) {
       const found = attributeFindings(w, withNs(attrs));
-      assert(found.length === 0, `${attrs} must stay silent; got: ${found.join("; ")}`);
+      assert(found.length === 0, `${attrs} must stay silent; got: ${described(w, found)}`);
     }
   });
 

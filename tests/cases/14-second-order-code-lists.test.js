@@ -109,9 +109,10 @@ describe("Second-order code lists", () => {
     const w = render(FIXTURE);
     const bad = findingsFor(w, source().replace("<ProductFormFeatureValue>52", "<ProductFormFeatureValue>XX"));
     assert(codes(bad).join() === "codelist.dependent", `got: ${codes(bad).join(", ")}`);
-    const text = w.OnixViewerValidation.message(bad.findings[0]);
-    assert(text === '"XX" is not in List 196 (E-publication Accessibility Details), which applies when <ProductFormFeatureType> is 09',
-      `message: ${text}`);
+    const { value, list, title, type, typeCode } = bad.findings[0].data;
+    assert(value === "XX" && list === 196 && type === "ProductFormFeatureType" && typeCode === "09",
+      `the finding should carry the code, the list and the selector: ${JSON.stringify(bad.findings[0].data)}`);
+    assert(title === "E-publication Accessibility Details", `List 196's title comes by number; got: ${title}`);
     assert(bad.findings[0].severity === "error", "a code outside the list is a schema violation");
   });
 
@@ -119,8 +120,8 @@ describe("Second-order code lists", () => {
     const w = render(FIXTURE);
     const short = shortTwin(w, source()).replace("<b335>52", "<b335>XX");
     const bad = findingsFor(w, short);
-    const text = w.OnixViewerValidation.message(bad.findings[0]);
-    assert(text.includes("when <b334> is 09"), `message: ${text}`);
+    assert(bad.findings[0].data.type === "b334",
+      `the selector should be named as the file spells it: ${JSON.stringify(bad.findings[0].data)}`);
   });
 
   test("validation: a deprecated code in a selected list is a warning", () => {
@@ -128,14 +129,15 @@ describe("Second-order code lists", () => {
     const bad = findingsFor(w, source().replace("<IDValue>AMZ", "<IDValue>POK"));
     assert(codes(bad).join() === "codelist.deprecated", `got: ${codes(bad).join(", ")}`);
     assert(bad.findings[0].severity === "warning");
-    assert(w.OnixViewerValidation.message(bad.findings[0]).includes("List 139"));
+    assert(bad.findings[0].data.list === 139, "the deprecation names the selected list");
   });
 
   test("validation: an EUDR location is judged on its country code alone", () => {
     const w = render(FIXTURE);
     const bad = findingsFor(w, source().replace("NO Picea abies", "XX Picea abies"));
     assert(codes(bad).join() === "codelist.dependent", `got: ${codes(bad).join(", ")}`);
-    assert(w.OnixViewerValidation.message(bad.findings[0]).startsWith('"XX" is not in List 91'));
+    assert(bad.findings[0].data.value === "XX" && bad.findings[0].data.list === 91,
+      `only the first token is the code: ${JSON.stringify(bad.findings[0].data)}`);
   });
 
   test("validation: a value under an unmapped type is not judged", () => {

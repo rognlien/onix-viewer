@@ -1,15 +1,16 @@
 const path = require("path");
 const {
-  test, describe, assert, render, findingsFor, withDescriptiveDetail, FIXTURES, SAMPLES,
+  test, describe, assert, render, findingsCoded, described, withDescriptiveDetail, FIXTURES, SAMPLES,
 } = require("../harness");
 
 describe("Identity constraints (xs:unique)", () => {
   const fsu = require("fs");
   function duplicates(window, xml) {
-    return findingsFor(window, xml).findings
-      .filter((f) => f.code === "unique.duplicate")
-      .map((f) => window.OnixViewerValidation.message(f));
+    return findingsCoded(window, xml, "unique.duplicate");
   }
+  // A duplicate finding's key: where it was found, what repeats, on which fields.
+  const keyOf = (f) => `${f.data.parent}/${f.data.selector} on ${f.data.fields}`;
+  const keysOf = (list) => list.map(keyOf);
   // The valid fixture with extra children spliced into <DescriptiveDetail>,
   // after <ProductForm> where the schema's sequence expects them.
 
@@ -28,15 +29,14 @@ describe("Identity constraints (xs:unique)", () => {
     const product = valid.match(/<Product>[\s\S]*<\/Product>/)[0];
     const twice = valid.replace(product, product + "\n" + product);
     const found = duplicates(w, twice);
-    assert(found.length === 1 &&
-      found[0] === "<ONIXMessage> repeats <Product> with the same RecordReference",
-      `got: ${found.join("; ")}`);
+    assert(keysOf(found).join() === "ONIXMessage/Product on RecordReference",
+      `got: ${described(w, found)}`);
     // Distinct references are fine.
     const distinct = valid.replace(product,
       product + "\n" + product.replace("<RecordReference>valid-9788234567896</RecordReference>",
         "<RecordReference>valid-other</RecordReference>"));
     assert(duplicates(w, distinct).length === 0,
-      `distinct references should pass; got: ${duplicates(w, distinct).join("; ")}`);
+      `distinct references should pass; got: ${described(w, duplicates(w, distinct))}`);
   });
 
   test("a two-field key needs both parts to match", () => {
@@ -45,9 +45,8 @@ describe("Identity constraints (xs:unique)", () => {
       "</MeasureType><Measurement>10</Measurement><MeasureUnitCode>" + unit +
       "</MeasureUnitCode></Measure>";
     const clash = duplicates(w, withDescriptiveDetail(measure("01", "mm") + measure("01", "mm")));
-    assert(clash.length === 1 &&
-      clash[0] === "<DescriptiveDetail> repeats <Measure> with the same MeasureType and MeasureUnitCode",
-      `got: ${clash.join("; ")}`);
+    assert(keysOf(clash).join() === "DescriptiveDetail/Measure on MeasureType and MeasureUnitCode",
+      `got: ${described(w, clash)}`);
     // Differing in either field is legal.
     assert(duplicates(w, withDescriptiveDetail(measure("01", "mm") + measure("01", "cm"))).length === 0,
       "a different unit is a different key");
@@ -72,19 +71,18 @@ describe("Identity constraints (xs:unique)", () => {
 
     const languageOnly = collateral('<Text language="eng">A</Text><Text language="eng">B</Text>');
     assert(duplicates(w, languageOnly).length === 0,
-      `language alone is an incomplete key; got: ${duplicates(w, languageOnly).join("; ")}`);
+      `language alone is an incomplete key; got: ${described(w, duplicates(w, languageOnly))}`);
 
     const both = collateral('<Text language="eng" textscript="Latn">A</Text>' +
       '<Text language="eng" textscript="Latn">B</Text>');
     const clash = duplicates(w, both);
-    assert(clash.length === 1 &&
-      clash[0] === "<TextContent> repeats <Text> with the same language and textscript",
-      `got: ${clash.join("; ")}`);
+    assert(keysOf(clash).join() === "TextContent/Text on language and textscript",
+      `got: ${described(w, clash)}`);
 
     const differing = collateral('<Text language="eng" textscript="Latn">A</Text>' +
       '<Text language="nob" textscript="Latn">B</Text>');
     assert(duplicates(w, differing).length === 0,
-      `distinct languages should pass; got: ${duplicates(w, differing).join("; ")}`);
+      `distinct languages should pass; got: ${described(w, duplicates(w, differing))}`);
   });
 
   test("a single-attribute key clashes on that attribute alone", () => {
@@ -99,8 +97,8 @@ describe("Identity constraints (xs:unique)", () => {
     // <SourceTitle>'s key is @language on its own.
     const clash = duplicates(w, collateral('<SourceTitle language="eng">A</SourceTitle>' +
       '<SourceTitle language="eng">B</SourceTitle>'));
-    assert(clash.some((f) => f === "<TextContent> repeats <SourceTitle> with the same language"),
-      `got: ${clash.join("; ")}`);
+    assert(keysOf(clash).includes("TextContent/SourceTitle on language"),
+      `got: ${described(w, clash)}`);
     assert(duplicates(w, collateral('<SourceTitle language="eng">A</SourceTitle>' +
       '<SourceTitle language="nob">B</SourceTitle>')).length === 0, "distinct languages pass");
   });
@@ -109,7 +107,7 @@ describe("Identity constraints (xs:unique)", () => {
     const w = render("onix-3.1-valid.xml");
     const detail = "<ProductFormDetail>B206</ProductFormDetail>";
     const found = duplicates(w, withDescriptiveDetail(detail + detail));
-    assert(found.length === 1 && found[0].includes("with the same value"), `got: ${found.join("; ")}`);
+    assert(keysOf(found).join() === "DescriptiveDetail/ProductFormDetail on value", `got: ${described(w, found)}`);
     assert(duplicates(w, withDescriptiveDetail(detail +
       "<ProductFormDetail>B221</ProductFormDetail>")).length === 0, "distinct values pass");
   });
@@ -126,7 +124,7 @@ describe("Identity constraints (xs:unique)", () => {
         .map((f) => path.join(SAMPLES, f)));
     for (const file of samples) {
       const found = duplicates(w, fsu.readFileSync(file, "utf8"));
-      if (found.length) wrong.push(`${path.basename(file)}: ${found.join(", ")}`);
+      if (found.length) wrong.push(`${path.basename(file)}: ${described(w, found)}`);
     }
     assert(wrong.length === 0, wrong.join("; "));
   });
