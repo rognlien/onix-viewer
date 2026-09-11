@@ -3,6 +3,33 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## 0.9.19 — 2026-09-11
+
+### Added
+- **Second-order code lists are resolved and validated.** A few elements take
+  their code from a list that a sibling selects — `<ProductFormFeatureValue>`
+  is a colour from List 98 when `<ProductFormFeatureType>` is 01, an
+  accessibility detail from List 196 when it is 09 — and the schema types them
+  as plain strings, so their codes rendered bare and went unchecked. They now
+  get the label badge and the `List N` chip like any other code, the popup
+  names the selector (`ProductFormFeatureValue when ProductFormFeatureType is
+  09`, in the document's own dialect), and a code the selected list lacks is
+  reported with the reason that list applies. Ten value elements, 25 lists,
+  transcribed from the assertions of EDItEUR's strict schema. Suggested by
+  Graham Bell.
+- **A bad code still offers its list.** A row whose code is not in its list
+  gets the `List N` chip without the label, so the list it should have come
+  from is one click away. This holds for an element's own list too.
+- `Onix/onix-3.1-refnames-defects.xml`, a defects sample for the store
+  screenshots, and the two strict 3.1 schemas in `Onix/` for reference.
+
+### Changed
+- **Finding pills are wider** — the message ellipsises past `min(110ch, 70vw)`
+  instead of `min(72ch, 55vw)`, enough for a second-order finding to show its
+  selector.
+- **The 128px icon is hand-drawn**, replacing the downscale of the master, so
+  the store listing and the extensions page get a crisp mark.
+
 ## 0.9.18 — 2026-09-09
 
 ### Changed
