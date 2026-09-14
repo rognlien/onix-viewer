@@ -52,3 +52,21 @@ jobs:
       # hand-drawn sources instead — which is what caught a stale 32px icon.
       - name: Shipped icons match their sources
         run: npm run check:icons
+
+  # The extension in a real Chrome: the takeover of a served XML page, and the
+  # custom Schematron rules on Chrome's own XPath engine rather than jsdom's.
+  # Its own job, so a browser hiccup reads as one rather than as a failure of
+  # the suite. The runner image ships Chrome; puppeteer-core drives it and
+  # downloads nothing.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - run: npm ci
+
+      - run: npm run test:browser

@@ -7,7 +7,7 @@ This document explains how ONIX Viewer handles page content, what permissions it
 - **No data is sent off your machine.** The only network call the extension makes is a re-fetch of the *same URL you're already viewing*, to grab the raw XML source so the viewer can pretty-print it.
 - **No telemetry, no analytics, no third-party scripts.**
 - **No remote code execution.** All JavaScript is bundled with the extension and verifiable in the source tree.
-- **Minimal permissions.** The extension declares **zero** `permissions` and (as of 0.9.8) **zero** `host_permissions`. It cannot make cross-origin fetches; the browser's CORS rules would block any attempt.
+- **Minimal permissions.** The extension declares **one** permission, `storage`, which holds the custom validation rules you paste in yourself and nothing else, and **zero** `host_permissions`. It cannot make cross-origin fetches; the browser's CORS rules would block any attempt.
 
 ## What permissions does the extension actually have?
 
@@ -16,7 +16,7 @@ This document explains how ONIX Viewer handles page content, what permissions it
 ```json
 {
   "manifest_version": 3,
-  "permissions": [],
+  "permissions": ["storage"],
   "content_scripts": [{
     "matches": ["<all_urls>"],
     "run_at": "document_start",
@@ -42,7 +42,7 @@ excerpt above.
 Specifically:
 
 - **No `host_permissions`** — the extension cannot fetch arbitrary cross-origin URLs. Any attempt to `fetch("https://attacker.example/...")` from inside the extension would be subject to the page's CORS rules and would be blocked by the browser, not just by absent code.
-- **No `permissions`** — no `tabs`, `storage`, `webRequest`, `cookies`, `history`, `bookmarks`, `clipboardWrite`, `downloads`, or any other Chrome API permission. The clipboard "Copy XML" button uses the standard, unprivileged `navigator.clipboard.writeText` (which requires a user gesture and goes to the local clipboard, not the network), falling back to `document.execCommand("copy")` on a hidden textarea where that API is unavailable — also unprivileged, and also local.
+- **One `permission`: `storage`** — and nothing else: no `tabs`, `webRequest`, `cookies`, `history`, `bookmarks`, `clipboardWrite`, `downloads`, or any other Chrome API permission. `storage` exists for one thing: the custom validation rules you paste into the toolbar's cog. `content.js` reads that one key (`rules`) from `chrome.storage.local` on the way into a page and writes it back when you press Apply or Clear in the editor. The viewer itself runs in the page's world and has no storage access at all; it hands the text to the content script with a `postMessage` to its own window, and the content script accepts only messages from that window. Nothing about the document you are viewing, the URL, or your activity is ever stored, and the test suite asserts that `storage` is touched by `content.js` alone, under that one key. Chrome shows no install warning for `storage`. The clipboard "Copy XML" button uses the standard, unprivileged `navigator.clipboard.writeText` (which requires a user gesture and goes to the local clipboard, not the network), falling back to `document.execCommand("copy")` on a hidden textarea where that API is unavailable — also unprivileged, and also local.
 - **No background service worker.** No persistent runtime, no data buffer that outlives a tab.
 - **`content_scripts.matches: ["<all_urls>"]`** is needed so the content script *runs* on any page (XML can be served from any URL). It bails immediately on the first 10 lines of `content.js` for any page whose Content-Type isn't `application/xml`, `text/xml`, or `application/onix+xml`. It then bails again unless the XML body contains the EDItEUR ONIX namespace, an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. On every other page it does nothing.
 
@@ -60,8 +60,8 @@ Specifically:
   them. It does make the extension **fingerprintable** — a page can probe
   whether `chrome-extension://<id>/viewer.js` loads — which is inherent to any
   extension that injects page-world scripts. It grants a page no access to the
-  extension's privileges, and since there are no permissions to borrow, there
-  is nothing to escalate to.
+  extension's privileges, and since the only permission is `storage`, held by
+  the content script and never by the page, there is nothing to escalate to.
 
 ## What's the one network call?
 
@@ -85,7 +85,7 @@ When you click the **List N** chip and then click the link in the popup footer, 
 
 ## How can I verify all this?
 
-1. **Read the source.** The whole bundle is small — under 200 KB of hand-written code, plus roughly 330 KB of auto-generated data: the EDItEUR code lists and the two compiled content models, all three of which are tables rather than logic. Look at `Resources/content.js` for the network call, then grep for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `eval`, `Function(` in the whole tree. There should be exactly the one fetch above. The test suite asserts the same claims — no `eval` or `new Function`, exactly one `fetch` and it targets the page's own URL, no `innerHTML`, an empty permissions list, and that this document's manifest excerpt matches the real manifest — and ESLint runs over every script in CI, so a stale claim here fails the build rather than waiting for a reviewer to find it.
+1. **Read the source.** The whole bundle is small — under 200 KB of hand-written code, plus roughly 330 KB of auto-generated data: the EDItEUR code lists and the two compiled content models, all three of which are tables rather than logic. Look at `Resources/content.js` for the network call, then grep for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `eval`, `Function(` in the whole tree. There should be exactly the one fetch above. The test suite asserts the same claims — no `eval` or `new Function`, exactly one `fetch` and it targets the page's own URL, no `innerHTML`, `storage` as the one permission and `content.js` as its only user, and that this document's manifest excerpt matches the real manifest — and ESLint runs over every script in CI, so a stale claim here fails the build rather than waiting for a reviewer to find it.
 
 2. **Inspect the installed extension.** Open `chrome://extensions`, enable Developer mode, click **Details** on ONIX Viewer, then **Inspect views: service worker** (there isn't one — that's intentional) and the **Source** view. The files there are the same files in this repo.
 
@@ -97,11 +97,11 @@ When you click the **List N** chip and then click the link in the popup footer, 
 
 ## What we deliberately *don't* do
 
-- No `storage`, `cookies`, `bookmarks`, or other Chrome API access.
+- No `cookies`, `bookmarks`, or other Chrome API access beyond `storage`, and `storage` holds only the rule set you typed.
 - No tab inspection (`tabs` permission absent — we cannot enumerate or read other tabs' URLs).
 - No webRequest interception of network traffic.
 - No remote-hosted code: `script-src 'self'` (the MV3 default CSP) is enforced; the bundle ships every byte of JavaScript it runs.
-- No third-party libraries at runtime. The only dev dependency is `jsdom` for the local test suite (not bundled).
+- No third-party libraries at runtime. The dev dependencies — `jsdom`, ESLint and `puppeteer-core` for the test suites — are not bundled.
 
 ## Reporting a concern
 

@@ -6,12 +6,14 @@
   "scripts": {
     "test": "node tests/run.js",
     "test:update-expected": "UPDATE_EXPECTED=1 node tests/run.js expected",
+    "test:browser": "node tests/browser/run.js",
     "check:icons": "node tools/check-icons.js",
     "lint": "eslint ."
   },
   "devDependencies": {
     "eslint": "^9.39.5",
     "globals": "^17.12.0",
-    "jsdom": "^24.0.0"
+    "jsdom": "^24.0.0",
+    "puppeteer-core": "^25.10.0"
   }
 }

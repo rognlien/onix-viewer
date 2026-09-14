@@ -11,15 +11,16 @@
 // lives in the same isolated world and publishes one global there. In node
 // the same assignment lands on the harness's globalThis.
 //
-// The only interpolations are the two extension URLs the caller resolved and
-// the page title, escaped here. No document content goes near the markup.
+// The only interpolations are the two extension URLs the caller resolved,
+// the extension's version and the page title, escaped here. No document
+// content goes near the markup.
 
 (function () {
   "use strict";
 
-  function html({ title, cssURL, logoURL }) {
+  function html({ title, cssURL, logoURL, version }) {
     return `<!doctype html>
-<html lang="en" data-oxv="1">
+<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
@@ -30,9 +31,12 @@
   <div class="px-left">
     <!-- The mark says which extension took the page over — a raw XML URL gives
          no other clue. It is the app icon's own 48px size — no separate copy to
-         keep in step — shown at 28px. If the page's own img-src CSP blocks extension
-         URLs, viewer.js removes it rather than leave a broken-image glyph. -->
-    <img id="oxv-logo" src="${logoURL}" width="28" height="28" alt="ONIX Viewer">
+         keep in step — shown at 28px, and it is the door to the About window.
+         If the page's own img-src CSP blocks extension URLs, viewer.js swaps
+         the image for the name rather than leave a broken-image glyph. -->
+    <button type="button" class="px-logo-btn" data-action="about" title="About ONIX Viewer" aria-label="About ONIX Viewer">
+      <img id="oxv-logo" src="${logoURL}" width="28" height="28" alt="">
+    </button>
     <!-- Expand and Collapse both work a level at a time; viewer.js prepends
          their icons. -->
     <button type="button" data-action="expand" title="Expand one more level (E)">Expand</button>
@@ -63,6 +67,9 @@
   </div>
   <div class="px-right">
     <span id="oxv-schema"></span>
+    <!-- The reader's own validation rules. viewer.js fills in the cog and
+         marks the button pressed while a rule set is installed. -->
+    <button type="button" class="px-icon-btn" data-action="rules" title="Custom rules" aria-label="Custom rules" aria-pressed="false"></button>
   </div>
 </div>
 <div id="oxv-main">

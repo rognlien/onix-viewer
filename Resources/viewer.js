@@ -53,6 +53,13 @@
       ["circle", { cx: "8", cy: "12", r: "0.95", fill: "#2b2100", stroke: "none" }],
     ],
     close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
+    // An eight-tooth cog: one outline plus the hub. Computed on the grid —
+    // teeth between radii 5.1 and 6.9, eight degrees wide at the tip — and
+    // checked at 14px, where the teeth still count.
+    settings: [
+      ["path", { d: "M6.77 3.05L7.04 1.17L8.96 1.17L9.23 3.05L10.63 3.63L12.15 2.49L13.51 3.85L12.37 5.37L12.95 6.77L14.83 7.04L14.83 8.96L12.95 9.23L12.37 10.63L13.51 12.15L12.15 13.51L10.63 12.37L9.23 12.95L8.96 14.83L7.04 14.83L6.77 12.95L5.37 12.37L3.85 13.51L2.49 12.15L3.63 10.63L3.05 9.23L1.17 8.96L1.17 7.04L3.05 6.77L3.63 5.37L2.49 3.85L3.85 2.49L5.37 3.63Z", "stroke-width": "1.4", "stroke-linejoin": "round" }],
+      ["circle", { cx: "8", cy: "8", r: "2.1", "stroke-width": "1.4" }],
+    ],
     ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
     file: [
       ["path", { d: "M4.2 2.2h4.9l3 3v8.6H4.2z", "stroke-width": "1.5" }],
@@ -705,8 +712,14 @@
     // A page with a restrictive img-src CSP can refuse a chrome-extension://
     // image even though the stylesheet loaded — they are separate directives.
     // Drop the mark rather than leave a broken-image glyph next to the buttons.
+    // The button around it stays, with the name in it, so About is still a
+    // click away.
     const logo = document.getElementById("oxv-logo");
-    if (logo) logo.addEventListener("error", () => logo.remove());
+    if (logo) logo.addEventListener("error", () => {
+      const name = document.createElement("span");
+      name.textContent = "ONIX Viewer";
+      logo.replaceWith(name);
+    });
 
     // Icons are prepended here rather than written into the shell: content.js
     // builds that shell as a string, and these come from the same table the
@@ -716,6 +729,8 @@
       const button = document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
       if (button && !button.querySelector("svg")) button.prepend(icon(name));
     }
+    const rulesButton = document.querySelector('#oxv-toolbar [data-action="rules"]');
+    if (rulesButton && !rulesButton.firstChild) rulesButton.appendChild(icon("settings"));
 
     document.getElementById("oxv-toolbar").addEventListener("click", (ev) => {
       const btn = ev.target.closest("button[data-action]");
@@ -741,6 +756,12 @@
         }
         case "copy-xml":
           copyRawXml(btn);
+          break;
+        case "rules":
+          showRules();
+          break;
+        case "about":
+          showAbout();
           break;
       }
     });
@@ -1152,6 +1173,8 @@
     });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && findingsModal && !findingsModal.hidden) closeFindings();
+      if (event.key === "Escape" && rulesModal && !rulesModal.hidden) closeRules();
+      if (event.key === "Escape" && aboutModal && !aboutModal.hidden) closeAbout();
     });
   }
 
@@ -1283,19 +1306,7 @@
 
     dialog.append(header, body, footer);
     overlay.appendChild(dialog);
-    // aria-modal="true" tells assistive tech nothing outside is reachable, so
-    // Tab must actually stay inside. The list can be long, hence querying the
-    // focusables on each Tab rather than caching them.
-    dialog.addEventListener("keydown", (event) => {
-      if (event.key !== "Tab") return;
-      const focusable = [...dialog.querySelectorAll("button:not([disabled])")];
-      if (!focusable.length) return;
-      const edge = event.shiftKey ? focusable[0] : focusable[focusable.length - 1];
-      if (document.activeElement === edge) {
-        event.preventDefault();
-        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
-      }
-    });
+    keepTabInside(dialog, "button:not([disabled])");
 
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) closeFindings();
@@ -1305,6 +1316,22 @@
     return overlay;
   }
 
+  // aria-modal="true" tells assistive tech nothing outside is reachable, so
+  // Tab must actually stay inside. A list can be long, hence querying the
+  // focusables on each Tab rather than caching them.
+  function keepTabInside(dialog, selector) {
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const focusable = [...dialog.querySelectorAll(selector)];
+      if (!focusable.length) return;
+      const edge = event.shiftKey ? focusable[0] : focusable[focusable.length - 1];
+      if (document.activeElement === edge) {
+        event.preventDefault();
+        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
+      }
+    });
+  }
+
   function closeFindings() {
     if (!findingsModal || findingsModal.hidden) return;
     findingsModal.hidden = true;
@@ -1312,6 +1339,370 @@
       try { findingsLastFocus.focus(); } catch { /* it may have left the document */ }
     }
     findingsLastFocus = null;
+  }
+
+  // ---- custom rules ---------------------------------------------------------
+
+  // The reader's own rules: a Schematron rule set (see onix-schematron.js),
+  // pasted into a modal behind the toolbar's cog. Applying it installs the
+  // rules, re-validates, and hands the text to content.js — the one script
+  // with storage access — to keep for the next page. The text arrives on
+  // load the way the source does, in the inert #__oxv-rules__ block.
+  let rulesModal = null;
+  let rulesLastFocus = null;
+  let customRules = "";
+  // What the last install returned, so the editor opens already applied:
+  // the status of the rules in force, problems included, before anything is
+  // pressed.
+  let rulesInstalled = null;
+
+  function ensureRulesModal() {
+    if (rulesModal) return rulesModal;
+    window.addEventListener("message", (event) => {
+      if (event.source === window && event.data && event.data.type === "oxv-rules-kept") markRulesKept();
+    });
+    const overlay = document.createElement("div");
+    overlay.className = "px-popup-overlay";
+    overlay.id = "oxv-rules";
+    overlay.hidden = true;
+
+    const dialog = document.createElement("div");
+    dialog.className = "px-popup px-rules";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "oxv-rules-title");
+    dialog.append(rulesHeader(), rulesBody(), rulesFooter());
+    keepTabInside(dialog, "button:not([disabled]), textarea");
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeRules();
+    });
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    rulesModal = overlay;
+    return overlay;
+  }
+
+  function rulesHeader() {
+    const header = document.createElement("div");
+    header.className = "px-popup-header";
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "px-popup-title-wrap";
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "px-popup-eyebrow";
+    eyebrow.textContent = "Schematron · XPath 1.0 · reference names";
+    const title = document.createElement("div");
+    title.id = "oxv-rules-title";
+    title.className = "px-popup-title";
+    title.textContent = "Custom rules";
+    titleWrap.append(eyebrow, title);
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "px-popup-close";
+    closeButton.setAttribute("aria-label", "Close");
+    closeButton.appendChild(icon("close"));
+    closeButton.addEventListener("click", closeRules);
+    header.append(titleWrap, closeButton);
+    return header;
+  }
+
+  function rulesBody() {
+    const body = document.createElement("div");
+    body.className = "px-popup-body";
+    const hint = document.createElement("p");
+    hint.className = "px-rules-hint";
+    hint.textContent = "Rules checked on every ONIX document you open, alongside the schema. " +
+      "Write element names as reference names without a prefix; they apply to short-tag files too. " +
+      "An <assert> fires when its test is false, a <report> when it is true; " +
+      "role=\"warning\" makes a warning.";
+    const text = document.createElement("textarea");
+    text.id = "oxv-rules-text";
+    text.className = "px-rules-text";
+    text.setAttribute("spellcheck", "false");
+    text.setAttribute("aria-label", "Schematron rule set");
+    text.placeholder = RULES_EXAMPLE;
+    const status = document.createElement("div");
+    status.id = "oxv-rules-status";
+    status.className = "px-rules-status";
+    status.setAttribute("aria-live", "polite");
+    body.append(hint, text, status);
+    return body;
+  }
+
+  const RULES_EXAMPLE = `<schema xmlns="http://purl.oclc.org/dsdl/schematron">
+  <pattern>
+    <rule context="ProductIdentifier[ProductIDType = '15']">
+      <assert id="isbn-prefix" test="starts-with(IDValue, '97882')" role="warning">
+        ISBN <value-of select="IDValue"/> is outside the 978-82 prefix
+      </assert>
+    </rule>
+  </pattern>
+</schema>`;
+
+  function rulesFooter() {
+    const footer = document.createElement("div");
+    footer.className = "px-popup-footer px-rules-footer";
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "px-rules-apply";
+    apply.textContent = "Apply";
+    apply.addEventListener("click", () => applyRules(rulesText().value));
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "px-rules-clear";
+    clear.textContent = "Clear";
+    clear.addEventListener("click", () => {
+      rulesText().value = "";
+      applyRules("");
+    });
+    footer.append(apply, clear);
+    return footer;
+  }
+
+  function rulesText() {
+    return ensureRulesModal().querySelector("#oxv-rules-text");
+  }
+
+  function showRules() {
+    const overlay = ensureRulesModal();
+    rulesText().value = customRules;
+    showRulesStatus(rulesInstalled);
+    rulesLastFocus = document.activeElement;
+    overlay.hidden = false;
+    rulesText().focus();
+  }
+
+  function closeRules() {
+    if (!rulesModal || rulesModal.hidden) return;
+    rulesModal.hidden = true;
+    if (rulesLastFocus && typeof rulesLastFocus.focus === "function") {
+      try { rulesLastFocus.focus(); } catch { /* it may have left the document */ }
+    }
+    rulesLastFocus = null;
+  }
+
+  // Install the rules, tell content.js to keep them, and judge the document
+  // again. Problems with the rule set go in the status line as well as into
+  // the findings, since the reader is looking here.
+  function applyRules(text) {
+    const installed = installRules(text);
+    window.postMessage({ type: "oxv-rules", rules: customRules }, "*");
+    showRulesStatus(installed);
+    if (onixCtx.isOnix) startValidation();
+  }
+
+  function installRules(text) {
+    const schematron = window.OnixViewerSchematron;
+    customRules = text.trim() ? text : "";
+    let installed = null;
+    if (schematron) {
+      schematron.reset();
+      if (customRules) installed = schematron.install(customRules);
+    }
+    const button = document.querySelector('#oxv-toolbar [data-action="rules"]');
+    if (button) {
+      button.setAttribute("aria-pressed", installed ? "true" : "false");
+      button.title = installed ? `Custom rules (${installed.assertions} active)` : "Custom rules";
+    }
+    rulesInstalled = installed;
+    return installed;
+  }
+
+  function showRulesStatus(installed) {
+    const status = ensureRulesModal().querySelector("#oxv-rules-status");
+    status.textContent = "";
+    status.classList.toggle("px-rules-status-problems", !!(installed && installed.problems.length));
+    if (!installed) {
+      status.textContent = "No custom rules.";
+    } else if (installed.problems.length === 0) {
+      status.textContent = `${installed.patterns} ${plural(installed.patterns, "pattern")}, ` +
+        `${installed.assertions} ${plural(installed.assertions, "assertion")}, applied.`;
+    } else {
+      const list = document.createElement("ul");
+      for (const problem of installed.problems) {
+        const item = document.createElement("li");
+        item.textContent = problem;
+        list.appendChild(item);
+      }
+      status.append(document.createTextNode(`${installed.assertions} applied; ` +
+        `${installed.problems.length} ${plural(installed.problems.length, "problem")}:`), list);
+    }
+  }
+
+  // content.js has written the rules to storage: say so where the reader is
+  // looking. Without storage (a test, another browser) the line stays as it
+  // was, which is honest — nothing was kept.
+  function markRulesKept() {
+    const status = ensureRulesModal().querySelector("#oxv-rules-status");
+    const line = status.firstChild;
+    if (line && line.nodeType === Node.TEXT_NODE && !line.data.includes("Kept")) {
+      line.data = `${line.data} Kept for the next document.`;
+    }
+  }
+
+  function plural(count, word) {
+    return count === 1 ? word : `${word}s`;
+  }
+
+  // ---- about ----------------------------------------------------------------
+
+  // Behind the mark: what took the page over, which version, which code
+  // lists, the keys, and where the source lives. The version is stamped on
+  // <html> by content.js, the one script that can read the manifest.
+  let aboutModal = null;
+  let aboutLastFocus = null;
+
+  const SHORTCUTS = [
+    ["/", "Search; Enter and Shift+Enter step through matches, Esc closes"],
+    ["e", "Expand one level"],
+    ["c", "Collapse one level (also b)"],
+    ["t", "Switch between reference names and short tags"],
+    ["v", "Open the findings list"],
+    ["w", "Toggle soft wrap"],
+    ["?", "This window"],
+  ];
+
+  const ABOUT_LINKS = [
+    ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
+    ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"],
+    ["ONIX at EDItEUR", "https://www.editeur.org/8/ONIX/"],
+  ];
+
+  function ensureAboutModal() {
+    if (aboutModal) return aboutModal;
+    const overlay = document.createElement("div");
+    overlay.className = "px-popup-overlay";
+    overlay.id = "oxv-about";
+    overlay.hidden = true;
+
+    const dialog = document.createElement("div");
+    dialog.className = "px-popup px-about";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "oxv-about-title");
+    dialog.append(aboutHeader(), aboutBody());
+    keepTabInside(dialog, "button:not([disabled]), a[href]");
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeAbout();
+    });
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    aboutModal = overlay;
+    return overlay;
+  }
+
+  function extensionVersion() {
+    return document.documentElement.getAttribute("data-oxv-version") || "";
+  }
+
+  function aboutHeader() {
+    const header = document.createElement("div");
+    header.className = "px-popup-header";
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "px-popup-title-wrap";
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "px-popup-eyebrow";
+    eyebrow.id = "oxv-about-version";
+    eyebrow.textContent = extensionVersion() ? `Version ${extensionVersion()}` : "";
+    const title = document.createElement("div");
+    title.id = "oxv-about-title";
+    title.className = "px-popup-title";
+    title.textContent = "About ONIX Viewer";
+    titleWrap.append(eyebrow, title);
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "px-popup-close";
+    closeButton.setAttribute("aria-label", "Close");
+    closeButton.appendChild(icon("close"));
+    closeButton.addEventListener("click", closeAbout);
+    header.append(titleWrap, closeButton);
+    return header;
+  }
+
+  function aboutBody() {
+    const body = document.createElement("div");
+    body.className = "px-popup-body";
+    const text = document.createElement("p");
+    text.className = "px-about-text";
+    text.textContent = "Readable ONIX XML in Chrome: a collapsible tree, product summaries, " +
+      "EDItEUR code-list labels in place, and automatic validation against the ONIX 3.0 " +
+      "and 3.1 content models, plus any rules of your own.";
+    const credit = document.createElement("p");
+    credit.className = "px-about-credit";
+    credit.textContent = "ONIX for Books and its code lists are developed and maintained by EDItEUR, " +
+      "which holds the copyright and makes them freely available. ONIX Viewer is an " +
+      "independent tool, not affiliated with or endorsed by EDItEUR.";
+    body.append(text, aboutFacts(), aboutKeys(), aboutLinks(), credit);
+    return body;
+  }
+
+  function aboutFacts() {
+    const facts = document.createElement("dl");
+    facts.className = "px-about-facts";
+    const rows = [["Version", extensionVersion() || "unknown"]];
+    const schema = window.OnixViewerCodeListSchema;
+    if (schema && schema.issue != null) {
+      const dated = schema.releaseDate ? ` (${schema.releaseDate})` : "";
+      rows.push(["Code lists", `EDItEUR Issue ${schema.issue}${dated}`]);
+    }
+    for (const [term, detail] of rows) {
+      const dt = document.createElement("dt");
+      dt.textContent = term;
+      const dd = document.createElement("dd");
+      dd.textContent = detail;
+      facts.append(dt, dd);
+    }
+    return facts;
+  }
+
+  function aboutKeys() {
+    const table = document.createElement("table");
+    table.className = "px-about-keys";
+    table.setAttribute("aria-label", "Keyboard shortcuts");
+    for (const [key, action] of SHORTCUTS) {
+      const row = document.createElement("tr");
+      const keyCell = document.createElement("td");
+      const kbd = document.createElement("kbd");
+      kbd.textContent = key;
+      keyCell.appendChild(kbd);
+      const actionCell = document.createElement("td");
+      actionCell.textContent = action;
+      row.append(keyCell, actionCell);
+      table.appendChild(row);
+    }
+    return table;
+  }
+
+  function aboutLinks() {
+    const links = document.createElement("div");
+    links.className = "px-about-links";
+    for (const [label, href] of ABOUT_LINKS) {
+      const a = document.createElement("a");
+      a.className = "px-popup-link";
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = label;
+      links.appendChild(a);
+    }
+    return links;
+  }
+
+  function showAbout() {
+    const overlay = ensureAboutModal();
+    aboutLastFocus = document.activeElement;
+    overlay.hidden = false;
+    overlay.querySelector(".px-popup-close").focus();
+  }
+
+  function closeAbout() {
+    if (!aboutModal || aboutModal.hidden) return;
+    aboutModal.hidden = true;
+    if (aboutLastFocus && typeof aboutLastFocus.focus === "function") {
+      try { aboutLastFocus.focus(); } catch { /* it may have left the document */ }
+    }
+    aboutLastFocus = null;
   }
 
   // ---- copy raw XML ---------------------------------------------------------
@@ -1703,8 +2094,8 @@
 
   function setupKeyboard() {
     document.addEventListener("keydown", (ev) => {
-      // Skip when the user is typing in an input.
-      if (ev.target instanceof HTMLInputElement) return;
+      // Skip when the user is typing in a field.
+      if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
       // A dialog owns the keyboard while it is open; these act on the tree
       // behind it, which the reader cannot see.
@@ -1731,15 +2122,20 @@
         case "v":
           showFindings();
           break;
+        case "?":
+          showAbout();
+          break;
       }
     });
   }
 
-  // The code-list popup marks the body while it is up; the findings list is
-  // this file's own.
+  // The code-list popup marks the body while it is up; the findings list and
+  // the rules editor are this file's own.
   function dialogOpen() {
     return document.body.classList.contains("px-popup-open") ||
-      !!(findingsModal && !findingsModal.hidden);
+      !!(findingsModal && !findingsModal.hidden) ||
+      !!(rulesModal && !rulesModal.hidden) ||
+      !!(aboutModal && !aboutModal.hidden);
   }
 
   // ---- click + active row ---------------------------------------------------
@@ -1793,12 +2189,12 @@
   }
 
   // Custom rules reach the page the way the source does: as the text of an
-  // inert data block, #__oxv-rules__, present only when the reader has
-  // configured a rule set. Installed before the pass, so it judges them too.
+  // inert data block, #__oxv-rules__, which content.js writes from storage
+  // when the reader has kept a rule set. Installed before the pass, so it
+  // judges them too.
   function installCustomRules() {
     const holder = document.getElementById("__oxv-rules__");
-    const text = holder ? holder.textContent : "";
-    if (text.trim() && window.OnixViewerSchematron) window.OnixViewerSchematron.install(text);
+    installRules(holder ? holder.textContent : "");
   }
 
   // Last, once every declaration above is initialised: check the document.

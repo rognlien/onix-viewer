@@ -24,4 +24,10 @@ module.exports = [
     files: ["tools/**/*.js", "tests/**/*.js", "eslint.config.js"],
     languageOptions: { sourceType: "commonjs", globals: globals.node },
   },
+  // The browser test runs in node but hands callbacks to a page, so it
+  // speaks both.
+  {
+    files: ["tests/browser/**/*.js"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
 ];

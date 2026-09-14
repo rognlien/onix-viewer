@@ -144,21 +144,24 @@ describe("Stepped collapse and expand", () => {
     assert(style.alignItems === "center", `expected centred items, got "${style.alignItems}"`);
   });
 
-  test("the toolbar carries the extension's mark, and drops it if blocked", () => {
+  test("the toolbar carries the extension's mark, and names it if blocked", () => {
     const w = render("onix-3.0-reference.xml");
     const logo = w.document.getElementById("oxv-logo");
     assert(logo, "the toolbar should carry the mark");
-    assert(logo.getAttribute("alt") === "ONIX Viewer",
-      "a mark with no text beside it needs an accessible name");
+    const button = logo.parentElement;
+    assert(button.matches('button[data-action="about"]'), "the mark is the door to About");
+    assert(button.getAttribute("aria-label") === "About ONIX Viewer" && logo.getAttribute("alt") === "",
+      "the button carries the accessible name, the image none, so it is not read twice");
     assert(logo.getAttribute("width") === "28" && logo.getAttribute("height") === "28",
       "28px is the toolbar's content height — the largest that does not make it taller");
-    assert(logo.closest(".px-left"), "it belongs with the controls, at the left");
-    assert(logo === logo.parentElement.firstElementChild, "and leads them");
+    assert(button.closest(".px-left"), "it belongs with the controls, at the left");
+    assert(button === button.parentElement.firstElementChild, "and leads them");
 
     // A page whose img-src CSP refuses chrome-extension:// URLs must not be
-    // left with a broken-image glyph in the toolbar.
+    // left with a broken-image glyph in the toolbar — nor lose the door.
     logo.dispatchEvent(new w.Event("error"));
     assert(!w.document.getElementById("oxv-logo"), "a blocked mark should be removed");
+    assert(button.textContent.trim() === "ONIX Viewer", "the name takes its place");
   });
 
   test("the labelled toolbar buttons carry icons", () => {
