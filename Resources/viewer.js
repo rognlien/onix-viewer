@@ -1792,7 +1792,17 @@
     meta.textContent = "parse error";
   }
 
+  // Custom rules reach the page the way the source does: as the text of an
+  // inert data block, #__oxv-rules__, present only when the reader has
+  // configured a rule set. Installed before the pass, so it judges them too.
+  function installCustomRules() {
+    const holder = document.getElementById("__oxv-rules__");
+    const text = holder ? holder.textContent : "";
+    if (text.trim() && window.OnixViewerSchematron) window.OnixViewerSchematron.install(text);
+  }
+
   // Last, once every declaration above is initialised: check the document.
   // Automatic rather than on demand, sliced rather than blocking.
+  installCustomRules();
   startValidation();
 })();

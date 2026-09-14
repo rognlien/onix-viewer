@@ -36,6 +36,7 @@ onix-viewer/
 │   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~66 KB)
 │   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~62 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
+│   ├── onix-schematron.js          custom rules: a Schematron subset over the browser's XPath
 │   ├── onix-popup.js               modal popup listing all entries of a code list
 │   └── icons/                      icon-{16,32,48,96,128,256,512}.png, built from icons/
 ├── icons/                          SOURCE artwork — not shipped. The master plus
@@ -63,7 +64,7 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (246 tests, ~9s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (263 tests, ~9s)
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
@@ -697,8 +698,9 @@ reword it.
    touching validation logic; the codes are the stable contract, not the prose.
 2. **`RULES`** — an ordered registry. The runner walks the document **once**
    and offers every element to every rule (`start` / `element` / `finish`), so
-   a new rule costs no extra traversal. Seven ship today: `structure`,
-   `codelist`, `datatype`, `attribute`, `unique`, `deprecation` and `gtin`.
+   a new rule costs no extra traversal. Eight ship today: `structure`,
+   `codelist`, `datatype`, `attribute`, `unique`, `deprecation`, `gtin` and
+   `schematron`, the last being the reader's own rules (below).
 3. **`OnixViewerContentModels`** — keyed by ONIX release. **Both releases
    since 3.0 ship**: `onix-content-model-3.0.js` and
    `onix-content-model-3.1.js`, one generator run each, each assigning into
@@ -935,6 +937,96 @@ an input to the codelist generator for this table **and nothing else**: its
 500-odd other assertions are not compiled — see *The `strict` (Advanced)
 schema* above for why. The short-tag strict schema sits beside it in
 `tools/data/` for reference only.
+
+### Custom rules: Schematron over the browser's XPath
+
+The rule registry is also open to the *reader*. `onix-schematron.js` takes a
+rule set written in **ISO Schematron** — the language the ONIX world already
+uses for rules no schema states; the strict schema embeds it — and runs it as
+one more registered rule, so its findings land in the same list with the same
+pills and the same wording machinery. Nothing is bundled to do it: the tests
+are XPath, and the browser has an XPath engine of its own in
+`document.evaluate`.
+
+The subset understood is the part that judges a document:
+
+```
+<schema xmlns="http://purl.oclc.org/dsdl/schematron">
+  <pattern id="identifiers">
+    <rule context="ProductIdentifier[ProductIDType = '15']">
+      <assert id="isbn-prefix" test="starts-with(IDValue, '97882')" role="warning">
+        ISBN <value-of select="IDValue"/> is outside the 978-82 prefix
+      </assert>
+    </rule>
+  </pattern>
+</schema>
+```
+
+`<assert>` fires when its test is false, `<report>` when it is true. The
+assertion's `id` becomes the finding code — `schematron.isbn-prefix` — and
+its text the message template, with each `<value-of>` a `{placeholder}`
+filled at the moment it fires and `<name/>` the context element **as the file
+spells it**; `role="warning"` makes a warning, anything else an error. Within
+a pattern a node belongs to the **first rule whose context selects it**, as
+the standard says. `<title>`, `<p>`, `<ns>`, `<phase>` and `<diagnostics>`
+are ignored; `<let>`, `<include>` and abstract patterns or rules are refused
+by name. Nothing is thrown: every problem — a rule with no context, a test
+that is not XPath 1.0, an unsupported element — is returned from `install()`
+*and* reported on the next pass as a `schematron.invalid` warning on the
+root, so the reader learns in the findings list why a rule did not fire. The
+rule or assertion with the problem is left out and the rest runs.
+
+Three decisions carry the design:
+
+- **Rules are written in reference names, unprefixed, and serve both
+  dialects.** They never see the document itself. `mirror()` builds a copy in
+  which every element is renamed to its reference name and put in *no*
+  namespace — attributes and text carried over, comments and processing
+  instructions dropped — and the XPath runs against that. So
+  `ProductIdentifier[ProductIDType = '15']` matches `<b221>` in a short-tag
+  file, and no rule set needs an `xmlns` or a prefix. A `WeakMap` leads from
+  each mirrored element back to the real one, which is where the finding is
+  pinned; an attribute or text node selected as context reports on its
+  element, the row the reader can see. The mirror is built with an explicit
+  stack, like the renderer and the validator, for the same 2,000-level reason.
+- **A Schematron context is a match pattern, not a path.** `Product` means
+  every `<Product>` anywhere, where XPath wants a route from the root, so
+  each branch of a union gets `//` in front unless it already starts with
+  `/`: `RecordReference | IDValue` becomes `//RecordReference | //IDValue`.
+  The split respects brackets and quotes, so a `|` inside a predicate is left
+  alone.
+- **XPath 1.0 is the ceiling, and it is the browser's.** Chrome's engine is
+  1.0 and so is jsdom's, so there is no `matches()` and no regular
+  expression; `starts-with`, `contains`, `count`, `sum`, `number`,
+  `normalize-space`, the sibling axes and predicates are all there, which
+  covers prefix ranges, required co-occurrences, sequence numbers and the tax
+  arithmetic. Every expression is compiled once at install through
+  `document.createExpression`, which is where a typo is caught. A prefixed
+  name is refused by regex before that, because Chrome rejects one at compile
+  time while jsdom quietly matches nothing.
+
+The work happens in the rule's `finish()`, after the walk, since selecting
+with XPath needs the whole document: one evaluation per rule rather than a
+slice per node, so a large rule set on a large feed blocks for the length of
+its XPath rather than being spread across slices. The findings therefore come
+after the schema's. `api.doc` was added to the rule API for this — the one
+change the validator needed.
+
+The rule set reaches the page the way the source does: as the text of an
+inert `<script type="application/xml" id="__oxv-rules__">` block, which
+`viewer.js` reads and installs before the pass starts. Nothing writes that
+block yet — the options page that stores a reader's rule set is the next
+step — so today the engine is reachable from the tests alone, which install
+through `OnixViewerSchematron.install()` directly or plant the block the way
+`content.js` will. `tests/fixtures/house-rules.sch` is the specimen: a
+publisher's ISBN prefix, `<IDTypeName>` on proprietary identifiers,
+contributor sequence numbers and the tax sum.
+
+jsdom's XPath is older than Chrome's and stumbles on a few things — `name()`
+and `local-name()` with an implied argument crash it, and a prefixed name
+returns nothing rather than throwing — so a rule that works in the browser
+but not in the suite may be hitting the harness, not the engine. Write the
+fixture rules within the subset above.
 
 ### Identifier check digits
 
@@ -1305,6 +1397,8 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.0"`, `"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
 - `window.OnixViewerValidation` — `run`, `start` (sliced session), `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
+- `window.OnixViewerSchematron` — custom rules: `install(text)` → `{ patterns, assertions, problems }`, `parse`, `reset`
+- `__oxv-rules__` — the inert data block the reader's rule set arrives in, beside `__oxv-source__`
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`)
 - `data-oxv` — data attribute on the replaced `<html>`
@@ -1359,7 +1453,7 @@ refactor:
 
 `web_accessible_resources` is the one broad-looking entry that isn't a
 permission, and *is* asked about: the viewer runs in the page's world, so the
-page has to be allowed to load the eight scripts, the stylesheet and the icon
+page has to be allowed to load the nine scripts, the stylesheet and the icon
 that `content.js` appends. It exposes only static files that are public in this
 repository, and grants a page none of the extension's privileges — of which
 there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
@@ -1370,7 +1464,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 246-test jsdom suite (~9s)
+npm test        # runs the 263-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm test -- x512          # just the tests matching "x512" (~0.2s)

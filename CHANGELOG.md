@@ -3,6 +3,19 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Added
+- **Custom validation rules, written as Schematron.** A rule set of
+  `<pattern>`, `<rule context>`, `<assert>` and `<report>` runs as one more
+  validation rule, with the browser's own XPath 1.0 engine and nothing
+  bundled. Rules are written in reference names, unprefixed, and serve both
+  dialects through a renamed mirror of the document; the assertion's `id`
+  becomes the finding code, its text the message, `role="warning"` the
+  severity. Problems with a rule set are reported as warnings rather than
+  thrown. The engine is in place and tested; the options page that lets a
+  reader store a rule set is the next step, so nothing is user-visible yet.
+
 ## 0.9.19 — 2026-09-12
 
 ### Added

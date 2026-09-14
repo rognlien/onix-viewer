@@ -162,6 +162,9 @@
 
     const api = {
       onixCtx,
+      // The document itself, for a rule that judges it whole rather than
+      // element by element (onix-schematron.js selects with XPath).
+      doc,
       model,
       findings,
       reported: 0,
