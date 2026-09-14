@@ -26,7 +26,8 @@ onix-viewer/
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
-│   ├── manifest.json               MV3, one permission (storage, for the rules), ZERO host_permissions
+│   ├── manifest.json               MV3, one permission (storage, for the rules), ZERO host_permissions;
+│   │                               version_name is the -dev form, stripped by the packager
 │   ├── shell.js                    the HTML shell, one template for content.js and the tests
 │   ├── content.js                  detects raw XML, takes the page over
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
@@ -64,7 +65,7 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (274 tests, ~9s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (279 tests, ~9s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
@@ -79,6 +80,7 @@ onix-viewer/
 │                                   by hand; nothing here serves it. A test holds the copies
 │                                   to their sources
 ├── dist/                           build output — gitignored in full
+│   ├── package/                    the staging copy the zip is built from (version_name removed)
 │   └── listing/                    upload staging for the GENERATED assets only:
 │                                   icon-128 (copied from Resources/icons/) plus the
 │                                   promo tile and marquee (rsvg-convert from the
@@ -209,10 +211,35 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   this had to be 24px plus a 2px chip hiding the baked background; a transparent
   asset removed both.
 
+  The mark sits in a borderless button (`.px-logo-btn`,
+  `data-action="about"`) and opens the **About window** (`#oxv-about`, also
+  `?`): the version, the code-list issue, the keyboard shortcuts, links to
+  the source, the store listing and EDItEUR, and the EDItEUR credit. The
+  button carries the accessible name and the image an empty `alt`, so a
+  screen reader says it once.
+
+  **The version comes from `content.js`**, the one script that can read the
+  manifest: `extensionVersion()` stamps it on the shell as
+  `data-oxv-version` and `viewer.js` reads it back. It is the manifest's
+  **`version_name`** when there is one, else `version`. The committed
+  manifest carries `"version_name": "0.9.19-dev"`, which is also what
+  `chrome://extensions` displays in place of the version — so an unpacked
+  load says `-dev` on the card and in About alike, and a development copy is
+  never mistaken for the store's. `tools/package-extension.sh` zips a
+  staging copy with the field deleted (and refuses a zip in which it
+  survived), so the store build shows the bare version; `tools/release.sh`
+  moves `version` and `version_name` together; and a test holds
+  `version_name` to `<version>-dev` so neither can drift. The browser test
+  asserts the `-dev` form, since that is what it loads. An earlier take
+  inferred a development build from the absence of the store's `update_url`
+  — true, but invisible on the extensions card, which is where the reader
+  looks first.
+
   A page with a restrictive **`img-src` CSP** can refuse a
   `chrome-extension://` image even though the stylesheet loaded — they are
-  separate directives — so `setupToolbar()` removes the mark on `error` rather
-  than leave a broken-image glyph.
+  separate directives — so `setupToolbar()` swaps the mark for the name on
+  `error` rather than leave a broken-image glyph, and the door to About
+  stays.
 
 - **`.px-left`** is a **flex row** (`align-items: center`), not a line of
   inline boxes. This matters once a button carries an icon: an `inline-flex`
@@ -1487,7 +1514,8 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `__oxv-rules__` — the inert data block the reader's rule set arrives in, beside `__oxv-source__`; `oxv-rules`, `oxv-rules-text`, `oxv-rules-status` are the editor modal and its parts
 - `oxv-rules` / `oxv-rules-kept` — the two `postMessage` types between the viewer and `content.js`, the only traffic between the page's world and the content script
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`)
+- `data-oxv-version` — the extension version on the replaced `<html>`, `-dev` when loaded unpacked
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-icon` — a tiny inline SVG from `icon(name)`; `px-sev-error` / `px-sev-warning` are the severity modifiers (not `px-error`, which is the parse-error panel)
@@ -1532,8 +1560,9 @@ refactor:
 - **The untrusted XML never becomes markup.** It reaches the page as
   `textContent` on an inert `<script type="application/xml">` block and is
   rendered to DOM nodes one at a time. The shell HTML is a template string in
-  `shell.js`, but its only three interpolations are two `runtime.getURL()`
-  values and an `escapeHtml`'d page title — no document content goes near it.
+  `shell.js`, but its only four interpolations are two `runtime.getURL()`
+  values, the manifest version and an `escapeHtml`'d page title — no
+  document content goes near it.
 - **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
   a rogue `fetch` to a third party is blocked by CORS in the browser, not
   merely absent from the code. There is no capability for a page to borrow.
@@ -1551,7 +1580,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 274-test jsdom suite (~9s)
+npm test        # runs the 279-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
@@ -1613,6 +1642,9 @@ The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-
 Two more things belong to a release and are easy to forget:
 
 - **The store link in `site/index.html`** carries the CWS item ID, `afdfkehnjkpgfhkgpacimefkkgfgkife`, which Chrome derives from the signing key and which therefore never changes between versions; the `onix-viewer` slug before it follows the name and is optional. `tests/cases/30-documentation.test.js` holds the page to that ID, so the placeholder it once carried cannot come back. After the page changes, copy the contents of `site/` to `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), which is how the page is published.
+- **The zip is built from a staging copy**, not from `Resources/` in
+  place, for one edit: `version_name` is deleted so the store copy does not
+  say `-dev`. `dist/package/` is that copy, removed after zipping.
 - **Rebuilding a release** that has not been uploaded to the store is done by deleting the GitHub release (`gh release delete vX.Y.Z`), moving the tag (`git tag -f`), and force-pushing it; the workflow's `gh release create` refuses an existing release, so the delete has to come first. Once a version has been uploaded to the store it cannot be re-uploaded, so bump instead.
 
 ## Test fixtures and what they prove

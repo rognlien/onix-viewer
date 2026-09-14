@@ -712,8 +712,14 @@
     // A page with a restrictive img-src CSP can refuse a chrome-extension://
     // image even though the stylesheet loaded — they are separate directives.
     // Drop the mark rather than leave a broken-image glyph next to the buttons.
+    // The button around it stays, with the name in it, so About is still a
+    // click away.
     const logo = document.getElementById("oxv-logo");
-    if (logo) logo.addEventListener("error", () => logo.remove());
+    if (logo) logo.addEventListener("error", () => {
+      const name = document.createElement("span");
+      name.textContent = "ONIX Viewer";
+      logo.replaceWith(name);
+    });
 
     // Icons are prepended here rather than written into the shell: content.js
     // builds that shell as a string, and these come from the same table the
@@ -753,6 +759,9 @@
           break;
         case "rules":
           showRules();
+          break;
+        case "about":
+          showAbout();
           break;
       }
     });
@@ -1165,6 +1174,7 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && findingsModal && !findingsModal.hidden) closeFindings();
       if (event.key === "Escape" && rulesModal && !rulesModal.hidden) closeRules();
+      if (event.key === "Escape" && aboutModal && !aboutModal.hidden) closeAbout();
     });
   }
 
@@ -1532,6 +1542,167 @@
 
   function plural(count, word) {
     return count === 1 ? word : `${word}s`;
+  }
+
+  // ---- about ----------------------------------------------------------------
+
+  // Behind the mark: what took the page over, which version, which code
+  // lists, the keys, and where the source lives. The version is stamped on
+  // <html> by content.js, the one script that can read the manifest.
+  let aboutModal = null;
+  let aboutLastFocus = null;
+
+  const SHORTCUTS = [
+    ["/", "Search; Enter and Shift+Enter step through matches, Esc closes"],
+    ["e", "Expand one level"],
+    ["c", "Collapse one level (also b)"],
+    ["t", "Switch between reference names and short tags"],
+    ["v", "Open the findings list"],
+    ["w", "Toggle soft wrap"],
+    ["?", "This window"],
+  ];
+
+  const ABOUT_LINKS = [
+    ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
+    ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"],
+    ["ONIX at EDItEUR", "https://www.editeur.org/8/ONIX/"],
+  ];
+
+  function ensureAboutModal() {
+    if (aboutModal) return aboutModal;
+    const overlay = document.createElement("div");
+    overlay.className = "px-popup-overlay";
+    overlay.id = "oxv-about";
+    overlay.hidden = true;
+
+    const dialog = document.createElement("div");
+    dialog.className = "px-popup px-about";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "oxv-about-title");
+    dialog.append(aboutHeader(), aboutBody());
+    keepTabInside(dialog, "button:not([disabled]), a[href]");
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeAbout();
+    });
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    aboutModal = overlay;
+    return overlay;
+  }
+
+  function extensionVersion() {
+    return document.documentElement.getAttribute("data-oxv-version") || "";
+  }
+
+  function aboutHeader() {
+    const header = document.createElement("div");
+    header.className = "px-popup-header";
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "px-popup-title-wrap";
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "px-popup-eyebrow";
+    eyebrow.id = "oxv-about-version";
+    eyebrow.textContent = extensionVersion() ? `Version ${extensionVersion()}` : "";
+    const title = document.createElement("div");
+    title.id = "oxv-about-title";
+    title.className = "px-popup-title";
+    title.textContent = "About ONIX Viewer";
+    titleWrap.append(eyebrow, title);
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "px-popup-close";
+    closeButton.setAttribute("aria-label", "Close");
+    closeButton.appendChild(icon("close"));
+    closeButton.addEventListener("click", closeAbout);
+    header.append(titleWrap, closeButton);
+    return header;
+  }
+
+  function aboutBody() {
+    const body = document.createElement("div");
+    body.className = "px-popup-body";
+    const text = document.createElement("p");
+    text.className = "px-about-text";
+    text.textContent = "Readable ONIX XML in Chrome: a collapsible tree, product summaries, " +
+      "EDItEUR code-list labels in place, and automatic validation against the ONIX 3.0 " +
+      "and 3.1 content models, plus any rules of your own.";
+    const credit = document.createElement("p");
+    credit.className = "px-about-credit";
+    credit.textContent = "ONIX for Books and its code lists are developed and maintained by EDItEUR, " +
+      "which holds the copyright and makes them freely available. ONIX Viewer is an " +
+      "independent tool, not affiliated with or endorsed by EDItEUR.";
+    body.append(text, aboutFacts(), aboutKeys(), aboutLinks(), credit);
+    return body;
+  }
+
+  function aboutFacts() {
+    const facts = document.createElement("dl");
+    facts.className = "px-about-facts";
+    const rows = [["Version", extensionVersion() || "unknown"]];
+    const schema = window.OnixViewerCodeListSchema;
+    if (schema && schema.issue != null) {
+      const dated = schema.releaseDate ? ` (${schema.releaseDate})` : "";
+      rows.push(["Code lists", `EDItEUR Issue ${schema.issue}${dated}`]);
+    }
+    for (const [term, detail] of rows) {
+      const dt = document.createElement("dt");
+      dt.textContent = term;
+      const dd = document.createElement("dd");
+      dd.textContent = detail;
+      facts.append(dt, dd);
+    }
+    return facts;
+  }
+
+  function aboutKeys() {
+    const table = document.createElement("table");
+    table.className = "px-about-keys";
+    table.setAttribute("aria-label", "Keyboard shortcuts");
+    for (const [key, action] of SHORTCUTS) {
+      const row = document.createElement("tr");
+      const keyCell = document.createElement("td");
+      const kbd = document.createElement("kbd");
+      kbd.textContent = key;
+      keyCell.appendChild(kbd);
+      const actionCell = document.createElement("td");
+      actionCell.textContent = action;
+      row.append(keyCell, actionCell);
+      table.appendChild(row);
+    }
+    return table;
+  }
+
+  function aboutLinks() {
+    const links = document.createElement("div");
+    links.className = "px-about-links";
+    for (const [label, href] of ABOUT_LINKS) {
+      const a = document.createElement("a");
+      a.className = "px-popup-link";
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = label;
+      links.appendChild(a);
+    }
+    return links;
+  }
+
+  function showAbout() {
+    const overlay = ensureAboutModal();
+    aboutLastFocus = document.activeElement;
+    overlay.hidden = false;
+    overlay.querySelector(".px-popup-close").focus();
+  }
+
+  function closeAbout() {
+    if (!aboutModal || aboutModal.hidden) return;
+    aboutModal.hidden = true;
+    if (aboutLastFocus && typeof aboutLastFocus.focus === "function") {
+      try { aboutLastFocus.focus(); } catch { /* it may have left the document */ }
+    }
+    aboutLastFocus = null;
   }
 
   // ---- copy raw XML ---------------------------------------------------------
@@ -1951,6 +2122,9 @@
         case "v":
           showFindings();
           break;
+        case "?":
+          showAbout();
+          break;
       }
     });
   }
@@ -1960,7 +2134,8 @@
   function dialogOpen() {
     return document.body.classList.contains("px-popup-open") ||
       !!(findingsModal && !findingsModal.hidden) ||
-      !!(rulesModal && !rulesModal.hidden);
+      !!(rulesModal && !rulesModal.hidden) ||
+      !!(aboutModal && !aboutModal.hidden);
   }
 
   // ---- click + active row ---------------------------------------------------
