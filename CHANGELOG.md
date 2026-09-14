@@ -26,6 +26,14 @@ the main branch.
   copy is never mistaken for the store's.
 
 ### Changed
+- **Large feeds render in a fraction of the time.** Each Product's subtree
+  is laid out only when it is near the viewport (`content-visibility:
+  auto`), so the browser skips the work for Products off screen: a 5 MB
+  feed is ready in 1.5 s instead of 5.6 s, a 17 MB one in 5 s instead of
+  41 s, and the first Collapse press on it takes 0.17 s instead of 2 s.
+  Search and findings jumps are now instant rather than smooth, since a
+  smooth scroll past Products still being laid out landed short of its
+  target.
 - **The extension now declares one permission, `storage`**, which holds the
   custom rule set and nothing else; it was empty since 0.9.8. Chrome shows
   no install warning for it. SECURITY.md describes the round trip.

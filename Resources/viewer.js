@@ -1082,7 +1082,17 @@
   function revealRow(row) {
     unfoldAncestors(row);
     setActiveTreeRow(row);
-    if (row.scrollIntoView) row.scrollIntoView({ block: "center", behavior: "smooth" });
+    jumpTo(row);
+  }
+
+  // Jumps are instant, not smooth. Products off screen are laid out only as
+  // they approach the viewport (content-visibility: auto, in viewer.css), so
+  // a smooth scroll that passes a hundred of them watches each grow from its
+  // placeholder height to its real one, and the target it was heading for
+  // has moved by the time it arrives — measured landing 30,000px short on a
+  // 300-product feed. An instant scroll reads the layout once and lands.
+  function jumpTo(row) {
+    if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
   }
 
   function clearFindings() {
@@ -2086,7 +2096,7 @@
 
     // Unfold any ancestor that's folded so the match is visible.
     unfoldAncestors(target);
-    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    jumpTo(target);
     status.textContent = `${matchIndex + 1}/${matches.length}`;
   }
 

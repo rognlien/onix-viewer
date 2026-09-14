@@ -491,6 +491,20 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-row.px-folded + .px-children { display: none; }
 .px-row.px-folded + .px-children + .px-close-row { display: none; }
 
+/* Each Product's subtree — the second level of children under the root — is
+   laid out only when it is near the viewport. The browser's own layout, style
+   and paint of the tree dominate a large feed (measured: 41 s to first
+   verdict on 1,000 products, 5 s with this; the JavaScript was under 4 s of
+   either), and this lets Chrome skip the work for Products off screen and do
+   it as they scroll in. The intrinsic size is the placeholder height of a
+   Product not yet laid out, so the scrollbar has a shape before the first
+   scroll; `auto` keeps the real height once it has been. Find-in-page,
+   scrollIntoView and the accessibility tree all reach skipped content. */
+#oxv-root > .px-children > .px-children {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1200px;
+}
+
 /* Viewer decorations are excluded from text selection, so a drag-select copy
    yields only the XML itself: tags, attributes and text — no "→ label"
    badges, List-N chips, summaries, Block N labels, fold markers or gutter
