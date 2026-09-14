@@ -85,6 +85,7 @@ npm install
 npm test                  # the jsdom suite, under ten seconds
 npm test -- validation    # only tests whose name or block matches
 npm run lint              # ESLint over the scripts, tools and tests
+npm run test:browser      # the extension in a headless Chrome, if one is installed
 ```
 
 The suite is one file per area under `tests/cases/`, over fixtures in

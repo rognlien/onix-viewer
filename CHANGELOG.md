@@ -15,6 +15,9 @@ the main branch.
   severity. Problems with a rule set are reported as warnings rather than
   thrown. The engine is in place and tested; the options page that lets a
   reader store a rule set is the next step, so nothing is user-visible yet.
+- **A browser test.** `npm run test:browser` loads the extension into a
+  headless Chrome, checks the takeover of a served XML page, and runs the
+  custom rules on Chrome's own XPath engine. CI runs it as its own job.
 
 ## 0.9.19 — 2026-09-12
 

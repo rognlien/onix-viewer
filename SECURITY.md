@@ -101,7 +101,7 @@ When you click the **List N** chip and then click the link in the popup footer, 
 - No tab inspection (`tabs` permission absent — we cannot enumerate or read other tabs' URLs).
 - No webRequest interception of network traffic.
 - No remote-hosted code: `script-src 'self'` (the MV3 default CSP) is enforced; the bundle ships every byte of JavaScript it runs.
-- No third-party libraries at runtime. The only dev dependency is `jsdom` for the local test suite (not bundled).
+- No third-party libraries at runtime. The dev dependencies — `jsdom`, ESLint and `puppeteer-core` for the test suites — are not bundled.
 
 ## Reporting a concern
 

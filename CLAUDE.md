@@ -23,7 +23,7 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
-├── package.json                    jsdom + eslint dev deps; `npm test`, `npm run lint`
+├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
 │   ├── manifest.json               MV3, ZERO permissions, ZERO host_permissions
@@ -65,6 +65,8 @@ onix-viewer/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
 │   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (263 tests, ~9s)
+│   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
+│   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
@@ -1026,7 +1028,41 @@ jsdom's XPath is older than Chrome's and stumbles on a few things — `name()`
 and `local-name()` with an implied argument crash it, and a prefixed name
 returns nothing rather than throwing — so a rule that works in the browser
 but not in the suite may be hitting the harness, not the engine. Write the
-fixture rules within the subset above.
+fixture rules within the subset above, and leave the rest to the browser
+test (next section), which runs the house rules on Chrome's own engine and
+checks exactly the forms jsdom cannot.
+
+### The browser test
+
+`tests/browser/run.js` loads `Resources/` unpacked into a **headless
+Chrome**, serves the fixtures over http as `application/xml`, and asks the
+page. It settles the two claims jsdom cannot: that the two content scripts
+take a raw XML page over at all (and leave an RSS feed alone), and that
+Chrome's XPath agrees with the suite about the custom rules — the house
+rules give the same findings there, in both dialects, plus `name()` and
+`local-name()`, which jsdom cannot run, and the prefixed-name refusal, which
+in Chrome happens at compile time. It also found the one bug the suite had
+not: `reset()` kept the claimed codes, so a set installed twice came back
+with `-2` suffixes.
+
+`puppeteer-core` drives the Chrome already on the machine and downloads
+nothing; GitHub's Ubuntu runners ship one, and it has its own CI job so a
+browser hiccup reads as one. Two things about the launch that cost an hour
+each to learn:
+
+- **`enableExtensions: [dir]`, not `--load-extension`.** Branded Chrome has
+  ignored the flag since 137, and silently: the page simply shows Chrome's
+  own XML viewer and the selector wait times out. The option loads the
+  directory over the DevTools protocol instead.
+- **The findings come from a second pass**, not the page's own. The test
+  installs its rule set through `OnixViewerSchematron.install()` and calls
+  `OnixViewerValidation.run()` over the source re-parsed from
+  `#__oxv-source__`, because nothing writes the `__oxv-rules__` block yet.
+  When the options page does, the test should plant the block through
+  storage and read the pills instead.
+
+It is not part of `npm test`, which stays the nine-second loop; run it when
+touching `content.js`, `shell.js`, the manifest or the Schematron engine.
 
 ### Identifier check digits
 
@@ -1467,6 +1503,7 @@ npm install     # one-time, installs jsdom
 npm test        # runs the 263-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
+npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
