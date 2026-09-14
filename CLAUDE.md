@@ -65,7 +65,7 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (279 tests, ~9s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (281 tests, ~9s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
@@ -139,7 +139,50 @@ When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-sh
 **blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`.
 
 Things that still won't work:
-- **Streaming huge XML**: we hold the full source in memory. Anything > ~10 MB causes a noticeable parse hang.
+- **Streaming huge XML**: we hold the full source in memory. A 17 MB feed
+  is a 3.5-million-element DOM and about 90 MB of heap, and only rendering
+  rows on demand would change that. What *has* been done about large feeds
+  is below.
+
+### Where a large feed spends its time
+
+Measured in headless Chrome on feeds built by repeating the EDItEUR sample
+product, with a CPU profile and a trace: **the JavaScript is not the cost.**
+Render and validation both scale linearly — 0.84 s and 0.24 s for 300
+products (5 MB, 144k rows), 2.6 s and 0.9 s for 1,000 (17 MB, 480k rows).
+What dominated was the browser's own style, layout, prepaint and text
+shaping over the tree, and it got worse than linear: 5.6 s to the first
+verdict on the small feed, 41 s on the large one, of which the JS was 3.5 s.
+
+**`content-visibility: auto` on each Product's subtree** is the fix, two
+declarations on `#oxv-root > .px-children > .px-children` in `viewer.css`.
+Chrome then lays out a Product only when it is near the viewport and skips
+the rest until they scroll in — on load, 299 of 301 containers on the small
+feed are skipped. Measured after: 1.5 s and 4.9 s to the first verdict, and
+the first Collapse press on the large feed from 2.0 s to 0.17 s. Everything
+that reaches skipped content still works — find-in-page, `scrollIntoView`,
+the accessibility tree — and the node menu is unaffected, being
+fixed-positioned on `body` rather than inside a row.
+
+Two things follow from it:
+
+- **Jumps are instant, not smooth.** The search and the findings list both
+  scroll a row into view. A smooth scroll that passes a hundred skipped
+  Products watches each grow from its placeholder height to its real one as
+  it goes by, and lands where the target *was* — measured 30,000px short on
+  the small feed, with the match nowhere on screen. `jumpTo()` scrolls
+  without `behavior: "smooth"`, which reads the layout once and lands, and
+  scroll anchoring keeps the view put as neighbours above it render later.
+- **`contain-intrinsic-size: auto 1200px`** is the placeholder height of a
+  Product not yet laid out, so the scrollbar has a shape before the first
+  scroll; a sample product is about 2,000px and a minimal one a few hundred,
+  so it is a middle. `auto` keeps the real height once a Product has been
+  laid out, so the scrollbar settles as the reader moves through the file.
+
+The selector is a child chain, so it names the Header's and each Product's
+container and nothing deeper — one skip boundary per Product, which is the
+grain a reader scrolls at. `tests/cases/35-large-feeds.test.js` holds the
+rule in place; the timings above are by hand, since jsdom lays nothing out.
 
 ### The renderer walks with an explicit stack
 
@@ -1580,7 +1623,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 279-test jsdom suite (~9s)
+npm test        # runs the 281-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
