@@ -114,6 +114,7 @@ function renderSource(xml, label, beforeScripts, models) {
   // stylesheet link becomes an inline <style>, since jsdom fetches nothing.
   const html = globalThis.OnixViewerShell.html({
     title: fixtureName, cssURL: "viewer.css", logoURL: "icons/icon-48.png",
+    version: "0.0.0-test",
   }).replace('<link rel="stylesheet" href="viewer.css">', `<style>${viewerCss}</style>`);
 
 

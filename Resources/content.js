@@ -274,6 +274,7 @@
 
     const shellHtml = OnixViewerShell.html({
       title: deriveTitle(document.location.href), cssURL, logoURL,
+      version: extensionVersion(),
     });
 
     const parsed = new DOMParser().parseFromString(shellHtml, "text/html");
@@ -349,6 +350,15 @@
     } catch {
       return "ONIX Viewer";
     }
+  }
+
+  // The version the About window shows: version_name when the manifest has
+  // one, which is what chrome://extensions displays too. The checkout carries
+  // "X.Y.Z-dev" there and the packager strips it, so an unpacked load says
+  // -dev everywhere and a store copy shows the bare version.
+  function extensionVersion() {
+    const manifest = browserAPI().runtime.getManifest();
+    return manifest.version_name || manifest.version;
   }
 
   function browserAPI() {

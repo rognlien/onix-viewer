@@ -162,9 +162,20 @@ body {
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  margin-right: 6px;
   display: block;
 }
+/* The mark is a button — the door to About — but not a bordered one: it is
+   the brand, and a chip around it would make it read as a control. When the
+   image is blocked it carries the name instead, in the button's own type. */
+#oxv-toolbar .px-logo-btn {
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  margin-right: 6px;
+  font-weight: 600;
+}
+#oxv-toolbar .px-logo-btn:hover { background: var(--bg-hover); }
+#oxv-toolbar .px-logo-btn:has(> span) { padding: 4px 8px; }
 
 #oxv-toolbar button {
   appearance: none;
@@ -1006,4 +1017,47 @@ body.px-popup-open { overflow: hidden; }
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+/* ---- about ------------------------------------------------------------- */
+
+.px-about { max-width: 560px; }
+.px-about-text {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.px-about-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+.px-about-facts dt { color: var(--fg-muted); }
+.px-about-facts dd { margin: 0; }
+.px-about-keys {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin: 0 0 16px;
+}
+.px-about-keys td { padding: 2px 12px 2px 0; vertical-align: top; }
+.px-about-keys kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+  color: var(--fg);
+}
+.px-about-links { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.px-about-credit {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.5;
 }

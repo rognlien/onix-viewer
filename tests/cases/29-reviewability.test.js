@@ -74,6 +74,14 @@ describe("Reviewability", () => {
     }
   });
 
+  test("the checkout's version_name is the version marked -dev", () => {
+    // What chrome://extensions and the About window show for an unpacked
+    // load. The packager strips it, so a store copy shows the bare version;
+    // release.sh moves both together.
+    assert(manifest.version_name === `${manifest.version}-dev`,
+      `version_name must be "${manifest.version}-dev", got ${JSON.stringify(manifest.version_name)}`);
+  });
+
   test("the manifest declares one permission, storage, and nothing else", () => {
     // `storage` holds the reader's own rule set and nothing else; it is the
     // one permission, and it shows no install warning. Anything more is a

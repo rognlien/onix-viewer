@@ -85,6 +85,7 @@ an edit, press the reload arrow on the card and refresh the page.
 | `t` | Switch between reference names and short tags |
 | `v` | Open the findings list |
 | `w` | Toggle soft wrap |
+| `?` | About ONIX Viewer: version, code-list issue, these shortcuts. Clicking the owl does the same |
 
 ## Test
 

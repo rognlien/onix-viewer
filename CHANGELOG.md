@@ -18,6 +18,13 @@ the main branch.
   editor and reported as warnings rather than thrown. The rule set is kept
   in the extension's storage, so it follows you from page to page.
 
+- **An About window.** Click the owl, or press `?`: the version, the
+  code-list issue, the keyboard shortcuts, and links to the source, the
+  store listing and EDItEUR. The committed manifest names its version
+  `0.9.19-dev`, shown on the `chrome://extensions` card and in About alike,
+  and the packager strips the suffix for the store build, so a development
+  copy is never mistaken for the store's.
+
 ### Changed
 - **The extension now declares one permission, `storage`**, which holds the
   custom rule set and nothing else; it was empty since 0.9.8. Chrome shows

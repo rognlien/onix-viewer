@@ -35,14 +35,23 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-# Replace just the "version" line in each manifest. Single-occurrence
-# replace preserves formatting and avoids touching dependency versions.
+# Replace just the "version" line in each manifest — and the manifest's
+# "version_name", the -dev form the checkout shows, which must follow it.
+# Single-occurrence replace preserves formatting and avoids touching
+# dependency versions.
 node -e "
   const fs = require('fs');
   const v = '$VERSION';
   for (const f of ['Resources/manifest.json', 'package.json']) {
     const s = fs.readFileSync(f, 'utf8');
-    const u = s.replace(/(\"version\":\s*\")[^\"]+(\")/, '\$1' + v + '\$2');
+    let u = s.replace(/(\"version\":\s*\")[^\"]+(\")/, '\$1' + v + '\$2');
+    if (f.endsWith('manifest.json')) {
+      u = u.replace(/(\"version_name\":\s*\")[^\"]+(\")/, '\$1' + v + '-dev\$2');
+      if (!u.includes(v + '-dev')) {
+        console.error('Could not find version_name in ' + f);
+        process.exit(1);
+      }
+    }
     if (u === s) {
       console.error('Could not find version field in ' + f);
       process.exit(1);

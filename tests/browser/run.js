@@ -182,6 +182,23 @@ async function takeover(browser, served) {
     await page.close();
   });
 
+  await test("the About window shows the manifest version, marked -dev for an unpacked load", async () => {
+    // The store stamps update_url into the manifest it serves; this load has
+    // none, so content.js appends -dev. A store copy would show the bare
+    // version — which is the one thing this test cannot see.
+    const manifest = JSON.parse(fs.readFileSync(path.join(RESOURCES, "manifest.json"), "utf8"));
+    const page = await open(browser, served.url("onix-3.1-valid.xml"));
+    await page.click('#oxv-toolbar [data-action="about"]');
+    await page.waitForSelector("#oxv-about", { visible: true });
+    const shown = await page.evaluate(() => ({
+      stamped: document.documentElement.getAttribute("data-oxv-version"),
+      eyebrow: document.getElementById("oxv-about-version").textContent,
+    }));
+    assert(shown.stamped === `${manifest.version}-dev`, `stamped on the shell; got "${shown.stamped}"`);
+    assert(shown.eyebrow === `Version ${manifest.version}-dev`, `shown in About; got "${shown.eyebrow}"`);
+    await page.close();
+  });
+
   await test("a non-ONIX XML file is left to the browser", async () => {
     const page = await browser.newPage();
     await page.goto(served.url("rss.xml"), { waitUntil: "load" });
