@@ -33,6 +33,7 @@ const contentModelJs = [
 ].join("\n");
 const onixJs = fs.readFileSync(path.join(RES, "onix.js"), "utf8");
 const validateJs = fs.readFileSync(path.join(RES, "onix-validate.js"), "utf8");
+const schematronJs = fs.readFileSync(path.join(RES, "onix-schematron.js"), "utf8");
 const popupJs = fs.readFileSync(path.join(RES, "onix-popup.js"), "utf8");
 const viewerJs = fs.readFileSync(path.join(RES, "viewer.js"), "utf8");
 const viewerCss = fs.readFileSync(path.join(RES, "viewer.css"), "utf8");
@@ -138,6 +139,7 @@ function renderSource(xml, label, beforeScripts, models) {
   window.eval(models ? models.map((v) => contentModelFor[v]).join("\n") : contentModelJs);
   window.eval(onixJs);
   window.eval(validateJs);
+  window.eval(schematronJs);
   window.eval(popupJs);
   window.eval(viewerJs);
 

@@ -230,6 +230,7 @@
     const modelURLs = contentModelURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
     const validateURL = browserAPI().runtime.getURL("onix-validate.js");
+    const schematronURL = browserAPI().runtime.getURL("onix-schematron.js");
     const popupURL = browserAPI().runtime.getURL("onix-popup.js");
     const viewerURL = browserAPI().runtime.getURL("viewer.js");
 
@@ -264,7 +265,7 @@
     // Inject viewer scripts in order. async=false preserves insertion order,
     // which matters: the data files must define their globals before onix.js
     // and viewer.js read them.
-    [codelistsURL, ...modelURLs, onixURL, validateURL,
+    [codelistsURL, ...modelURLs, onixURL, validateURL, schematronURL,
      popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);
