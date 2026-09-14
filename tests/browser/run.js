@@ -148,6 +148,7 @@ async function main() {
   try {
     await takeover(browser, served);
     await schematronInChrome(browser, served);
+    await rulesRoundTrip(browser, served);
   } finally {
     await browser.close();
     served.server.close();
@@ -258,6 +259,68 @@ async function schematronInChrome(browser, served) {
   });
 
   await page.close();
+}
+
+// The rules editor end to end: pasted in the modal, kept in extension
+// storage by content.js, and back on the next page load as a pill. This is
+// the one path no jsdom test can walk — content.js never loads there.
+async function rulesRoundTrip(browser, served) {
+  console.log("\nThe rules editor and storage");
+  const fires = `<schema xmlns="http://purl.oclc.org/dsdl/schematron"><pattern>
+    <rule context="Header"><report id="header-here" test="true()" role="warning">A header, noted</report></rule>
+  </pattern></schema>`;
+
+  await test("rules applied in the modal are stored and validate the next load", async () => {
+    const page = await open(browser, served.url("onix-3.1-valid.xml"));
+    await page.click('#oxv-toolbar [data-action="rules"]');
+    await page.waitForSelector("#oxv-rules-text", { visible: true });
+    await page.evaluate((text) => { document.getElementById("oxv-rules-text").value = text; }, fires);
+    await page.click("#oxv-rules .px-rules-apply");
+    await page.waitForFunction(() => document.getElementById("oxv-rules-status").textContent.includes("Kept"));
+    const state = await page.evaluate(() => ({
+      status: document.getElementById("oxv-rules-status").textContent,
+      verdict: document.getElementById("oxv-validation").textContent,
+      pressed: document.querySelector('#oxv-toolbar [data-action="rules"]').getAttribute("aria-pressed"),
+    }));
+    assert(state.status === "1 pattern, 1 assertion, applied. Kept for the next document.",
+      `the status, acknowledged by content.js; got "${state.status}"`);
+    assert(state.verdict.includes("1 warning"), `re-validated at once; got "${state.verdict}"`);
+    assert(state.pressed === "true", "the cog is pressed");
+    await page.close();
+
+    const again = await open(browser, served.url("onix-3.1-valid.xml"));
+    const reloaded = await again.evaluate(() => ({
+      block: document.getElementById("__oxv-rules__")?.textContent || "",
+      verdict: document.getElementById("oxv-validation").textContent,
+      pill: document.querySelector("#oxv-root .px-finding")?.getAttribute("aria-label") || "",
+      pressed: document.querySelector('#oxv-toolbar [data-action="rules"]').getAttribute("aria-pressed"),
+    }));
+    assert(reloaded.block === fires, "content.js wrote the stored rules into the page");
+    assert(reloaded.verdict.includes("1 warning"), `the rules ran on load; got "${reloaded.verdict}"`);
+    assert(reloaded.pill.includes("A header, noted"), `the pill on the row; got "${reloaded.pill}"`);
+    assert(reloaded.pressed === "true", "the cog shows rules are active");
+    await again.close();
+  });
+
+  await test("clearing the rules in the modal clears the store", async () => {
+    const page = await open(browser, served.url("onix-3.1-valid.xml"));
+    await page.click('#oxv-toolbar [data-action="rules"]');
+    await page.waitForSelector("#oxv-rules-text", { visible: true });
+    await page.click("#oxv-rules .px-rules-clear");
+    await page.waitForFunction(() => document.getElementById("oxv-rules-status").textContent.includes("Kept"));
+    const cleared = await page.evaluate(() => document.getElementById("oxv-validation").textContent);
+    assert(cleared.includes("Valid"), `clean at once; got "${cleared}"`);
+    await page.close();
+
+    const again = await open(browser, served.url("onix-3.1-valid.xml"));
+    const reloaded = await again.evaluate(() => ({
+      block: !!document.getElementById("__oxv-rules__"),
+      verdict: document.getElementById("oxv-validation").textContent,
+    }));
+    assert(!reloaded.block, "no rules block on the next load");
+    assert(reloaded.verdict.includes("Valid"), `clean again; got "${reloaded.verdict}"`);
+    await again.close();
+  });
 }
 
 main().catch((error) => {

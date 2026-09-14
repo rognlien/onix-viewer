@@ -56,6 +56,10 @@ Features
     LanguageCode, CountryCode, …) shown beside every value
   • One-click popup listing every entry of a code list, linked to
     the EDItEUR definition page — all 165 lists bundled
+  • Your own rules: paste a Schematron rule set behind the toolbar's
+    cog and it is checked on every document alongside the schema —
+    ISBN prefixes, identifier scheme names, contributor sequences,
+    prices that add up — with findings in the same pills and list
   • Expand and Collapse a level at a time, search, soft-wrap toggle,
     and Copy node XML for any subtree
   • Detects ONIX 2.1, 3.0 and 3.1 in both reference and short-tag
@@ -97,13 +101,14 @@ ONIX file, not a second feature, and the wording should say so.
 
 | Permission | Justification |
 |---|---|
-| `content_scripts.matches: <all_urls>` | No `permissions` and no `host_permissions` are declared at all; this is the content script's match pattern. Two-layer activation: (1) only on pages whose response Content-Type is `application/xml`, `text/xml`, or `application/onix+xml`; (2) only on documents whose source carries the EDItEUR ONIX namespace (`ns.editeur.org/onix`), an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. Any other page — HTML, JSON, RSS, generic XML — is left untouched, and the browser's own viewer handles it. The pattern has to be broad because a server can return ONIX from any URL; the gate is the Content-Type and the sniff, not the pattern. |
-| `web_accessible_resources.matches: <all_urls>` | The viewer runs in the **page's** world, not the content script's: `content.js` replaces the document and appends ordinary `<script src="chrome-extension://…">` tags for the viewer scripts, the stylesheet and one icon, so the page has to be allowed to load them. The match pattern is `<all_urls>` for the same reason as above — ONIX can be served from any URL. What this exposes is the extension's own static files, which are public in the repository and in the package; it grants the page none of the extension's privileges, and there are no permissions to borrow. |
+| `storage` | Holds one thing: the custom validation rules the user pastes into the editor behind the toolbar's cog, under a single key in `chrome.storage.local`, so the rule set follows them from page to page. Read and written by the content script alone; the viewer scripts in the page's world have no storage access. Nothing about the page, the URL or the user's activity is stored. |
+| `content_scripts.matches: <all_urls>` | No `host_permissions` are declared; this is the content script's match pattern. Two-layer activation: (1) only on pages whose response Content-Type is `application/xml`, `text/xml`, or `application/onix+xml`; (2) only on documents whose source carries the EDItEUR ONIX namespace (`ns.editeur.org/onix`), an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. Any other page — HTML, JSON, RSS, generic XML — is left untouched, and the browser's own viewer handles it. The pattern has to be broad because a server can return ONIX from any URL; the gate is the Content-Type and the sniff, not the pattern. |
+| `web_accessible_resources.matches: <all_urls>` | The viewer runs in the **page's** world, not the content script's: `content.js` replaces the document and appends ordinary `<script src="chrome-extension://…">` tags for the viewer scripts, the stylesheet and one icon, so the page has to be allowed to load them. The match pattern is `<all_urls>` for the same reason as above — ONIX can be served from any URL. What this exposes is the extension's own static files, which are public in the repository and in the package; it grants the page none of the extension's privileges; the one permission, `storage`, is the content script's and never the page's. |
 
-Worth stating plainly in the same field: **`permissions` and
-`host_permissions` are both empty arrays.** Reviewers scanning for sensitive
-access find nothing to weigh, and it is easy to miss that the only broad thing
-here is a content-script match pattern.
+Worth stating plainly in the same field: **`permissions` is `["storage"]`
+and `host_permissions` is empty.** Reviewers scanning for sensitive access
+find one low-risk permission to weigh, and it is easy to miss that the only
+broad thing here is a content-script match pattern.
 
 **Remote code use**: **No, I am not using remote code**.
 (All scripts are bundled inside the extension. No `eval`, no remote `<script src>`, no fetched/cached code. The only network request is a re-fetch of the page's own URL to obtain the XML source.)
@@ -184,7 +189,9 @@ Further shots worth adding, if you want more than two:
 
 ```
 Summary for review:
-  - permissions: []  and  host_permissions: []  — both empty.
+  - permissions: ["storage"]  and  host_permissions: []. storage holds the
+    custom validation rules the user pastes in (one key, content.js only);
+    nothing about pages or activity is stored.
   - No background service worker, no remote code, no eval, no new Function.
   - One network request in the whole bundle: a same-origin re-fetch of the
     page's own URL to read the XML source.

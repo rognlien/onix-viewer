@@ -46,6 +46,14 @@ searchable tree, and adds:
   schema, so only their code lists are checked and the toolbar says so.
 - **Copy node XML.** The `⋮` button on any element row copies that subtree as
   plain source.
+- **Your own rules.** The cog in the toolbar opens an editor for a
+  [Schematron](https://schematron.com/) rule set, checked on every ONIX
+  document alongside the schema: an ISBN prefix your feeds must use, a
+  scheme name on every proprietary identifier, contributor sequence numbers,
+  prices that add up. Rules are written in reference names and apply to
+  short-tag files too, tests are XPath 1.0, and each finding shows in the
+  same pills and list as the schema's. The rule set is kept in the
+  extension's own storage, so it follows you from page to page.
 
 Requires Chrome 119 or later.
 
@@ -154,7 +162,8 @@ to the document the browser already parsed.
 
 ## Security and privacy
 
-The extension declares no permissions and no host permissions, has no
+The extension declares one permission, `storage`, which holds the custom
+rules you paste in and nothing else. It declares no host permissions, has no
 background worker, and makes exactly one network request: a same-origin
 re-fetch of the page you are viewing. Nothing leaves your machine. See
 [SECURITY.md](SECURITY.md) for the threat model and how to verify it.

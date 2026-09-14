@@ -63,8 +63,12 @@
   // CORS-blocked; one-shot signed URLs reject the second request; bearer-auth
   // endpoints lose their headers), fall back to serializing the document the
   // browser already parsed for us.
-  loadSource()
-    .then((xmlSource) => {
+  // The one storage key, declared ahead of the entry point below, which runs
+  // before any later const is initialised.
+  const RULES_KEY = "rules";
+
+  Promise.all([loadSource(), loadRules()])
+    .then(([xmlSource, rules]) => {
       // We're called for any XML page that matches the content-type whitelist,
       // but the extension is named ONIX Viewer for a reason: only act on
       // documents that actually look like ONIX. For non-ONIX XML the user
@@ -73,7 +77,7 @@
         dlog("[OnixViewer] XML is not ONIX, leaving native view.");
         return;
       }
-      takeOver(xmlSource);
+      takeOver(xmlSource, rules);
     })
     .catch((err) => {
       dwarn("[OnixViewer] Could not load source, leaving native view:", err);
@@ -146,6 +150,40 @@
       });
   }
 
+  // The reader's own validation rules, kept in extension storage — the one
+  // thing the extension stores, and the reason for its one permission. The
+  // viewer runs in the page's world and cannot reach storage, so this script
+  // reads the rules for it on the way in and writes them back on its behalf
+  // when the editor posts a change (see keepRules). Absent storage, or an
+  // empty store, is simply no rules.
+  function loadRules() {
+    let loaded = Promise.resolve("");
+    const storage = browserAPI().storage;
+    if (storage && storage.local) {
+      loaded = Promise.resolve(storage.local.get({ [RULES_KEY]: "" }))
+        .then((items) => (typeof items[RULES_KEY] === "string" ? items[RULES_KEY] : ""))
+        .catch(() => "");
+    }
+    return loaded;
+  }
+
+  // The editor in viewer.js posts { type: "oxv-rules", rules } to its own
+  // window; only a message from this window, after the takeover, is ours.
+  // Once the write has landed, "oxv-rules-kept" goes back the same way, so
+  // the editor can say so — and so a test knows when to reload.
+  function keepRules() {
+    window.addEventListener("message", (event) => {
+      if (event.source !== window || !event.data || event.data.type !== "oxv-rules") return;
+      const storage = browserAPI().storage;
+      if (!storage || !storage.local) return;
+      const rules = typeof event.data.rules === "string" ? event.data.rules : "";
+      const write = rules ? storage.local.set({ [RULES_KEY]: rules }) : storage.local.remove(RULES_KEY);
+      Promise.resolve(write)
+        .then(() => window.postMessage({ type: "oxv-rules-kept" }, "*"))
+        .catch((err) => dwarn("[OnixViewer] could not store the rules:", err));
+    });
+  }
+
   function readSourceFromDom() {
     // Chrome's native XML viewer wraps the original XML inside
     // <div id="webkit-xml-viewer-source-xml"> and replaces documentElement
@@ -198,13 +236,13 @@
     });
   }
 
-  function takeOver(xmlSource) {
+  function takeOver(xmlSource, rules) {
     // We run at document_start and a cached re-fetch resolves quickly, so the
     // parser may not have created the root element yet. There is nothing to
     // replace until it has — and the swap below throws on a null root, into
     // the catch above, which is silent in release.
     if (!document.documentElement) {
-      whenRootExists(() => takeOver(xmlSource));
+      whenRootExists(() => takeOver(xmlSource, rules));
       return;
     }
 
@@ -261,6 +299,17 @@
     sourceHolder.id = "__oxv-source__";
     sourceHolder.textContent = xmlSource;
     document.body.appendChild(sourceHolder);
+
+    // The reader's rule set travels the same way, in a block of its own that
+    // exists only when there is one; viewer.js installs it before validating.
+    if (rules) {
+      const rulesHolder = document.createElementNS(HTML_NS, "script");
+      rulesHolder.setAttribute("type", "application/xml");
+      rulesHolder.id = "__oxv-rules__";
+      rulesHolder.textContent = rules;
+      document.body.appendChild(rulesHolder);
+    }
+    keepRules();
 
     // Inject viewer scripts in order. async=false preserves insertion order,
     // which matters: the data files must define their globals before onix.js

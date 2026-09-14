@@ -6,15 +6,22 @@ the main branch.
 ## Unreleased
 
 ### Added
-- **Custom validation rules, written as Schematron.** A rule set of
-  `<pattern>`, `<rule context>`, `<assert>` and `<report>` runs as one more
-  validation rule, with the browser's own XPath 1.0 engine and nothing
-  bundled. Rules are written in reference names, unprefixed, and serve both
-  dialects through a renamed mirror of the document; the assertion's `id`
-  becomes the finding code, its text the message, `role="warning"` the
-  severity. Problems with a rule set are reported as warnings rather than
-  thrown. The engine is in place and tested; the options page that lets a
-  reader store a rule set is the next step, so nothing is user-visible yet.
+- **Your own validation rules, written as Schematron.** A cog in the
+  toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
+  context>`, `<assert>` and `<report>` and it is checked on every ONIX
+  document alongside the schema, with findings in the same pills and list.
+  Tests are XPath 1.0, run on the browser's own engine with nothing
+  bundled. Rules are written in reference names, unprefixed, and serve
+  short-tag files too through a renamed mirror of the document; the
+  assertion's `id` becomes the finding code, its text the message,
+  `role="warning"` the severity. Problems with a rule set are listed in the
+  editor and reported as warnings rather than thrown. The rule set is kept
+  in the extension's storage, so it follows you from page to page.
+
+### Changed
+- **The extension now declares one permission, `storage`**, which holds the
+  custom rule set and nothing else; it was empty since 0.9.8. Chrome shows
+  no install warning for it. SECURITY.md describes the round trip.
 - **A browser test.** `npm run test:browser` loads the extension into a
   headless Chrome, checks the takeover of a served XML page, and runs the
   custom rules on Chrome's own XPath engine. CI runs it as its own job.

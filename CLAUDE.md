@@ -26,7 +26,7 @@ onix-viewer/
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
-│   ├── manifest.json               MV3, ZERO permissions, ZERO host_permissions
+│   ├── manifest.json               MV3, one permission (storage, for the rules), ZERO host_permissions
 │   ├── shell.js                    the HTML shell, one template for content.js and the tests
 │   ├── content.js                  detects raw XML, takes the page over
 │   ├── viewer.js                   parses + renders the tree, search, kbd nav
@@ -64,7 +64,7 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (263 tests, ~9s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (274 tests, ~9s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
@@ -192,7 +192,7 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 ```
 [ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   🔍 ]
         [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB]  [✓ Valid]
-                                                    … [ONIX 3.1, Issue 74]
+                                                … [ONIX 3.1, Issue 74] [⚙]
 ```
 
 - **`.px-center`** holds the **document pill** (`#oxv-meta`) and the
@@ -223,10 +223,12 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   container and the baseline never enters into it — every control now shares
   one midline. `align-self: stretch` on the dialect and search groups keeps
   their divider spanning the full button height.
-- **`.px-right`** holds the **code-list issue** (`#oxv-schema`) alone. It is
-  reference material — which EDItEUR issue the labels came from, not a fact
-  about this document — so it sits apart, pushed to the edge by the centre
-  column.
+- **`.px-right`** holds the **code-list issue** (`#oxv-schema`) and the
+  **cog** (`data-action="rules"`, the custom rules editor). Both are about
+  the viewer rather than this document — which EDItEUR issue the labels came
+  from, which rules of your own are in force — so they sit apart, pushed to
+  the edge by the centre column. The cog is `aria-pressed` while a rule set
+  is installed and its title carries the count.
 
 **What gives way on a narrow window**, in order: the document pill's label
 ellipsises, then the search field shortens, then the pill is dropped
@@ -1014,15 +1016,60 @@ its XPath rather than being spread across slices. The findings therefore come
 after the schema's. `api.doc` was added to the rule API for this — the one
 change the validator needed.
 
-The rule set reaches the page the way the source does: as the text of an
-inert `<script type="application/xml" id="__oxv-rules__">` block, which
-`viewer.js` reads and installs before the pass starts. Nothing writes that
-block yet — the options page that stores a reader's rule set is the next
-step — so today the engine is reachable from the tests alone, which install
-through `OnixViewerSchematron.install()` directly or plant the block the way
-`content.js` will. `tests/fixtures/house-rules.sch` is the specimen: a
-publisher's ISBN prefix, `<IDTypeName>` on proprietary identifiers,
-contributor sequence numbers and the tax sum.
+`tests/fixtures/house-rules.sch` is the specimen: a publisher's ISBN
+prefix, `<IDTypeName>` on proprietary identifiers, contributor sequence
+numbers and the tax sum.
+
+### The rules editor, and the one permission
+
+The reader pastes a rule set into a modal behind the toolbar's cog
+(`#oxv-rules`, built in `viewer.js` on the findings list's pattern: the
+popup shell, the focus contract, `keepTabInside()` shared between them). A
+`<textarea>` with the house-rules example as its placeholder, a status line,
+**Apply** and **Clear**. The window opens already applied: the status line
+shows the rules in force — `3 patterns, 5 assertions, applied.`, `No custom
+rules.`, or the problems as a list — from the last install, so a rule set
+that failed on load explains itself the moment the cog is pressed. Apply
+installs the text, re-runs validation so the pills update at once, and
+prints the same status afresh; Clear does the same with nothing. The cog is
+pressed while rules are in force.
+
+Keeping the rules across pages is what cost the extension its first
+permission. Three places were weighed:
+
+- **`localStorage`** is per origin, so rules pasted on one server are absent
+  on the next and on every `file://` page.
+- **A file in `Resources/`** ships one organisation's rules to every store
+  install.
+- **`chrome.storage.local`** follows the reader everywhere, and Chrome shows
+  no install warning for `storage`. That is the one.
+
+The viewer runs in the page's world and cannot see `chrome.storage`, so the
+round trip goes through `content.js`, the one script that can:
+
+```
+load:   content.js  storage.local.get("rules")  →  <script type="application/xml" id="__oxv-rules__">
+        viewer.js   installCustomRules() reads the block, installs, validates
+apply:  viewer.js   postMessage({ type: "oxv-rules", rules }) to its own window
+        content.js  keepRules() — event.source === window — set() or remove()
+                    then postMessage({ type: "oxv-rules-kept" })
+        viewer.js   appends "Kept for the next document." to the status
+```
+
+The rules ride in on the same kind of inert data block as the source, for
+the same CSP reason, and the block exists only when there is a rule set.
+`content.js` reads storage in parallel with the source fetch, so a page with
+no rules pays nothing visible. An empty rule set removes the key rather than
+storing `""`. The acknowledgement is what lets the browser test reload the
+page only after the write has landed, and what lets the reader tell "applied"
+from "kept": without storage (the jsdom suite, a browser without the API) the
+status stays at "applied", which is the truth.
+
+`storage` is held to its purpose by `tests/cases/29-reviewability.test.js`:
+`content.js` is the only shipped script that touches it, `storage.local` is
+the only area, every call goes through the one key, and the manifest's
+`permissions` is exactly `["storage"]`. SECURITY.md, the README and the
+store listing all say the same thing in their own words.
 
 jsdom's XPath is older than Chrome's and stumbles on a few things — `name()`
 and `local-name()` with an implied argument crash it, and a prefixed name
@@ -1054,12 +1101,15 @@ each to learn:
   ignored the flag since 137, and silently: the page simply shows Chrome's
   own XML viewer and the selector wait times out. The option loads the
   directory over the DevTools protocol instead.
-- **The findings come from a second pass**, not the page's own. The test
-  installs its rule set through `OnixViewerSchematron.install()` and calls
+- **The XPath tests use a second pass**, not the page's own: they install
+  a rule set through `OnixViewerSchematron.install()` and call
   `OnixViewerValidation.run()` over the source re-parsed from
-  `#__oxv-source__`, because nothing writes the `__oxv-rules__` block yet.
-  When the options page does, the test should plant the block through
-  storage and read the pills instead.
+  `#__oxv-source__`, which keeps each test independent of what is stored.
+  The **storage round trip** is tested through the real path instead —
+  paste in the modal, Apply, wait for "Kept", open the page again and read
+  the pill — since `content.js` never loads in jsdom and this is the one
+  place its storage code runs at all. It is also what caught `RULES_KEY`
+  being declared below the entry point that used it.
 
 It is not part of `npm test`, which stays the nine-second loop; run it when
 touching `content.js`, `shell.js`, the manifest or the Schematron engine.
@@ -1434,9 +1484,10 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
 - `window.OnixViewerValidation` — `run`, `start` (sliced session), `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
 - `window.OnixViewerSchematron` — custom rules: `install(text)` → `{ patterns, assertions, problems }`, `parse`, `reset`
-- `__oxv-rules__` — the inert data block the reader's rule set arrives in, beside `__oxv-source__`
+- `__oxv-rules__` — the inert data block the reader's rule set arrives in, beside `__oxv-source__`; `oxv-rules`, `oxv-rules-text`, `oxv-rules-status` are the editor modal and its parts
+- `oxv-rules` / `oxv-rules-kept` — the two `postMessage` types between the viewer and `content.js`, the only traffic between the page's world and the content script
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`)
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-icon` — a tiny inline SVG from `icon(name)`; `px-sev-error` / `px-sev-warning` are the severity modifiers (not `px-error`, which is the parse-error panel)
@@ -1448,9 +1499,9 @@ The `px-` CSS prefix was retained from the rename because changing it would touc
 
 `SECURITY.md` is the canonical doc. Highlights:
 
-- `permissions: []` and `host_permissions: []` — both empty as of 0.9.8. The extension cannot make cross-origin fetches; any rogue `fetch()` to a third-party origin would be CORS-blocked by the browser.
+- `permissions: ["storage"]` and `host_permissions: []`. `storage` arrived with the custom rules editor and holds one key, `rules`, read and written by `content.js` alone — the viewer in the page's world has no storage. Both were empty from 0.9.8 until then. The extension cannot make cross-origin fetches; any rogue `fetch()` to a third-party origin would be CORS-blocked by the browser.
 - Only one network call in the whole bundle: a same-origin re-fetch of the page's own URL (`fetch(document.location.href, { credentials: "same-origin" })`).
-- No background service worker, no `chrome.storage`, no `chrome.tabs`, no `webRequest`.
+- No background service worker, no `chrome.tabs`, no `webRequest`.
 - `script-src 'self'` (the MV3 default CSP) is enforced. No `eval`, no `new Function`, no remote `<script src>`.
 
 A focused security audit on the 0.9.7 artefact found no HIGH or MEDIUM findings; the four LOW recommendations were applied in 0.9.8.
@@ -1468,7 +1519,7 @@ hand. `tests/cases/29-reviewability.test.js` checks:
 | "No remote code" | no `eval`, `new Function` or `document.write` in any shipped script, and no string in the code referencing a remote `.js` |
 | "One network call" | exactly one `fetch(` across the shipped scripts, and its argument must be `document.location.href` |
 | No HTML injection | no `innerHTML`/`outerHTML` assignment at all in the shipped scripts, and `insertAdjacentHTML` is banned |
-| "Zero permissions" | `permissions` is `[]`, and `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent |
+| "One permission" | `permissions` is exactly `["storage"]`; `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent; `storage` is used by `content.js` alone, `storage.local` only, and every call goes through the one key |
 | `SECURITY.md` is accurate | its fenced manifest excerpt is parsed as JSON and compared field-by-field with the real manifest |
 | Injection actually works | every resource `content.js` builds a `getURL()` for is both web-accessible and present on disk |
 
@@ -1500,7 +1551,7 @@ there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 263-test jsdom suite (~9s)
+npm test        # runs the 274-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
@@ -1602,7 +1653,7 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 ## Things explicitly not done (intentionally)
 
 - **No background script.** Nothing currently needs one. Adding one with `webRequest` would be the path to bearer-auth and one-shot-signed-URL support.
-- **No options page.** No per-user settings yet. If we add theme override (instead of auto-following system) or feature toggles, that's an options page worth building.
+- **No options page.** The one setting, the custom rule set, is edited in the page behind the toolbar's cog, where the reader sees its effect at once. If a setting arrives that has no page to show it on — a theme override, a feature toggle — that is the point to build one.
 - **No browser_action / toolbar button.** The extension activates automatically based on `Content-Type`. A toolbar button would only make sense if we add a "manual format this page as XML" action.
 - **No CWS auto-publish.** The GitHub Action builds the zip and attaches it to the release. CWS upload stays manual — Google's OAuth setup for automated publishes isn't worth the maintenance for this size of extension.
 - **No telemetry, no analytics, no third-party libraries at runtime.**

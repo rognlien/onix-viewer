@@ -63,6 +63,9 @@
   </div>
   <div class="px-right">
     <span id="oxv-schema"></span>
+    <!-- The reader's own validation rules. viewer.js fills in the cog and
+         marks the button pressed while a rule set is installed. -->
+    <button type="button" class="px-icon-btn" data-action="rules" title="Custom rules" aria-label="Custom rules" aria-pressed="false"></button>
   </div>
 </div>
 <div id="oxv-main">

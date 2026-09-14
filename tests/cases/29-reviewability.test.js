@@ -22,6 +22,28 @@ describe("Reviewability", () => {
     }
   });
 
+  test("storage is touched by content.js alone, under one key, for the rules", () => {
+    // The viewer runs in the page's world and has no storage; the content
+    // script reads and writes one key on its behalf. A second key, or a use
+    // from another file, would be a new thing stored that SECURITY.md does
+    // not describe.
+    for (const file of SHIPPED) {
+      const code = sourceOf(file).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+      const uses = [...code.matchAll(/storage\s*\.\s*(local|sync|session|managed)\b/g)];
+      if (file === "content.js") {
+        assert(uses.length > 0 && uses.every((m) => m[1] === "local"),
+          `content.js uses storage.local only, found: ${uses.map((m) => m[1]).join(", ")}`);
+        const keys = [...code.matchAll(/RULES_KEY\s*=\s*"([^"]+)"/g)].map((m) => m[1]);
+        assert(keys.join() === "rules", `one key, "rules"; got ${keys.join()}`);
+        const calls = [...code.matchAll(/storage\.local\.(?:get|set|remove)\(([^)]*)\)/g)];
+        assert(calls.length === 3 && calls.every((m) => m[1].includes("RULES_KEY")),
+          `every storage call goes through RULES_KEY; found: ${calls.map((m) => m[0]).join(" | ")}`);
+      } else {
+        assert(uses.length === 0, `${file} must not touch storage`);
+      }
+    }
+  });
+
   test("the only network call is the same-origin re-fetch of the page itself", () => {
     const calls = [];
     for (const file of SHIPPED) {
@@ -52,9 +74,12 @@ describe("Reviewability", () => {
     }
   });
 
-  test("the manifest declares no permissions of any kind", () => {
-    assert(Array.isArray(manifest.permissions) && manifest.permissions.length === 0,
-      `permissions must be an empty array, got ${JSON.stringify(manifest.permissions)}`);
+  test("the manifest declares one permission, storage, and nothing else", () => {
+    // `storage` holds the reader's own rule set and nothing else; it is the
+    // one permission, and it shows no install warning. Anything more is a
+    // change to the security story that has to be argued in SECURITY.md.
+    assert(JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]),
+      `permissions must be exactly ["storage"], got ${JSON.stringify(manifest.permissions)}`);
     assert(!manifest.host_permissions,
       `host_permissions must be absent, got ${JSON.stringify(manifest.host_permissions)}`);
     assert(!manifest.background,
