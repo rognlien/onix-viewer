@@ -27,12 +27,24 @@ const SAMPLES = path.join(ROOT, "Onix");
 
 // Serves tests/fixtures/ and Onix/ as application/xml — the MIME type the
 // content script gates on — so a request looks like an ONIX feed would.
+// Two special names: "once-<fixture>" serves the fixture to the first request
+// only and refuses the rest with a 500, which is what forces content.js off
+// its re-fetch and onto the DOM fallback; "large.xml" is the EDItEUR sample
+// product repeated 300 times, a feed that arrives in many chunks.
 function serve() {
+  const served = new Set();
+  const large = largeFeed(300);
   const server = http.createServer((request, response) => {
-    const file = fileFor(request.url);
-    if (file) {
+    const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
+    const once = name.startsWith("once-");
+    const file = fileFor(once ? name.slice(5) : name);
+    if (once && served.has(request.url)) {
+      response.writeHead(500);
+      response.end();
+    } else if (name === "large.xml" || file) {
+      served.add(request.url);
       response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
-      response.end(fs.readFileSync(file));
+      response.end(name === "large.xml" ? large : fs.readFileSync(file));
     } else {
       response.writeHead(404);
       response.end();
@@ -46,8 +58,18 @@ function serve() {
   });
 }
 
-function fileFor(url) {
-  const name = path.basename(decodeURIComponent(url.split("?")[0]));
+function largeFeed(count) {
+  const sample = fs.readFileSync(path.join(SAMPLES, "onix-3.1-refnames.xml"), "utf8");
+  const start = sample.indexOf("<Product>");
+  const end = sample.indexOf("</Product>") + "</Product>".length;
+  const product = sample.slice(start, end);
+  const products = Array.from({ length: count }, (_, i) =>
+    product.replace(/<RecordReference>[^<]*<\/RecordReference>/,
+      `<RecordReference>large-${i}</RecordReference>`)).join("\n");
+  return sample.slice(0, start) + products + sample.slice(end);
+}
+
+function fileFor(name) {
   let found = null;
   for (const dir of [FIXTURES, SAMPLES]) {
     const candidate = path.join(dir, name);
@@ -199,12 +221,66 @@ async function takeover(browser, served) {
     await page.close();
   });
 
-  await test("a non-ONIX XML file is left to the browser", async () => {
-    const page = await browser.newPage();
-    await page.goto(served.url("rss.xml"), { waitUntil: "load" });
-    const untouched = await page.evaluate(() =>
-      !document.documentElement.hasAttribute("data-oxv") && !document.getElementById("oxv-root"));
-    assert(untouched, "no takeover of an RSS feed");
+  // The two documents below are the promise that detaching the parser's root
+  // costs nothing outside ONIX: an RSS root is never taken, and a bare
+  // <Product> is taken only once an ONIX child corroborates it — so a
+  // non-ONIX one stays put, and Chrome's own viewer renders both as it
+  // always has: the root replaced by its <html>, the source in its wrapper.
+  for (const [name, root] of [["rss.xml", "rss"], ["non-onix-product.xml", "Product"]]) {
+    await test(`a non-ONIX XML file (${name}) is left to Chrome's viewer`, async () => {
+      const page = await browser.newPage();
+      await page.goto(served.url(name), { waitUntil: "load" });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const state = await page.evaluate(() => ({
+        marked: document.documentElement.hasAttribute("data-oxv"),
+        viewer: !!document.getElementById("oxv-root"),
+        native: document.getElementById("webkit-xml-viewer-source-xml")?.firstElementChild?.localName || "",
+      }));
+      assert(!state.marked && !state.viewer, `no takeover of ${name}`);
+      assert(state.native === root, `Chrome's viewer holds <${root}> as the source; got "${state.native}"`);
+      await page.close();
+    });
+  }
+
+  await test("a bare <Product> root with no namespace is taken over once its children corroborate it", async () => {
+    const page = await open(browser, served.url("onix-standalone-product-no-namespace.xml"));
+    const state = await page.evaluate(() => ({
+      marked: document.documentElement.hasAttribute("data-oxv"),
+      meta: document.getElementById("oxv-meta").textContent,
+      children: document.children.length,
+    }));
+    assert(state.marked && state.children === 1, "taken over, the shell alone in the document");
+    assert(state.meta.includes("1 product"), `the pill counts it; got "${state.meta}"`);
+    await page.close();
+  });
+
+  await test("when the re-fetch fails, the source is read from the parser's own tree", async () => {
+    const fetched = await open(browser, served.url("onix-3.1-valid.xml"));
+    const expected = await fetched.evaluate(() => document.querySelectorAll("#oxv-root .px-row").length);
+    await fetched.close();
+    const page = await open(browser, served.url("once-onix-3.1-valid.xml"));
+    const state = await page.evaluate(() => ({
+      rows: document.querySelectorAll("#oxv-root .px-row").length,
+      verdict: document.getElementById("oxv-validation").textContent,
+      children: document.children.length,
+    }));
+    assert(state.rows === expected, `the same tree as from the fetch; got ${state.rows} rows, expected ${expected}`);
+    assert(state.verdict.includes("Valid"), `validated from the fallback source; got "${state.verdict}"`);
+    assert(state.children === 1, `only the shell is left in the document; got ${state.children} children`);
+    await page.close();
+  });
+
+  await test("a 300-product feed is taken over whole, with nothing of the native document left", async () => {
+    const page = await open(browser, served.url("large.xml"));
+    const state = await page.evaluate(() => ({
+      meta: document.getElementById("oxv-meta").textContent,
+      verdict: document.getElementById("oxv-validation").textContent,
+      children: document.children.length,
+      native: !!document.getElementById("webkit-xml-viewer-source-xml"),
+    }));
+    assert(state.meta.includes("300 products"), `the pill counts the feed; got "${state.meta}"`);
+    assert(!state.verdict.includes("Validating"), `the verdict is in; got "${state.verdict}"`);
+    assert(state.children === 1 && !state.native, "the shell is the document's only element and Chrome's viewer left nothing");
     await page.close();
   });
 }

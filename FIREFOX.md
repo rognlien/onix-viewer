@@ -163,6 +163,12 @@ page reports.
 
 ### If the mid-parse case misbehaves: the fix is in `content.js`, Firefox only
 
+*Since the Safari branch, half of the first strategy below ships for every
+browser: `content.js` detaches the parser's root as soon as it appears (see
+`SAFARI.md`). The shell is still installed as soon as the source is in,
+which on a multi-chunk feed is before `DidBuildModel`, so the printer would
+find the shell as the root. What remains open is only the install timing.*
+
 Two candidate strategies, both cheap, both gated on
 `runtime.getURL("").startsWith("moz-extension:")` so Chrome keeps its
 proven path:

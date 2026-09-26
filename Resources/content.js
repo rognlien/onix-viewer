@@ -58,6 +58,20 @@
   if (!XML_CONTENT_TYPES.has(baseType)) return;
   if (SKIP_TYPES.has(baseType)) return;
 
+  // The browser goes on parsing, styling and laying out the document we are
+  // about to replace, and Chrome's and WebKit's XML tree viewers then rebuild
+  // it once more when the parse ends — on a 5 MB feed in Safari, seconds of
+  // work that nobody sees. So the parser's root is taken out of the document
+  // the moment it appears. The parser keeps filling it, detached, which is
+  // what the DOM fallback reads if the re-fetch fails; the viewers find an
+  // empty document and draw nothing; the shell is appended into that empty
+  // document when the source is in. Measured in Chrome: a tenth off the time
+  // to the first verdict on a cold load. Only a root that looks like ONIX is
+  // taken, so an RSS feed keeps its native view without a flicker.
+  let nativeRoot = null;
+  let detaching = null;
+  detachNativeDocument();
+
   // Try to re-fetch the original source first — fast and clean for normal
   // http(s) navigations. If that fails (file:// URLs are origin "null" and
   // CORS-blocked; one-shot signed URLs reject the second request; bearer-auth
@@ -75,13 +89,87 @@
       // gets the browser's native view, undisturbed.
       if (!looksLikeOnix(xmlSource)) {
         dlog("[OnixViewer] XML is not ONIX, leaving native view.");
+        restoreNativeDocument();
         return;
       }
       takeOver(xmlSource, rules);
     })
     .catch((err) => {
       dwarn("[OnixViewer] Could not load source, leaving native view:", err);
+      restoreNativeDocument();
     });
+
+  // A root is ONIX by its namespace, or by name where there is none: the
+  // message envelope in either dialect, or the Acknowledgement. A bare
+  // <Product> is decided by its children instead — see the corroboration in
+  // looksLikeOnix() — which the parser has to produce first.
+  function rootLooksLikeOnix(root) {
+    if ((root.namespaceURI || "").includes("ns.editeur.org/onix")) return true;
+    return /^(ONIXMessage|ONIXmessage|ONIXMessageAcknowledgement)$/.test(root.localName);
+  }
+
+  function isBareProduct(root) {
+    return root.localName === "Product" && !root.namespaceURI;
+  }
+
+  function hasOnixProductChild(root) {
+    return [...root.children].some((child) =>
+      /^(RecordReference|NotificationType|a001|a002)$/.test(child.localName));
+  }
+
+  // Removes every element child of the document that is not our shell: the
+  // parser's root first (kept as nativeRoot), and anything a native tree
+  // viewer adds after it. A first root that is not ONIX ends the watch
+  // instead, and the page stays the browser's.
+  function detachNativeDocument() {
+    const drop = () => {
+      for (const child of [...document.children]) {
+        if (child.hasAttribute("data-oxv")) continue;
+        if (nativeRoot) { child.remove(); continue; }
+        if (rootLooksLikeOnix(child)) take(child);
+        else if (isBareProduct(child)) whenCorroborated(child, () => take(child));
+        else stopDetaching();
+        return;
+      }
+    };
+    const take = (root) => {
+      nativeRoot = root;
+      root.remove();
+      drop();
+    };
+    detaching = new MutationObserver(drop);
+    detaching.observe(document, { childList: true });
+    drop();
+  }
+
+  // A bare <Product> is taken once the parser has given it an ONIX child, and
+  // left alone if the parse ends without one.
+  function whenCorroborated(root, callback) {
+    const check = () => {
+      if (!hasOnixProductChild(root)) return;
+      observer.disconnect();
+      if (detaching) callback();
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(root, { childList: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      observer.disconnect();
+      if (!nativeRoot) stopDetaching();
+    }, { once: true });
+    check();
+  }
+
+  function stopDetaching() {
+    if (detaching) detaching.disconnect();
+    detaching = null;
+  }
+
+  function restoreNativeDocument() {
+    stopDetaching();
+    if (nativeRoot && !nativeRoot.isConnected && !document.documentElement) {
+      document.appendChild(nativeRoot);
+    }
+  }
 
   function looksLikeOnix(xml) {
     // String-level sniff against the head of the document. Cheaper than
@@ -185,15 +273,21 @@
   }
 
   function readSourceFromDom() {
-    // Chrome's native XML viewer wraps the original XML inside
-    // <div id="webkit-xml-viewer-source-xml"> and replaces documentElement
-    // with an HTML shell. We need to find the wrapper and serialize its
-    // children. If the wrapper isn't there (older viewers, other browsers,
-    // or non-file:// XML), fall back to serializing documentElement directly.
+    // The parser's own tree is the source: nativeRoot when the root was
+    // detached (the parser fills it to the end regardless), else Chrome's
+    // native XML viewer's wrapper, <div id="webkit-xml-viewer-source-xml">,
+    // else documentElement. Nothing is read before the parse has ended,
+    // since a tree still being built serialises to a truncated document.
     return new Promise((resolve, reject) => {
       const serializer = new XMLSerializer();
 
       const grab = () => {
+        if (nativeRoot) {
+          try {
+            const s = serializer.serializeToString(nativeRoot);
+            if (s && s.trim()) return s;
+          } catch { /* fall through to the other sources */ }
+        }
         const wrap = document.getElementById("webkit-xml-viewer-source-xml");
         if (wrap && wrap.childNodes.length) {
           let xml = "";
@@ -211,9 +305,6 @@
         }
         return null;
       };
-
-      const ready = grab();
-      if (ready) return resolve(ready);
 
       const onReady = () => {
         // The wrapper sometimes mounts a tick after DOMContentLoaded; retry
@@ -238,10 +329,10 @@
 
   function takeOver(xmlSource, rules) {
     // We run at document_start and a cached re-fetch resolves quickly, so the
-    // parser may not have created the root element yet. There is nothing to
-    // replace until it has — and the swap below throws on a null root, into
-    // the catch above, which is silent in release.
-    if (!document.documentElement) {
+    // parser may not have produced its root yet. The shell waits for that:
+    // installed earlier, it would sit beside the parser's root rather than in
+    // its place, since the parser appends without the one-root check.
+    if (!nativeRoot && !document.documentElement) {
       whenRootExists(() => takeOver(xmlSource, rules));
       return;
     }
@@ -250,10 +341,11 @@
     // over (a Web Store install running alongside an unpacked one). Replacing
     // its shell would leave two viewer instances rendering into one tree, so
     // the first takeover wins and later ones stand down.
-    if (document.documentElement.hasAttribute("data-oxv")) {
+    if (document.documentElement && document.documentElement.hasAttribute("data-oxv")) {
       dlog("[OnixViewer] page already taken over, standing down.");
       return;
     }
+    stopDetaching();
 
     // We can't use document.open() + document.write() here: per the HTML spec,
     // document.open() throws InvalidStateError on a non-HTML document, and a
@@ -279,7 +371,8 @@
 
     const parsed = new DOMParser().parseFromString(shellHtml, "text/html");
     const newRoot = document.importNode(parsed.documentElement, true);
-    document.replaceChild(newRoot, document.documentElement);
+    if (document.documentElement) document.replaceChild(newRoot, document.documentElement);
+    else document.appendChild(newRoot);
 
     // Important: `document.contentType` is still "application/xml" even after
     // we swapped in an HTML <html> root. In an XML document, plain
@@ -324,9 +417,11 @@
     });
   }
 
-  // Calls back once the parser has given the document a root element. The
-  // parser's insertions are observable mutations; DOMContentLoaded is the
-  // backstop for a document that reaches the end without one.
+  // Calls back once the parser has produced a root element — which the
+  // detach observer, registered earlier and so run earlier, may already have
+  // taken as nativeRoot. The parser's insertions are observable mutations;
+  // DOMContentLoaded is the backstop for a document that reaches the end
+  // without one.
   function whenRootExists(callback) {
     let called = false;
     const once = () => {
@@ -336,7 +431,7 @@
       callback();
     };
     const observer = new MutationObserver(() => {
-      if (document.documentElement) once();
+      if (nativeRoot || document.documentElement) once();
     });
     observer.observe(document, { childList: true });
     document.addEventListener("DOMContentLoaded", once, { once: true });

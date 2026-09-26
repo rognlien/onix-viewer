@@ -5,6 +5,18 @@ the main branch.
 
 ## Unreleased
 
+### Changed
+- **The browser's own document is detached as soon as its root appears**,
+  when that root looks like ONIX. The parser keeps filling it, and the DOM
+  fallback reads it if the re-fetch fails, but the browser no longer styles
+  or lays out the document about to be replaced, and its XML tree viewer
+  has nothing to rebuild when the parse ends. Cold-load time to the first
+  verdict in Chrome: 1.52 s → 1.31 s for 300 products, 4.84 s → 4.38 s for
+  1,000. In Safari it is what keeps WebKit's tree viewer from spending
+  seconds on a large feed first. Non-ONIX XML is untouched: an RSS root ends
+  the watch, and a bare `<Product>` is taken only once an ONIX child
+  corroborates it.
+
 ### Added
 - **A start on Safari.** `tools/package-extension.sh --target=safari`
   prunes the manifest for Safari (its own `strict_min_version`, the Chrome

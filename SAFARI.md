@@ -76,11 +76,20 @@ run; MDN says Safari 18.4 has it. If the manual run shows a `blob:` URL is
 not taken over, drop the key from the Safari manifest in the packager and
 lose nothing, since it was not working anyway.
 
-### Nothing else
+### The parser's root is detached as soon as it appears
 
-`content.js` is not touched, on the same discipline as the Firefox branch:
-the change it may need depends on which case the swap lands in, below, and
-that is a thing to see, not to guess.
+The one `content.js` change, and it is for every browser rather than gated
+on Safari, because it measured as a gain in Chrome too. When the parser
+produces a root that looks like ONIX, `content.js` removes it from the
+document at once and keeps it as `nativeRoot`: the parser fills it to the
+end regardless (the DOM fallback serialises it if the re-fetch fails), but
+the browser no longer styles or lays out a document about to be replaced,
+and its tree viewer, running at the end of the parse over "every child of
+the document", finds nothing. The shell is appended into the empty document
+when the source is in. Chrome, cold load, time to the first verdict: 1.52 s
+→ 1.31 s for 300 products, 4.84 s → 4.38 s for 1,000. What the manual run
+showed in Safari before the change is in the next section; the run after it
+is still to do.
 
 ## What could not be verified, and the question it hangs on
 
@@ -88,6 +97,28 @@ There is no automated path. puppeteer does not drive Safari, and the
 sessions `safaridriver` starts are isolated from the user's extensions, so
 the check is by hand, from a Safari with *Show features for web
 developers* on — which is also what turns the tree viewer on.
+
+**What one run showed, 2026-09-26, before the detach change**, Safari 27.0 on
+macOS 27, the extension loaded as a temporary extension:
+
+- The takeover works on an XML document: the small sample rendered with the
+  toolbar, the verdict and the code-list labels, from the fetch path.
+- Two Safari gotchas before anything works: site access is granted per
+  extension from its toolbar button or Settings → Websites, and a temporary
+  extension is enabled **in the profile it was added from only** — Settings
+  → Extensions says "active in the Personal profile", with a dash in the
+  checkbox, and a window in another profile shows nothing at all.
+- The 300-product feed on a **cold** load: white, then Safari's unstyled
+  rendering, then the web process unresponsive until Safari killed it and
+  reloaded the page — after which the viewer appeared whole. A second cold
+  load of the same feed under a new name took about ten seconds and worked.
+  The server saw one request per load, so the re-fetch never reached it:
+  WebKit coalesced it with the page's own download, which means the source
+  cannot arrive before the download ends, and the tree viewer gets its turn
+  first. Without the extension the same feed loads in a few seconds.
+- The verdict pill showed "600 warnings" with the *error* glyph: the viewer
+  picks that icon whenever there are findings (`viewer.js`, `icon("error")`
+  in the verdict), a bug of its own for its own commit.
 
 ### WebKit's tree viewer and a swapped root
 
@@ -144,26 +175,30 @@ Neither should be written until the run shows which case the swap lands in.
 
 ```bash
 tools/package-extension.sh --target=safari
-(cd Onix && python3 -m http.server 8000)   # serves .xml as text/xml, which the gate accepts
 node -e '
   const fs = require("fs"), s = fs.readFileSync("Onix/onix-3.1-refnames.xml", "utf8");
   const a = s.indexOf("<Product>"), b = s.indexOf("</Product>") + 10, p = s.slice(a, b);
-  fs.writeFileSync("Onix/large.xml", s.slice(0, a) + Array.from({length: 300}, (_, i) =>
+  fs.writeFileSync("dist/large.xml", s.slice(0, a) + Array.from({length: 300}, (_, i) =>
     p.replace(/<RecordReference>[^<]*/, "<RecordReference>large-" + i)).join("\n") + s.slice(b));
-'   # 5 MB, 300 products — the multi-chunk case; delete it afterwards
+'   # 5 MB, 300 products — the multi-chunk case. In dist/, NOT Onix/: the
+    # suite runs every file in Onix/, and a 5 MB feed there blows jsdom's heap
+python3 -m http.server 8000   # from the repo root; serves .xml as application/xml
 ```
 
 Then in Safari: Settings → Advanced → *Show features for web developers*;
 Settings → Developer → *Allow unsigned extensions*, then *Add Temporary
 Extension…* → `dist/onix-viewer-0.9.19-safari`; Settings → Extensions →
-turn ONIX Viewer on; open `http://localhost:8000/onix-3.1-refnames-defects.xml`,
-click the extension's toolbar button and choose *Always Allow on Every
-Website*, reload. Look for:
+turn ONIX Viewer on **in the profile you will browse from** (a temporary
+extension is enabled in the profile it was added from and nowhere else);
+open `http://127.0.0.1:8000/Onix/onix-3.1-refnames-defects.xml`, click the
+extension's toolbar button and choose *Always Allow on Every Website*,
+reload. A cold load needs a name Safari has not cached, so copy the feed to
+a new name in `dist/` for each one. Look for:
 
 1. **The toolbar and the verdict** on the small file — the takeover works
    on an XML document at all, the stylesheet loads from
    `safari-web-extension://`, the mark shows, About reads `0.9.19-dev`.
-2. **`large.xml`**: whether the page ends as the viewer or as WebKit's tree
+2. **`/dist/large.xml`**, cold: whether the page ends as the viewer or as WebKit's tree
    of the viewer's markup ("This XML file does not appear to have any style
    information…" at the top is the tell). This is the question.
 3. **Developer features off** (uncheck it, which also drops the temporary
