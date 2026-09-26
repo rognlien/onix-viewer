@@ -75,6 +75,10 @@ and pressing the reload arrow on the card.
 **For development.** Load the repo's `Resources/` folder the same way. After
 an edit, press the reload arrow on the card and refresh the page.
 
+In Firefox, load the same folder from `about:debugging#/runtime/this-firefox`
+with **Load Temporary Add-on…** and pick `Resources/manifest.json`. The
+Firefox build is in progress; `FIREFOX.md` has the state of it.
+
 ## Keyboard shortcuts
 
 | Key | Action |
@@ -148,6 +152,32 @@ the item ID is derived from the signing key and does not change between
 versions. `site/index.html` links it, and a test holds it to that ID. After
 changing the page, copy `site/` to `onix-viewer/` in the maendeleo-site repo to
 publish it.
+
+### Source for addons.mozilla.org
+
+AMO asks for the source whenever the upload contains generated files, and
+three of ours are: `Resources/onix-codelists.js` and the two content models,
+written by the generators in `tools/` from the committed inputs in
+`tools/data/`. The source archive is the working tree minus editor and tool
+config, and the build needs Node 20 or later, `zip`, and the dev
+dependencies (the generators parse the schemas with jsdom):
+
+```bash
+git ls-files -co --exclude-standard | grep -v -E '^(\.idea|\.claude)/' \
+  | zip -q -@ dist/onix-viewer-0.9.19-source.zip
+```
+
+To reproduce the upload from it, run the generators and the packager; the
+generators are byte-stable, so `git status` stays clean, and the zip matches
+`Resources/` file for file except for the manifest edits the packager makes:
+
+```bash
+npm ci
+node tools/generate-codelists.js
+node tools/generate-content-model.js --version=3.1
+node tools/generate-content-model.js --version=3.0
+tools/package-extension.sh --target=firefox   # dist/onix-viewer-<version>-firefox.zip
+```
 
 ## Known limitations
 

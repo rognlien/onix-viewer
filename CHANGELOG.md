@@ -9,6 +9,15 @@ the main branch.
 - **An MIT licence.** `LICENSE` at the repo root and `"license": "MIT"` in
   `package.json`.
 
+- **A start on Firefox.** The manifest carries the Firefox add-on id,
+  minimum version and no-data-collection declaration beside the Chrome keys,
+  so `Resources/` loads as a temporary add-on in Firefox as it loads unpacked
+  in Chrome; `tools/package-extension.sh --target=firefox` builds the AMO zip
+  with the Chrome keys pruned, and the Chrome zip no longer carries the
+  Firefox ones. The README says how to build the source archive AMO asks
+  for and how to reproduce the upload from it. Not yet released for Firefox —
+  `FIREFOX.md` has what remains.
+
 - **Your own validation rules, written as Schematron.** A cog in the
   toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
   context>`, `<assert>` and `<report>` and it is checked on every ONIX

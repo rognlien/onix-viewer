@@ -23,6 +23,7 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
+├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
@@ -47,7 +48,8 @@ onix-viewer/
 │                                   Only manifest sizes are consulted, so a file
 │                                   at any other size is never read
 ├── tools/
-│   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload
+│   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
+│   │                               or the -firefox.zip for AMO with --target=firefox
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
@@ -68,6 +70,7 @@ onix-viewer/
 │   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (281 tests, ~9s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
+│   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see FIREFOX.md
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
 ├── Screenshots/                    store screenshots, committed at 1280×800
