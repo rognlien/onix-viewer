@@ -94,8 +94,13 @@ function launch() {
 
 // Open a served document and wait for the viewer to have taken it over and
 // finished validating; the page's globals are then ready to be asked.
+// A realistic window. Headless Chrome defaults to 800×600, and below about
+// 860px the toolbar's right column overlaps its centre one — the issue pill
+// covers the verdict pill, so a click on it opens nothing. A bug of the
+// toolbar's own, not of what these tests are about.
 async function open(browser, url) {
   const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
   page.on("pageerror", (error) => { throw error; });
   await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector("#oxv-root .px-row", { timeout: 10000 });
@@ -277,10 +282,37 @@ async function takeover(browser, served) {
       verdict: document.getElementById("oxv-validation").textContent,
       children: document.children.length,
       native: !!document.getElementById("webkit-xml-viewer-source-xml"),
+      pending: document.querySelectorAll("#oxv-root .px-children.px-pending").length,
+      rows: document.querySelectorAll("#oxv-root .px-row").length,
     }));
     assert(state.meta.includes("300 products"), `the pill counts the feed; got "${state.meta}"`);
     assert(!state.verdict.includes("Validating"), `the verdict is in; got "${state.verdict}"`);
     assert(state.children === 1 && !state.native, "the shell is the document's only element and Chrome's viewer left nothing");
+    assert(state.pending > 250 && state.rows < 30000,
+      `most Products wait for the viewport; got ${state.pending} pending and ${state.rows} rows`);
+
+    // Scrolling to the end brings the last Products within reach of the
+    // observer, which renders them; the first ones stay as they were.
+    // #oxv-root is the scroll container, not the window.
+    await page.evaluate(() => { const r = document.getElementById("oxv-root"); r.scrollTo(0, r.scrollHeight); });
+    await page.waitForFunction(() => {
+      const containers = document.querySelectorAll("#oxv-root > .px-children > .px-children");
+      return !containers[containers.length - 1].classList.contains("px-pending");
+    }, { timeout: 10000 });
+    const after = await page.evaluate(() =>
+      document.querySelectorAll("#oxv-root .px-children.px-pending").length);
+    assert(after < state.pending && after > 200, `the Products near the end rendered, the middle did not; got ${after} pending`);
+
+    // The findings list reaches into a Product not yet rendered.
+    await page.click("#oxv-validation");
+    await page.waitForSelector("#oxv-findings:not([hidden])");
+    const entries = await page.$$("#oxv-findings .px-findings-item");
+    await entries[Math.floor(entries.length / 2)].click();
+    const jumped = await page.evaluate(() => {
+      const active = document.querySelector("#oxv-root .px-row.px-active");
+      return { active: !!active, pill: !!(active && active.querySelector(".px-finding")) };
+    });
+    assert(jumped.active && jumped.pill, "the entry's row is rendered, active and carries its pill");
     await page.close();
   });
 }

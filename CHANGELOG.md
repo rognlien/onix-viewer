@@ -6,6 +6,14 @@ the main branch.
 ## Unreleased
 
 ### Changed
+- **Products are rendered as they near the viewport.** Above 20 products
+  each Product keeps its open and close rows and an empty container the
+  height of an unrendered subtree, and an `IntersectionObserver` fills it
+  within two screens of the viewport. Findings inside a Product not yet
+  rendered are pinned when it is; the findings list and the search render
+  what they need first. Cold-load time to the first verdict in Chrome:
+  1.45 s → 0.51 s for 300 products, 4.7 s → 1.5 s for 1,000, and scrolling
+  moves a screenful of rows rather than the feed.
 - **The browser's own document is detached as soon as its root appears**,
   when that root looks like ONIX. The parser keeps filling it, and the DOM
   fallback reads it if the re-fetch fails, but the browser no longer styles

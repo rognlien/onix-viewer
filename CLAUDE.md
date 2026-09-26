@@ -163,7 +163,9 @@ What dominated was the browser's own style, layout, prepaint and text
 shaping over the tree, and it got worse than linear: 5.6 s to the first
 verdict on the small feed, 41 s on the large one, of which the JS was 3.5 s.
 
-**`content-visibility: auto` on each Product's subtree** is the fix, two
+**`content-visibility: auto` on each Product's subtree** was the first fix
+(the second, rendering Products only as they near the viewport, is the next
+section), two
 declarations on `#oxv-root > .px-children > .px-children` in `viewer.css`.
 Chrome then lays out a Product only when it is near the viewport and skips
 the rest until they scroll in — on load, 299 of 301 containers on the small
@@ -192,6 +194,45 @@ The selector is a child chain, so it names the Header's and each Product's
 container and nothing deeper — one skip boundary per Product, which is the
 grain a reader scrolls at. `tests/cases/35-large-feeds.test.js` holds the
 rule in place; the timings above are by hand, since jsdom lays nothing out.
+
+### Products are rendered as they near the viewport
+
+Above **20 products** (`LAZY_FROM_PRODUCTS` in `viewer.js`) the tree is not
+built up front. Each Product child of the message root gets its open row —
+the summary chip, the block badge, the fold chevron — and its close row,
+and an **empty children container** marked `px-pending`, held to the same
+1200px placeholder height as an unrendered subtree (`.px-children.px-pending`
+in `viewer.css`). An `IntersectionObserver` with a two-screen root margin
+renders the container's Product when it comes within reach, once, and stops
+watching it. Measured in headless Chrome, cold load to the first verdict:
+1.45 s → 0.51 s for 300 products, 4.7 s → 1.5 s for 1,000, and what is
+left is the parse and the validation, which run over the parsed document
+whatever is rendered. Below the threshold everything is built up front as
+before, so a small file stays simple and deterministic — jsdom has no
+`IntersectionObserver`, and the suite takes that path unless a test supplies
+one (`tests/cases/36-lazy-products.test.js` does).
+
+Everything that reaches for a row inside a Product goes through
+`ensureRendered(node)` first, or waits for the Product:
+
+- **Findings.** `pinFinding()` queues a finding whose node sits inside a
+  deferred Product (`pendingFindings`, keyed by the Product) and pins it when
+  the Product renders. Pinning at once would render every Product with a
+  finding, which on a feed with a warning per record is the whole feed. The
+  toolbar's verdict counts everything regardless, since validation works on
+  the parsed document; the findings list lists everything; and an entry's
+  click renders its Product before jumping.
+- **Search.** `runSearch()` renders every deferred Product first, because the
+  search reads the rendered tree — tag names, values, and the chips, which a
+  search over the source would have to reproduce. That is the whole feed
+  once, which is what the viewer built on load before this; a source-side
+  search that counts what the chips add is the follow-up if it matters.
+- **Folding.** A deferred Product's open row folds like any other, and its
+  container is `display: none` while it is folded, so it never intersects
+  and renders when unfolded, not before. Collapse's second step therefore
+  folds the whole feed without rendering a row.
+- **The dialect switch** needs nothing: a Product rendered later is built in
+  the displayed dialect, as every row is.
 
 ### The renderer walks with an explicit stack
 
