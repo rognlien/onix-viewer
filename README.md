@@ -169,6 +169,10 @@ background worker, and makes exactly one network request: a same-origin
 re-fetch of the page you are viewing. Nothing leaves your machine. See
 [SECURITY.md](SECURITY.md) for the threat model and how to verify it.
 
+## Licence
+
+MIT. See [LICENSE](LICENSE).
+
 ## See also
 
 - [CHANGELOG.md](CHANGELOG.md), release notes.

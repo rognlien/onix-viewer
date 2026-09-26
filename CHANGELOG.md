@@ -6,6 +6,9 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **An MIT licence.** `LICENSE` at the repo root and `"license": "MIT"` in
+  `package.json`.
+
 - **Your own validation rules, written as Schematron.** A cog in the
   toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
   context>`, `<assert>` and `<report>` and it is checked on every ONIX
