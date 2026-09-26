@@ -128,9 +128,10 @@ left is speed. Bendik's word for it: "sluggish and slow". Safari parses the
 whole feed into the detached root before the re-fetch can resolve, since
 WebKit coalesces it with the page's own download, and it then builds and
 lays out the viewer's 144k rows as Chrome does, only slower. The next step
-is not Safari-specific: render products lazily, which makes the row count
-a screenful rather than the feed, and profile in Safari's Web Inspector
-Timelines afterwards if it is still slow there.
+was not Safari-specific: Products are now rendered only as they near the
+viewport (see `CLAUDE.md`), and with that in the loaded folder the same
+300-product feed on a cold load was, in Bendik's words, "really well" —
+load and scrolling both. No Timeline recording was needed.
 
 ### WebKit's tree viewer and a swapped root
 
