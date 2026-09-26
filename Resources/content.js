@@ -69,8 +69,7 @@
   // to the first verdict on a cold load. Only a root that looks like ONIX is
   // taken, so an RSS feed keeps its native view without a flicker.
   // Declared ahead of the entry point that uses them, like RULES_KEY below:
-  // a const further down is in its dead zone when this runs.
-  const PLACEHOLDER = "data-oxv-placeholder";
+  // a let further down is in its dead zone when this runs.
   let nativeRoot = null;
   let detaching = null;
   detachNativeDocument();
@@ -120,42 +119,32 @@
       /^(RecordReference|NotificationType|a001|a002)$/.test(child.localName));
   }
 
-  // Removes every element child of the document that is not ours: the
-  // parser's root first (kept as nativeRoot), and anything a native tree
-  // viewer adds after it. A first root that is not ONIX ends the watch
-  // instead, and the page stays the browser's.
-  //
-  // In WebKit the document is never left empty: its tree viewer, which runs
-  // when the parse ends, crashes the web process on a document with no
-  // element (SIGSEGV in XMLTreeViewer::transformDocumentToTreeView, Safari
-  // 27), so a blank placeholder root stands in until the shell replaces it.
-  // Chrome handles the empty document, and its own viewer running over a
-  // placeholder measured as a few percent of the gain, so only WebKit pays.
+  // Waits for the parser's root and takes it out of the document, keeping it
+  // as nativeRoot; a root that is not ONIX ends the watch instead, and the
+  // page stays the browser's. The watch ends with the take as well: the
+  // browser's tree viewer may put an <html> of its own into the emptied
+  // document when the parse ends, and the shell replaces that as it would
+  // any root. Removing it here instead crashed Safari — WebKit's viewer
+  // appends its stylesheet from C++ right after its script has built that
+  // <html>, and an observer callback runs at the microtask checkpoint in
+  // between, so the C++ appended into a detached element (SIGSEGV in
+  // XMLTreeViewer::transformDocumentToTreeView, Safari 27).
   function detachNativeDocument() {
-    const drop = () => {
-      for (const child of [...document.children]) {
-        if (child.hasAttribute("data-oxv") || child.hasAttribute(PLACEHOLDER)) continue;
-        if (nativeRoot) { child.remove(); continue; }
-        if (rootLooksLikeOnix(child)) take(child);
-        else if (isBareProduct(child)) whenCorroborated(child, () => take(child));
-        else stopDetaching();
-        return;
-      }
+    const look = () => {
+      const root = document.documentElement;
+      if (!root || root.hasAttribute("data-oxv")) return;
+      if (rootLooksLikeOnix(root)) take(root);
+      else if (isBareProduct(root)) whenCorroborated(root, () => take(root));
+      else stopDetaching();
     };
     const take = (root) => {
+      stopDetaching();
       nativeRoot = root;
-      if (isWebKit()) {
-        const placeholder = document.createElementNS("http://www.w3.org/1999/xhtml", "html");
-        placeholder.setAttribute(PLACEHOLDER, "1");
-        document.replaceChild(placeholder, root);
-      } else {
-        root.remove();
-      }
-      drop();
+      root.remove();
     };
-    detaching = new MutationObserver(drop);
+    detaching = new MutationObserver(look);
     detaching.observe(document, { childList: true });
-    drop();
+    look();
   }
 
   // A bare <Product> is taken once the parser has given it an ONIX child, and
@@ -164,7 +153,7 @@
     const check = () => {
       if (!hasOnixProductChild(root)) return;
       observer.disconnect();
-      if (detaching) callback();
+      if (detaching && root.isConnected) callback();
     };
     const observer = new MutationObserver(check);
     observer.observe(root, { childList: true });
@@ -173,10 +162,6 @@
       if (!nativeRoot) stopDetaching();
     }, { once: true });
     check();
-  }
-
-  function isWebKit() {
-    return browserAPI().runtime.getURL("").startsWith("safari-web-extension:");
   }
 
   function stopDetaching() {
@@ -188,8 +173,8 @@
     stopDetaching();
     if (!nativeRoot || nativeRoot.isConnected) return;
     const root = document.documentElement;
-    if (root && root.hasAttribute(PLACEHOLDER)) document.replaceChild(nativeRoot, root);
-    else if (!root) document.appendChild(nativeRoot);
+    if (root) document.replaceChild(nativeRoot, root);
+    else document.appendChild(nativeRoot);
   }
 
   function looksLikeOnix(xml) {
