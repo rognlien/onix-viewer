@@ -68,6 +68,9 @@
   // document when the source is in. Measured in Chrome: a tenth off the time
   // to the first verdict on a cold load. Only a root that looks like ONIX is
   // taken, so an RSS feed keeps its native view without a flicker.
+  // Declared ahead of the entry point that uses them, like RULES_KEY below:
+  // a const further down is in its dead zone when this runs.
+  const PLACEHOLDER = "data-oxv-placeholder";
   let nativeRoot = null;
   let detaching = null;
   detachNativeDocument();
@@ -117,14 +120,21 @@
       /^(RecordReference|NotificationType|a001|a002)$/.test(child.localName));
   }
 
-  // Removes every element child of the document that is not our shell: the
+  // Removes every element child of the document that is not ours: the
   // parser's root first (kept as nativeRoot), and anything a native tree
   // viewer adds after it. A first root that is not ONIX ends the watch
   // instead, and the page stays the browser's.
+  //
+  // In WebKit the document is never left empty: its tree viewer, which runs
+  // when the parse ends, crashes the web process on a document with no
+  // element (SIGSEGV in XMLTreeViewer::transformDocumentToTreeView, Safari
+  // 27), so a blank placeholder root stands in until the shell replaces it.
+  // Chrome handles the empty document, and its own viewer running over a
+  // placeholder measured as a few percent of the gain, so only WebKit pays.
   function detachNativeDocument() {
     const drop = () => {
       for (const child of [...document.children]) {
-        if (child.hasAttribute("data-oxv")) continue;
+        if (child.hasAttribute("data-oxv") || child.hasAttribute(PLACEHOLDER)) continue;
         if (nativeRoot) { child.remove(); continue; }
         if (rootLooksLikeOnix(child)) take(child);
         else if (isBareProduct(child)) whenCorroborated(child, () => take(child));
@@ -134,7 +144,13 @@
     };
     const take = (root) => {
       nativeRoot = root;
-      root.remove();
+      if (isWebKit()) {
+        const placeholder = document.createElementNS("http://www.w3.org/1999/xhtml", "html");
+        placeholder.setAttribute(PLACEHOLDER, "1");
+        document.replaceChild(placeholder, root);
+      } else {
+        root.remove();
+      }
       drop();
     };
     detaching = new MutationObserver(drop);
@@ -159,6 +175,10 @@
     check();
   }
 
+  function isWebKit() {
+    return browserAPI().runtime.getURL("").startsWith("safari-web-extension:");
+  }
+
   function stopDetaching() {
     if (detaching) detaching.disconnect();
     detaching = null;
@@ -166,9 +186,10 @@
 
   function restoreNativeDocument() {
     stopDetaching();
-    if (nativeRoot && !nativeRoot.isConnected && !document.documentElement) {
-      document.appendChild(nativeRoot);
-    }
+    if (!nativeRoot || nativeRoot.isConnected) return;
+    const root = document.documentElement;
+    if (root && root.hasAttribute(PLACEHOLDER)) document.replaceChild(nativeRoot, root);
+    else if (!root) document.appendChild(nativeRoot);
   }
 
   function looksLikeOnix(xml) {
