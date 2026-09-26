@@ -150,8 +150,10 @@ submit for review. `CWS_LISTING.md` has the listing copy and reviewer notes.
 The store listing is https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife;
 the item ID is derived from the signing key and does not change between
 versions. `site/index.html` links it, and a test holds it to that ID. After
-changing the page, copy `site/` to `onix-viewer/` in the maendeleo-site repo to
-publish it.
+changing the page, commit and run `tools/publish-site.sh`, which syncs `site/`
+into the maendeleo-site repo's `onix-viewer/`, commits there and pushes; the
+host deploys from that push. It refuses to overwrite an edit made in the site
+repo, and `--dry-run` shows what would change.
 
 ### Source for addons.mozilla.org
 

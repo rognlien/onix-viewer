@@ -6,6 +6,11 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **A script that publishes the web page.** `tools/publish-site.sh` syncs
+  `site/` into the maendeleo-site repo, commits there naming the commit it
+  came from, and pushes; it refuses when the site's copy has edits of its
+  own, and `--dry-run` previews.
+
 - **An MIT licence.** `LICENSE` at the repo root and `"license": "MIT"` in
   `package.json`.
 

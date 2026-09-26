@@ -55,6 +55,7 @@ onix-viewer/
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
 │   ├── generate-content-model.js   generates Resources/onix-content-model.js
 │   ├── release.sh                  bumps version, commits, tags
+│   ├── publish-site.sh             syncs site/ into the maendeleo-site repo, commits, pushes
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
@@ -79,9 +80,9 @@ onix-viewer/
 │   └── Violations.png              the findings
 ├── site/                           the extension's web page: index.html plus byte copies of
 │                                   the three screenshots and the 128px icon. Published by
-│                                   copying its contents to ~/git/maendeleo-site/onix-viewer/
-│                                   by hand; nothing here serves it. A test holds the copies
-│                                   to their sources
+│                                   tools/publish-site.sh into ~/git/maendeleo-site/onix-viewer/;
+│                                   nothing here serves it. A test holds the copies to their
+│                                   sources
 ├── dist/                           build output — gitignored in full
 │   ├── package/                    the staging copy the zip is built from (version_name removed)
 │   └── listing/                    upload staging for the GENERATED assets only:
@@ -1687,7 +1688,7 @@ The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-
 
 Two more things belong to a release and are easy to forget:
 
-- **The store link in `site/index.html`** carries the CWS item ID, `afdfkehnjkpgfhkgpacimefkkgfgkife`, which Chrome derives from the signing key and which therefore never changes between versions; the `onix-viewer` slug before it follows the name and is optional. `tests/cases/30-documentation.test.js` holds the page to that ID, so the placeholder it once carried cannot come back. After the page changes, copy the contents of `site/` to `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), which is how the page is published.
+- **The store link in `site/index.html`** carries the CWS item ID, `afdfkehnjkpgfhkgpacimefkkgfgkife`, which Chrome derives from the signing key and which therefore never changes between versions; the `onix-viewer` slug before it follows the name and is optional. `tests/cases/30-documentation.test.js` holds the page to that ID, so the placeholder it once carried cannot come back. After the page changes, commit and run `tools/publish-site.sh`: it syncs `site/` into `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), commits there naming the onix-viewer commit it came from, and pushes, which is what the host deploys from. Before syncing it diffs the site repo's copy against `site/` as of that last named commit and refuses if they differ, so an edit made in the site repo is ported back rather than overwritten — which is how the page drifted once. `--dry-run` shows what would change and leaves the site repo untouched.
 - **The zip is built from a staging copy**, not from `Resources/` in
   place, for one edit: `version_name` is deleted so the store copy does not
   say `-dev`. `dist/package/` is that copy, removed after zipping.
