@@ -121,6 +121,17 @@ macOS 27, the extension loaded as a temporary extension:
   picks that icon whenever there are findings (`viewer.js`, `icon("error")`
   in the verdict), a bug of its own for its own commit.
 
+**After the detach change, 2026-09-27**: two cold loads of the 300-product
+feed rendered the viewer with no crash and no kill, so the open question is
+answered — the swap survives the end of the parse in Safari — and what is
+left is speed. Bendik's word for it: "sluggish and slow". Safari parses the
+whole feed into the detached root before the re-fetch can resolve, since
+WebKit coalesces it with the page's own download, and it then builds and
+lays out the viewer's 144k rows as Chrome does, only slower. The next step
+is not Safari-specific: render products lazily, which makes the row count
+a screenful rather than the feed, and profile in Safari's Web Inspector
+Timelines afterwards if it is still slow there.
+
 ### WebKit's tree viewer and a swapped root
 
 Put the facts above against `content.js`, which swaps the root as soon as
