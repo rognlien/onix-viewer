@@ -10,6 +10,8 @@
     "test:browser": "node tests/browser/run.js",
     "test:firefox": "node tests/browser/firefox.js",
     "check:icons": "node tools/check-icons.js",
+    "screenshots": "node tools/screenshots.js chrome",
+    "screenshots:firefox": "node tools/screenshots.js firefox",
     "lint": "eslint ."
   },
   "devDependencies": {

@@ -11,6 +11,11 @@
 // does to a root swapped mid-parse, and whether version_name survives
 // runtime.getManifest() — and the next change to content.js depends on the
 // answers.
+//
+// On macOS 27 the terminal this runs from needs Full Disk Access, or Firefox
+// exits with "Could not find profile folder." before puppeteer hears from
+// it: the OS protects ~/Library/Application Support/Firefox, and a Firefox
+// spawned from a shell has only the shell's access. FIREFOX.md has the rest.
 
 const fs = require("fs");
 const http = require("http");

@@ -11,6 +11,12 @@ the main branch.
   came from, and pushes; it refuses when the site's copy has edits of its
   own, and `--dry-run` previews.
 
+- **A script that takes the store screenshots.** `tools/screenshots.js`
+  captures the tree, the code-list popup and the findings list at 1280×800
+  in the light scheme, in a headless Chrome (`npm run screenshots`, into
+  `Screenshots/Chrome/`) or Firefox (`npm run screenshots:firefox`, into
+  `Screenshots/Firefox/`).
+
 - **An MIT licence.** `LICENSE` at the repo root and `"license": "MIT"` in
   `package.json`.
 
