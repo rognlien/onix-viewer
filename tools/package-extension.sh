@@ -79,9 +79,17 @@ if [ "$TARGET" = "safari" ]; then
     --bundle-identifier io.maendeleo.ONIX-Viewer \
     --macos-only --swift --copy-resources --no-open --no-prompt --force
   # The converter pins the deployment target to the SDK it ran on; the
-  # manifest's floor is Safari 18, which shipped with macOS 15.
-  sed -i '' -E 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/' \
-    "$PROJECT/ONIX Viewer/ONIX Viewer.xcodeproj/project.pbxproj"
+  # manifest's floor is Safari 18, which shipped with macOS 15. It also
+  # starts the app at version 1.0; the app's version follows the manifest's.
+  # The signing team is yours, not the repo's: APPLE_TEAM_ID in the
+  # environment writes it into every target, so a regenerated project is
+  # ready to archive without a visit to Xcode's Signing pane.
+  PBXPROJ="$PROJECT/ONIX Viewer/ONIX Viewer.xcodeproj/project.pbxproj"
+  sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/" "$PBXPROJ"
+  if [ -n "${APPLE_TEAM_ID:-}" ]; then
+    sed -i '' -E "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;\\
+				DEVELOPMENT_TEAM = $APPLE_TEAM_ID;/" "$PBXPROJ"
+  fi
   for key in version_name minimum_chrome_version gecko; do
     if grep -q "\"$key\"" "$STAGE/manifest.json"; then
       echo "$key survived into $STAGE/manifest.json — the safari build must not carry it" >&2

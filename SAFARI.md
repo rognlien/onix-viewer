@@ -232,15 +232,52 @@ a new name in `dist/` for each one. Look for:
 1. Apply whichever `content.js` change the run calls for, if any, behind
    the `safari-web-extension:` gate, with a jsdom test for the branch
    Chrome takes.
-2. A listing: the App Store needs an Apple Developer Program membership,
-   an app record, screenshots of the *app* as well as the extension, and a
-   privacy declaration — the manifest's "collects nothing" has an App Store
-   Connect form of its own. The `description` says "in Chrome".
-3. `release.yml` cannot build this: signing needs the certificate, and the
-   runner has no Xcode. The Safari release is `tools/package-extension.sh
-   --target=safari`, then Xcode → Product → Archive → Distribute, by hand.
-4. `SECURITY.md`, `README.md` and `CLAUDE.md` then say Safari alongside the
-   other two.
+2. Distribution — below.
+3. `SECURITY.md`, `README.md` and `CLAUDE.md` then say Safari alongside the
+   other two. The manifest `description` says "in Chrome".
+
+## Distribution
+
+A Safari extension reaches users only inside a signed Mac app, and Apple
+gates both roads through the **Apple Developer Program** (paid, yearly; an
+individual enrolment needs only an Apple ID, an organisation a D-U-N-S
+number). Nothing can ship before that. Then:
+
+1. **Generate the project with the team in it.** `APPLE_TEAM_ID=<team id>
+   tools/package-extension.sh --target=safari` writes the team into every
+   target, sets the app's version to the manifest's, and lowers the
+   deployment target — so the project is ready to archive as generated, and
+   regenerating it for the next release costs nothing. The team id is on
+   the developer account's Membership page. Automatic signing then makes the
+   certificates and the two App IDs (`io.maendeleo.ONIX-Viewer` and its
+   `.Extension`) on first use.
+2. **Archive.** Xcode → open `dist/safari/ONIX Viewer/ONIX Viewer.xcodeproj`
+   → Product → Archive. The host app is the converter's template — a window
+   that shows whether the extension is enabled and a button that opens
+   Safari's Extensions settings — which is what Apple expects a Safari
+   extension's app to be.
+3. **Either road**, from the Organizer's *Distribute App*:
+   - **Mac App Store**: *App Store Connect*. Before that, an app record in
+     App Store Connect with the bundle id, a privacy policy URL, the App
+     Privacy declaration ("Data Not Collected" — the manifest's
+     `data_collection_permissions` has no standing there), a category, and
+     screenshots of the *app window* as well as the extension at one of the
+     Mac sizes (1280×800 is one). Free apps still go through review.
+   - **Outside the store**: *Direct Distribution* (Developer ID). Xcode
+     signs with the Developer ID certificate and submits the app for
+     notarization; export the notarized app, zip it, and put the zip on the
+     web page beside the Chrome and Firefox links. A user opens the app once,
+     which registers the extension, then turns it on in Safari → Settings →
+     Extensions. No review, no store, but also no updates unless the app
+     checks for them — so the store road is the one for a viewer people
+     keep.
+4. **Beta testers** can be sent the unsigned app (`Distribute App` → *Copy
+   App*) and told to allow unsigned extensions, which resets every time
+   Safari quits; fine for a look, not for use.
+
+`release.yml` cannot do any of this: signing needs the certificates, and
+the runner has no Xcode. The Safari release stays a local step after the
+tag.
 
 ## What is deliberately not done
 
