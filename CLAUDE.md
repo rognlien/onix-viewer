@@ -24,6 +24,7 @@ onix-viewer/
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
 ├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
+├── SAFARI.md                       the Safari port: the same, plus the manual run it needs
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
@@ -49,7 +50,8 @@ onix-viewer/
 │                                   at any other size is never read
 ├── tools/
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
-│   │                               or the -firefox.zip for AMO with --target=firefox
+│   │                               the -firefox.zip for AMO with --target=firefox, or the
+│   │                               folder plus Xcode project in dist/safari/ with --target=safari
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js

@@ -6,6 +6,13 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **A start on Safari.** `tools/package-extension.sh --target=safari`
+  prunes the manifest for Safari (its own `strict_min_version`, the Chrome
+  and Firefox keys dropped), keeps the folder for Safari's *Add Temporary
+  Extension…* and generates the Xcode project with Apple's converter into
+  `dist/safari/`. `SAFARI.md` has what was established, the question a
+  manual run has to answer, and the run itself. Nothing shipped changes.
+
 - **A script that publishes the web page.** `tools/publish-site.sh` syncs
   `site/` into the maendeleo-site repo, commits there naming the commit it
   came from, and pushes; it refuses when the site's copy has edits of its
