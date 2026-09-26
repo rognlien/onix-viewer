@@ -157,13 +157,14 @@ group in the dashboard under "Distribution" once the org is connected.
 | Store icon | 128 × 128 PNG | `Resources/icons/icon-128.png`, baked by `tools/render-icons.sh` |
 | Small promo tile | 440 × 280 | rendered from `promo-tile.svg` |
 | Marquee promo tile | 1400 × 560 | rendered from `marquee.svg` |
-| Screenshot(s) | 1280 × 800 | **`Screenshots/`** — committed, upload as-is |
+| Screenshot(s) | 1280 × 800 | **`Screenshots/Chrome/`** — committed, upload as-is |
 
-**Screenshots live in `Screenshots/` and are version-controlled**, already at
-1280 × 800, so they upload without a resize step. Re-take them there whenever
-the UI changes and commit the result; that is the record of what the listing
-shows. `Screenshots/Main.png` is the tree, `Screenshots/CodeList.png` the
-code-list popup.
+**Screenshots live in `Screenshots/Chrome/` and are version-controlled**,
+already at 1280 × 800, so they upload without a resize step. `npm run
+screenshots` re-takes them in a headless Chrome whenever the UI changes;
+commit the result, which is the record of what the listing shows. `Main.png`
+is the tree, `CodeList.png` the code-list popup, `Violations.png` the
+findings list. `Screenshots/Firefox/` is the same set from Firefox, for AMO.
 
 The icon and the two promo tiles are **generated**, so they are not committed —
 `dist/` is gitignored in full. Rebuild them into `dist/listing/` when you need

@@ -6,6 +6,29 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **A script that publishes the web page.** `tools/publish-site.sh` syncs
+  `site/` into the maendeleo-site repo, commits there naming the commit it
+  came from, and pushes; it refuses when the site's copy has edits of its
+  own, and `--dry-run` previews.
+
+- **A script that takes the store screenshots.** `tools/screenshots.js`
+  captures the tree, the code-list popup and the findings list at 1280×800
+  in the light scheme, in a headless Chrome (`npm run screenshots`, into
+  `Screenshots/Chrome/`) or Firefox (`npm run screenshots:firefox`, into
+  `Screenshots/Firefox/`).
+
+- **An MIT licence.** `LICENSE` at the repo root and `"license": "MIT"` in
+  `package.json`.
+
+- **A start on Firefox.** The manifest carries the Firefox add-on id,
+  minimum version and no-data-collection declaration beside the Chrome keys,
+  so `Resources/` loads as a temporary add-on in Firefox as it loads unpacked
+  in Chrome; `tools/package-extension.sh --target=firefox` builds the AMO zip
+  with the Chrome keys pruned, and the Chrome zip no longer carries the
+  Firefox ones. The README says how to build the source archive AMO asks
+  for and how to reproduce the upload from it. Not yet released for Firefox —
+  `FIREFOX.md` has what remains.
+
 - **Your own validation rules, written as Schematron.** A cog in the
   toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
   context>`, `<assert>` and `<report>` and it is checked on every ONIX

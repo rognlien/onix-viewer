@@ -40,6 +40,7 @@
   }
   .button:hover { background: #17507f; text-decoration: none; }
   .actions { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+  .note { font-size: 15px; color: #5b6b7a; margin-top: -4px; }
   figure { margin: 24px 0; }
   figure img {
     display: block;
@@ -84,6 +85,7 @@
     <a href="#installation">Manual installation</a>
     <a href="https://github.com/rognlien/onix-viewer">Source on GitHub</a>
   </p>
+  <p class="note">A Firefox version is coming soon.</p>
 
   <figure>
     <img src="Main.png" alt="An ONIX message rendered as a folded tree, with code-list labels beside each value" width="1280" height="800">
@@ -110,6 +112,16 @@
     <figcaption>The code-list popup, one click from any value.</figcaption>
   </figure>
 
+  <h2 id="samples">Try it</h2>
+  <p>With the extension installed, open one of these sample files:</p>
+  <ul>
+    <li><a href="../onix/samples/3.1-message-full.xml">A valid ONIX 3.1 message</a> that uses every block</li>
+    <li><a href="../onix/3.1/shorttags.xml">An ONIX 3.1 message with short tags</a></li>
+    <li><a href="../onix/samples/3.1-message-every-fault.xml">An ONIX 3.1 message</a> that breaks as many schema rules as possible</li>
+    <li><a href="../onix/samples/3.0-message-conversions.xml">An ONIX 3.0 message</a> with the constructs that change when converted to 3.1</li>
+  </ul>
+  <p>More are listed on the <a href="../onix/">ONIX sample files</a> page.</p>
+
   <h2 id="installation">Installation</h2>
   <p>ONIX Viewer needs Chrome 119 or later. There are two ways to install it.</p>
   <h3>From the Chrome Web Store</h3>
@@ -123,6 +135,8 @@
     <li>Click <strong>Load unpacked</strong> and pick the unzipped folder.</li>
   </ol>
   <p>Chrome shows a developer-mode notice on restart for extensions loaded this way, and updates are manual: replace the folder's contents with the new release and press the reload arrow on the extension's card.</p>
+  <h3>Firefox</h3>
+  <p>A Firefox version is coming soon.</p>
   <h3>Local files</h3>
   <p>Either way, to open <code>.xml</code> files from disk, enable <strong>Allow access to file URLs</strong> under the extension's <strong>Details</strong> in <code>chrome://extensions</code>.</p>
 

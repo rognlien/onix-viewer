@@ -23,6 +23,7 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
+├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
@@ -47,12 +48,15 @@ onix-viewer/
 │                                   Only manifest sizes are consulted, so a file
 │                                   at any other size is never read
 ├── tools/
-│   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload
+│   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
+│   │                               or the -firefox.zip for AMO with --target=firefox
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
 │   ├── generate-content-model.js   generates Resources/onix-content-model.js
 │   ├── release.sh                  bumps version, commits, tags
+│   ├── publish-site.sh             syncs site/ into the maendeleo-site repo, commits, pushes
+│   ├── screenshots.js              takes the three store screenshots in a headless Chrome or Firefox
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
@@ -68,17 +72,19 @@ onix-viewer/
 │   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (281 tests, ~9s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
+│   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see FIREFOX.md
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
-├── Screenshots/                    store screenshots, committed at 1280×800
-│   ├── Main.png                    the tree
-│   ├── CodeList.png                the code-list popup
-│   └── Violations.png              the findings
+├── Screenshots/                    store screenshots, committed at 1280×800, one set per browser,
+│   │                               taken by tools/screenshots.js (npm run screenshots[:firefox])
+│   ├── Chrome/                     Main.png the tree, CodeList.png the code-list popup,
+│   │                               Violations.png the findings — the set the site copies
+│   └── Firefox/                    the same three from Firefox, for the AMO listing
 ├── site/                           the extension's web page: index.html plus byte copies of
 │                                   the three screenshots and the 128px icon. Published by
-│                                   copying its contents to ~/git/maendeleo-site/onix-viewer/
-│                                   by hand; nothing here serves it. A test holds the copies
-│                                   to their sources
+│                                   tools/publish-site.sh into ~/git/maendeleo-site/onix-viewer/;
+│                                   nothing here serves it. A test holds the copies to their
+│                                   sources
 ├── dist/                           build output — gitignored in full
 │   ├── package/                    the staging copy the zip is built from (version_name removed)
 │   └── listing/                    upload staging for the GENERATED assets only:
@@ -1684,7 +1690,7 @@ The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-
 
 Two more things belong to a release and are easy to forget:
 
-- **The store link in `site/index.html`** carries the CWS item ID, `afdfkehnjkpgfhkgpacimefkkgfgkife`, which Chrome derives from the signing key and which therefore never changes between versions; the `onix-viewer` slug before it follows the name and is optional. `tests/cases/30-documentation.test.js` holds the page to that ID, so the placeholder it once carried cannot come back. After the page changes, copy the contents of `site/` to `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), which is how the page is published.
+- **The store link in `site/index.html`** carries the CWS item ID, `afdfkehnjkpgfhkgpacimefkkgfgkife`, which Chrome derives from the signing key and which therefore never changes between versions; the `onix-viewer` slug before it follows the name and is optional. `tests/cases/30-documentation.test.js` holds the page to that ID, so the placeholder it once carried cannot come back. After the page changes, commit and run `tools/publish-site.sh`: it syncs `site/` into `onix-viewer/` in the maendeleo-site repo (`~/git/maendeleo-site/onix-viewer/`, beside `onix/`, which is the sample-files page), commits there naming the onix-viewer commit it came from, and pushes, which is what the host deploys from. Before syncing it diffs the site repo's copy against `site/` as of that last named commit and refuses if they differ, so an edit made in the site repo is ported back rather than overwritten — which is how the page drifted once. `--dry-run` shows what would change and leaves the site repo untouched.
 - **The zip is built from a staging copy**, not from `Resources/` in
   place, for one edit: `version_name` is deleted so the store copy does not
   say `-dev`. `dist/package/` is that copy, removed after zipping.
@@ -1740,5 +1746,5 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
 - **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes all seven manifest sizes. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-48.png`, the app icon's own 48px size, so there is nothing to keep in step. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
-- **Store screenshots**: re-take into `Screenshots/` at 1280×800 and commit them. That directory is the record of what the listing shows — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source, so re-taking a screenshot means copying it there too.
+- **Store screenshots**: `npm run screenshots` re-takes the Chrome set into `Screenshots/Chrome/` and `npm run screenshots:firefox` the Firefox set into `Screenshots/Firefox/`, each at 1280×800 in the light scheme over `Onix/onix-3.1-refnames-defects.xml`: the tree, the code-list popup from the `<NotificationType>` row, and the findings list. Commit the result. Those directories are the record of what the listings show — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source (the Chrome set), so re-taking the screenshots means copying them there too.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.

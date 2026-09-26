@@ -35,9 +35,9 @@ describe("Documentation", () => {
 
   test("site/'s screenshots and icon are the committed ones, byte for byte", () => {
     const pairs = {
-      "site/Main.png": "Screenshots/Main.png",
-      "site/CodeList.png": "Screenshots/CodeList.png",
-      "site/Violations.png": "Screenshots/Violations.png",
+      "site/Main.png": "Screenshots/Chrome/Main.png",
+      "site/CodeList.png": "Screenshots/Chrome/CodeList.png",
+      "site/Violations.png": "Screenshots/Chrome/Violations.png",
       "site/icon-128.png": "Resources/icons/icon-128.png",
     };
     for (const [copy, source] of Object.entries(pairs)) {

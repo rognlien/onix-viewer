@@ -2,12 +2,16 @@
   "name": "onix-viewer",
   "version": "0.9.19",
   "private": true,
+  "license": "MIT",
   "description": "Chrome extension that pretty-prints raw XML pages with ONIX-aware features.",
   "scripts": {
     "test": "node tests/run.js",
     "test:update-expected": "UPDATE_EXPECTED=1 node tests/run.js expected",
     "test:browser": "node tests/browser/run.js",
+    "test:firefox": "node tests/browser/firefox.js",
     "check:icons": "node tools/check-icons.js",
+    "screenshots": "node tools/screenshots.js chrome",
+    "screenshots:firefox": "node tools/screenshots.js firefox",
     "lint": "eslint ."
   },
   "devDependencies": {
