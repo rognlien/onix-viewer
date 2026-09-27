@@ -33,7 +33,7 @@ manual run has to look for. `content.js` is unchanged.
 | Fact | Source |
 |---|---|
 | Apple's converter, `xcrun safari-web-extension-converter`, takes the extension folder and generates an app target plus an extension target (`.appex`) that carries the web extension's files as bundle resources. Without `--copy-resources` the project references the original files by **absolute path** (`path = "../../../../../../../../../../Users/bendik/git/onix-viewer/Resources/content.js"`), which is no good to commit or move; with it the files are copied under the extension target and the paths are relative. It lists files individually, so a file added to `Resources/` needs the project regenerated — which is why the packager regenerates it every time rather than the repo committing it. | Xcode 27.0 (27A266a), run here 2026-09-26 |
-| On this manifest the converter warns about **one key only**, `match_origin_as_fallback` ("not supported by your current version of Safari"), and says nothing about `minimum_chrome_version`, `version_name` or `browser_specific_settings.gecko`. MDN, however, records `match_origin_as_fallback` as supported from **Safari 18.4**. The two disagree; the key only matters for `blob:` URLs, and which is right is one line of the manual run below. | the converter on Safari 27.0; MDN compat data, `content_scripts.json` |
+| On this manifest the converter warns about **one key only**, `match_origin_as_fallback` ("not supported by your current version of Safari"), and says nothing about `minimum_chrome_version`, `version_name` or `browser_specific_settings.gecko`. MDN records the key as supported from **Safari 18.4**; **the converter is right.** A `blob:https://app.bokbasen.io/…` page — the way that app hands a reader an ONIX file — gets no content script in Safari 27: the owl stays grey, the console stays empty, while the same profile takes over an `http:` page fine. Chrome and Firefox take blob pages over through this key; **Safari cannot, and nothing in the extension can change it** — a blob URL resolves only inside the origin that made it, so there is no other way in. The key stays in the manifest for the day Safari honours it. | the converter on Safari 27.0; MDN compat data, `content_scripts.json` |
 | The converter derives the **app's** bundle identifier from the app name — `--app-name "ONIX Viewer"` gives `io.maendeleo.ONIX-Viewer` whatever `--bundle-identifier` says — and the **extension's** from `--bundle-identifier` plus `.Extension`. Pass anything but the app's own derivation and the build fails at the embed step ("Embedded binary's bundle identifier is not prefixed with the parent app's bundle identifier"), which is why the packager passes `io.maendeleo.ONIX-Viewer`. With that, the generated project **builds** unsigned from the command line (`xcodebuild … CODE_SIGNING_ALLOWED=NO`), producing `ONIX Viewer.app` with `ONIX Viewer Extension.appex` inside it and the manifest and scripts under the appex's `Contents/Resources/`. The Swift in it is boilerplate: an `NSExtensionRequestHandling` handler that echoes native messages, which the extension never sends, and an app with a storyboard whose only job is to exist. | built here 2026-09-26 |
 | The converter pins `MACOSX_DEPLOYMENT_TARGET` to the SDK it ran on (27.0). Safari 18 shipped with macOS 15, so the packager lowers it to 15.0 after generating. | the generated `project.pbxproj` |
 | Content scripts in Safari are **not applied to a site until the user grants the extension access** to it, from the extension's popover in the toolbar; later loads then honour `run_at`. `<all_urls>` becomes a one-time "Always Allow on Every Website" rather than a grant at install, as in Chrome and as in Firefox since 127. Until then the page shows Safari's own XML rendering and nothing tells the reader the extension exists. | MDN compat data, `content_scripts.json` notes |
@@ -217,9 +217,9 @@ a new name in `dist/` for each one. Look for:
 3. **Developer features off** (uncheck it, which also drops the temporary
    extension — so do this last, with a built app instead, or accept that it
    can only be inferred): the ordinary reader's path.
-4. **A `blob:` URL** — from the Web Inspector console on any page,
-   `open(URL.createObjectURL(new Blob([xml], {type: "application/xml"})))` —
-   settles `match_origin_as_fallback`.
+4. ~~**A `blob:` URL**~~ — settled: not taken over in Safari 27, see the
+   facts. Bokbasen's app opens ONIX as a blob, so in Safari that app's
+   files show as raw XML; in Chrome and Firefox they are taken over.
 5. **`file:///…/Onix/onix-3.1-refnames.xml`**, with the extension allowed on
    file URLs if Safari asks: whether the fetch or the fallback carries it.
 6. **The rules editor**: paste the house rules, Apply, and look for "Kept"
@@ -289,6 +289,11 @@ tag.
   a toolbar built for a pointer and a keyboard; an iOS build would need a
   design pass, not a port, and iOS Safari has no raw-XML view to improve on
   in the same way.
+- **No way round `blob:` URLs.** Safari 27 does not run content scripts on
+  them (above). A toolbar action cannot help either: an extension page
+  cannot fetch a blob URL that belongs to another origin. If it matters,
+  the ask goes to the app that opens the file — a real URL, or a download
+  the reader opens from disk — or to WebKit.
 - **No native messaging.** The generated Swift handler stays as generated
   and is never called; there is nothing the extension needs from the app.
 - **No `world: "MAIN"`, no polyfill** — for the reasons in `FIREFOX.md`.
