@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.20 — 2026-09-27
 
 ### Changed
 - **The manifest description no longer says "in Chrome".** It is what
