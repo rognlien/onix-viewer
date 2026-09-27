@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ONIX Viewer privacy policy</title>
+<meta name="description" content="What ONIX Viewer does with your data: nothing. It collects none, stores only the rules you paste in, and sends nothing anywhere.">
+<link rel="icon" href="icon-128.png">
+<style>
+  html { background: linear-gradient(180deg, #f7fbff, #e7f1fb) fixed; }
+  body {
+    margin: 0;
+    padding: 40px 24px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #15202b;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .sub { color: #5b6b7a; margin: 0 0 28px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; }
+  p, li { font-size: 16px; }
+  a { color: #1d5e9e; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 14px; background: rgba(21,32,43,0.06); padding: 1px 4px; border-radius: 3px; }
+  footer { margin-top: 48px; color: #5b6b7a; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ONIX Viewer privacy policy</h1>
+  <p class="sub">Applies to the Chrome, Firefox and Safari extensions. Last updated 27 September 2026.</p>
+
+  <h2>What ONIX Viewer collects</h2>
+  <p>Nothing. ONIX Viewer has no accounts, no analytics, no telemetry, no crash reporting and no third-party code. It does not know who you are, which pages you visit, or what is in them, beyond rendering the one page you have open.</p>
+
+  <h2>What it stores</h2>
+  <p>One thing, on your own computer: the custom validation rules you paste into the editor behind the toolbar's cog, so they follow you from page to page. They are kept in the browser's extension storage under a single key, and clearing the editor removes them. Nothing about the pages you view is stored.</p>
+
+  <h2>What it sends</h2>
+  <p>Nothing to anyone. The extension makes exactly one kind of network request: a re-fetch of the page you are already viewing, from the same address, to read its XML source. That request goes to the server the page came from and to no one else. The links to EDItEUR's code-list pages in the viewer are ordinary links that you choose to open; they carry no referrer.</p>
+
+  <h2>What it can see</h2>
+  <p>To render an ONIX file, the extension reads the content of the page you have open, on your machine. It acts only on pages served as XML whose content is ONIX, and leaves every other page exactly as the browser shows it. The permission wording in the browser's settings ("read and alter web pages you visit") is the browser's blanket description of any extension that runs on web pages; what this one does with that access is described above and can be verified in the source.</p>
+
+  <h2>Verifying this</h2>
+  <p>The extension's source is public at <a href="https://github.com/rognlien/onix-viewer">github.com/rognlien/onix-viewer</a>. <a href="https://github.com/rognlien/onix-viewer/blob/main/SECURITY.md">SECURITY.md</a> there lists what to look for: one permission, no host permissions, no background process, no remote code, and one <code>fetch</code> whose argument is the page's own address. The tests hold those claims in place.</p>
+
+  <h2>Changes and contact</h2>
+  <p>If any of this ever changes, this page changes first and the change is listed in the <a href="https://github.com/rognlien/onix-viewer/blob/main/CHANGELOG.md">changelog</a>. Questions go to <a href="https://github.com/rognlien/onix-viewer/issues">the issue tracker</a>.</p>
+
+  <footer>
+    <p><a href="./">ONIX Viewer</a> · <a href="https://maendeleo.io/">maendeleo.io</a></p>
+  </footer>
+</main>
+</body>
+</html>

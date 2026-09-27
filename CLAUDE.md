@@ -23,6 +23,7 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
+├── SAFARI_LISTING.md               the same for App Store Connect, plus the privacy answers
 ├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
 ├── SAFARI.md                       the Safari port: the same, plus the manual run it needs
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
@@ -82,7 +83,8 @@ onix-viewer/
 │   ├── Chrome/                     Main.png the tree, CodeList.png the code-list popup,
 │   │                               Violations.png the findings — the set the site copies
 │   └── Firefox/                    the same three from Firefox, for the AMO listing
-├── site/                           the extension's web page: index.html plus byte copies of
+├── site/                           the extension's web page: index.html, privacy.html (the
+│                                   policy the stores link to), plus byte copies of
 │                                   the three screenshots and the 128px icon. Published by
 │                                   tools/publish-site.sh into ~/git/maendeleo-site/onix-viewer/;
 │                                   nothing here serves it. A test holds the copies to their
@@ -352,9 +354,10 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 
 **What gives way on a narrow window**, in order: the document pill's label
 ellipsises, then the search field shortens, then the pill is dropped
-altogether. `#oxv-validation` and `#oxv-schema` are `flex-shrink: 0` and never
-give way — the size and release are recoverable from the file and the tree,
-`103 errors` is not. Three things are needed to make that happen:
+altogether, and below 1000px the issue pill as well. `#oxv-validation` is
+`flex-shrink: 0` and never gives way — the size, release and issue are
+recoverable from the file, the tree and About, `103 errors` is not. Four
+things are needed to make that happen:
 
 - `grid-template-columns: auto minmax(0, 1fr) auto`. A bare `1fr` track will
   not shrink below its content's min-content width, which let the centre
@@ -365,9 +368,26 @@ give way — the size and release are recoverable from the file and the tree,
   field is open (it costs 320px of the same row), `max-width: 760px`
   regardless. Without them the verdict, being last in the group, is what gets
   clipped.
+- A breakpoint dropping the **issue pill** at `max-width: 1000px`. The
+  controls alone take about 670px with the longer dialect label ("View as
+  reference names"), and the verdict, the issue pill and the cog need
+  another 320 with their gaps. Below that the grid's right column sat on
+  top of the centre one — measured at 850px: verdict 664..800, issue
+  691..810 — so a click on the verdict landed on the issue pill and opened
+  nothing. Headless Chrome's default 800px window is where the browser test
+  found it; the test now runs at 1280px.
+- A breakpoint at `max-width: 900px` hiding the **labels** of the four
+  buttons that carry an icon (Expand, Collapse, Soft wrap, Copy XML), which
+  are wrapped in `.px-label` for the purpose; their `title`s still name
+  them. Without it the verdict was clipped at the right edge from about
+  880px down with the search open, since the controls alone were wider
+  than the row could spare. The dialect switch keeps its words: its label
+  is what it says.
 
-Measured in Chrome at 1912→700px with every block listed and a 4.8 MB feed:
-no toolbar overflow at any width, and the issue pill never covered.
+Measured in Chrome from 1400px down (`tests/browser` has no case for it;
+the script was ad hoc): with both sample dialects, the longest verdict and
+the search open or closed, nothing overlaps or clips down to 720px, below
+which the controls themselves no longer fit the row.
 
 The document pill is one bordered unit built by `fillMetaPill()`: a file icon,
 then `·`-separated segments — what the document is, which blocks it carries,

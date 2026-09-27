@@ -39,15 +39,15 @@
     </button>
     <!-- Expand and Collapse both work a level at a time; viewer.js prepends
          their icons. -->
-    <button type="button" data-action="expand" title="Expand one more level (E)">Expand</button>
-    <button type="button" data-action="collapse" title="Collapse a level: first each Product's contents, then the Products, then everything (C)">Collapse</button>
-    <button type="button" data-action="toggle-wrap" title="Toggle soft wrap (W)">Soft wrap</button>
+    <button type="button" data-action="expand" title="Expand one more level (E)"><span class="px-label">Expand</span></button>
+    <button type="button" data-action="collapse" title="Collapse a level: first each Product's contents, then the Products, then everything (C)"><span class="px-label">Collapse</span></button>
+    <button type="button" data-action="toggle-wrap" title="Toggle soft wrap (W)"><span class="px-label">Soft wrap</span></button>
     <span class="px-dialect-group">
       <!-- Label and title are filled in by viewer.js, which knows which
            dialect the document is written in. -->
       <button type="button" data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
-    <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard">Copy XML</button>
+    <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard"><span class="px-label">Copy XML</span></button>
     <span class="px-search-group">
       <!-- Collapsed to its icon until used: the field earns its width only
            while you are searching. viewer.js fills in the icon. -->
