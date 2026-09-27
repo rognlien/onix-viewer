@@ -294,6 +294,22 @@ tag.
   cannot fetch a blob URL that belongs to another origin. If it matters,
   the ask goes to the app that opens the file — a real URL, or a download
   the reader opens from disk — or to WebKit.
+
+  **The ask, for an app that fetches with a bearer token** (the reason apps
+  reach for a blob: a navigation carries cookies, never headers): have the
+  backend mint a short-lived capability URL and open that instead —
+  `/share/<uuid>/<filename>.xml`, no auth on the endpoint, the UUID a
+  version 4 from a cryptographic source (122 random bits), valid for a few
+  minutes and for more than one GET (the viewer re-fetches the page's own
+  URL for the source; a one-shot link still works through the DOM fallback,
+  but multi-use is simpler), served as `Content-Type: application/xml;
+  charset=utf-8` with `Cache-Control: no-store`, over HTTPS, and never
+  `Content-Disposition: attachment`, which downloads instead of showing.
+  The filename at the end is what the viewer titles the tab after. After
+  expiry a reload is a 404, so the app should say the link is temporary.
+  The URL lands in history and could go out as a Referer; the window
+  bounds the first and the viewer's outbound links carry `noreferrer`.
+  Same link, all three browsers, nothing to change in the extension.
 - **No native messaging.** The generated Swift handler stays as generated
   and is never called; there is nothing the extension needs from the app.
 - **No `world: "MAIN"`, no polyfill** — for the reasons in `FIREFOX.md`.
