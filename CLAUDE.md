@@ -374,6 +374,13 @@ things are needed to make that happen:
   691..810 — so a click on the verdict landed on the issue pill and opened
   nothing. Headless Chrome's default 800px window is where the browser test
   found it; the test now runs at 1280px.
+- A breakpoint at `max-width: 900px` hiding the **labels** of the four
+  buttons that carry an icon (Expand, Collapse, Soft wrap, Copy XML), which
+  are wrapped in `.px-label` for the purpose; their `title`s still name
+  them. Without it the verdict was clipped at the right edge from about
+  880px down with the search open, since the controls alone were wider
+  than the row could spare. The dialect switch keeps its words: its label
+  is what it says.
 
 Measured in Chrome from 1400px down (`tests/browser` has no case for it;
 the script was ad hoc): with both sample dialects, the longest verdict and
