@@ -23,6 +23,7 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
+├── SAFARI_LISTING.md               the same for App Store Connect, plus the privacy answers
 ├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
 ├── SAFARI.md                       the Safari port: the same, plus the manual run it needs
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
@@ -82,7 +83,8 @@ onix-viewer/
 │   ├── Chrome/                     Main.png the tree, CodeList.png the code-list popup,
 │   │                               Violations.png the findings — the set the site copies
 │   └── Firefox/                    the same three from Firefox, for the AMO listing
-├── site/                           the extension's web page: index.html plus byte copies of
+├── site/                           the extension's web page: index.html, privacy.html (the
+│                                   policy the stores link to), plus byte copies of
 │                                   the three screenshots and the 128px icon. Published by
 │                                   tools/publish-site.sh into ~/git/maendeleo-site/onix-viewer/;
 │                                   nothing here serves it. A test holds the copies to their

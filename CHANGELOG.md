@@ -40,6 +40,11 @@ the main branch.
   corroborates it.
 
 ### Added
+- **A privacy policy page and the App Store listing copy.** `site/privacy.html`
+  is the URL the stores ask for; `SAFARI_LISTING.md` is the App Store Connect
+  record, paste-ready, with the review notes. The front page's privacy
+  paragraph now names the one permission rather than claiming none.
+
 - **A start on Safari.** `tools/package-extension.sh --target=safari`
   prunes the manifest for Safari (its own `strict_min_version`, the Chrome
   and Firefox keys dropped), keeps the folder for Safari's *Add Temporary
