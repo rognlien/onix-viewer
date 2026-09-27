@@ -11,10 +11,14 @@ the main branch.
   is no longer Chrome's alone.
 
 ### Fixed
+- **A warnings-only verdict shows the warning glyph.** The toolbar pill
+  used the error icon and colour whenever there were findings at all;
+  "600 warnings" now carries the triangle, in amber.
 - **The toolbar's issue pill no longer covers the verdict on a narrow
   window.** Below 1000px the two columns overlapped, so a click on
   "6 errors, 5 warnings" opened nothing; the issue pill now gives way there,
-  since the issue is also in About and the verdict is nowhere else.
+  since the issue is also in About and the verdict is nowhere else, and
+  below 900px the icon buttons keep only their icons.
 - **A share link behind a session is taken over.** The re-fetch of such a
   URL can come back as a 200 with the app's sign-in page, which the
   extension took at face value as "not ONIX" and left the browser's view in
