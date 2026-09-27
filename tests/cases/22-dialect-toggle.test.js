@@ -143,8 +143,10 @@ describe("Dialect toggle", () => {
       `expected the pill dropped when the search field is open on a narrow window; got ${dropped.join("; ")}`);
     assert(dropped.some((d) => d.includes("760px")),
       `expected the pill dropped outright when very narrow; got ${dropped.join("; ")}`);
-    assert(!dropped.some((d) => d.includes("oxv-validation") || d.includes("oxv-schema")),
-      `only the document pill may be dropped; got ${dropped.join("; ")}`);
+    assert(dropped.some((d) => d.includes("1000px") && d.includes("oxv-schema")),
+      `expected the issue pill dropped below 1000px, where it overlapped the verdict; got ${dropped.join("; ")}`);
+    assert(!dropped.some((d) => d.includes("oxv-validation")),
+      `the verdict is never dropped; got ${dropped.join("; ")}`);
   });
 
   test("the toolbar reads left to right: controls, document, validation, then issue", () => {
