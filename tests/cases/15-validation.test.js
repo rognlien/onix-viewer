@@ -673,8 +673,16 @@ describe("Validation", () => {
     const errors = validationLabel(render("onix-3.1-invalid.xml"));
     assert(errors.querySelector('svg circle[r="7"]') && errors.classList.contains("px-worst-error"),
       "errors present: the circle-cross");
-    const warnings = validationLabel(renderSource(
-      fs.readFileSync(path.join(SAMPLES, "onix-3.1-refnames.xml"), "utf8"), "refnames.xml"));
+    // The sample is big enough that a slow machine does not validate it
+    // inside the first slice, so the slices the viewer schedules are queued
+    // and run to completion here rather than left to real time.
+    const timers = [];
+    const w = renderSource(
+      fs.readFileSync(path.join(SAMPLES, "onix-3.1-refnames.xml"), "utf8"), "refnames.xml",
+      (win) => { win.setTimeout = (fn) => { timers.push(fn); return timers.length; }; });
+    const warnings = validationLabel(w);
+    let guard = 0;
+    while (warnings.textContent.includes("Validating") && timers.length && guard++ < 10000) timers.shift()();
     assert(warnings.textContent === "2 warnings", `a warnings-only document; got "${warnings.textContent}"`);
     assert(!warnings.querySelector('svg circle[r="7"]') && warnings.querySelector("svg path"),
       "warnings only: the triangle");
