@@ -27,9 +27,11 @@ const SAMPLES = path.join(ROOT, "Onix");
 
 // Serves tests/fixtures/ and Onix/ as application/xml — the MIME type the
 // content script gates on — so a request looks like an ONIX feed would.
-// Two special names: "once-<fixture>" serves the fixture to the first request
-// only and refuses the rest with a 500, which is what forces content.js off
-// its re-fetch and onto the DOM fallback; "large.xml" is the EDItEUR sample
+// Three special names. "once-<fixture>" serves the fixture to the first
+// request only and refuses the rest with a 500; "login-<fixture>" serves
+// the rest a 200 with an HTML page instead, the way a share link behind a
+// session answers a request without its cookies. Both force content.js off
+// its re-fetch and onto the DOM fallback. "large.xml" is the EDItEUR sample
 // product repeated 300 times, a feed that arrives in many chunks.
 function serve() {
   const served = new Set();
@@ -37,10 +39,14 @@ function serve() {
   const server = http.createServer((request, response) => {
     const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
     const once = name.startsWith("once-");
-    const file = fileFor(once ? name.slice(5) : name);
+    const login = name.startsWith("login-");
+    const file = fileFor(once ? name.slice(5) : login ? name.slice(6) : name);
     if (once && served.has(request.url)) {
       response.writeHead(500);
       response.end();
+    } else if (login && served.has(request.url)) {
+      response.writeHead(200, { "Content-Type": "text/html" });
+      response.end("<!doctype html><title>Sign in</title><p>Please sign in.</p>");
     } else if (name === "large.xml" || file) {
       served.add(request.url);
       response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
@@ -259,21 +265,26 @@ async function takeover(browser, served) {
     await page.close();
   });
 
-  await test("when the re-fetch fails, the source is read from the parser's own tree", async () => {
-    const fetched = await open(browser, served.url("onix-3.1-valid.xml"));
-    const expected = await fetched.evaluate(() => document.querySelectorAll("#oxv-root .px-row").length);
-    await fetched.close();
-    const page = await open(browser, served.url("once-onix-3.1-valid.xml"));
-    const state = await page.evaluate(() => ({
-      rows: document.querySelectorAll("#oxv-root .px-row").length,
-      verdict: document.getElementById("oxv-validation").textContent,
-      children: document.children.length,
-    }));
-    assert(state.rows === expected, `the same tree as from the fetch; got ${state.rows} rows, expected ${expected}`);
-    assert(state.verdict.includes("Valid"), `validated from the fallback source; got "${state.verdict}"`);
-    assert(state.children === 1, `only the shell is left in the document; got ${state.children} children`);
-    await page.close();
-  });
+  // The fallback is taken when the re-fetch fails, and when it succeeds
+  // with something other than the document — a session's share link
+  // answering a second request with its sign-in page.
+  for (const [prefix, why] of [["once-", "fails"], ["login-", "returns a sign-in page"]]) {
+    await test(`when the re-fetch ${why}, the source is read from the parser's own tree`, async () => {
+      const fetched = await open(browser, served.url("onix-3.1-valid.xml"));
+      const expected = await fetched.evaluate(() => document.querySelectorAll("#oxv-root .px-row").length);
+      await fetched.close();
+      const page = await open(browser, served.url(`${prefix}onix-3.1-valid.xml`));
+      const state = await page.evaluate(() => ({
+        rows: document.querySelectorAll("#oxv-root .px-row").length,
+        verdict: document.getElementById("oxv-validation").textContent,
+        children: document.children.length,
+      }));
+      assert(state.rows === expected, `the same tree as from the fetch; got ${state.rows} rows, expected ${expected}`);
+      assert(state.verdict.includes("Valid"), `validated from the fallback source; got "${state.verdict}"`);
+      assert(state.children === 1, `only the shell is left in the document; got ${state.children} children`);
+      await page.close();
+    });
+  }
 
   await test("a 300-product feed is taken over whole, with nothing of the native document left", async () => {
     const page = await open(browser, served.url("large.xml"));

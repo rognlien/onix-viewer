@@ -228,6 +228,13 @@
     return browserAPI().runtime.getURL(`onix-content-model-${version}.js`);
   }
 
+  // The re-fetch is trusted only when it plainly returned the document: an
+  // XML content type, and a body that looks like ONIX whenever the parser's
+  // own root did. A share link behind a session can answer a second request
+  // with a 200 and the app's HTML shell — content negotiation, a one-shot
+  // token, a login page — and taking that at face value meant "not ONIX",
+  // native view, while the parser held the real thing. Anything else falls
+  // back to the parser's tree, like a failed request does.
   function loadSource() {
     return fetch(document.location.href, {
       cache: "force-cache",
@@ -236,7 +243,13 @@
     })
       .then((r) => {
         if (!r.ok) throw new Error(`refetch returned ${r.status}`);
+        const type = (r.headers.get("content-type") || "").toLowerCase();
+        if (!type.includes("xml")) throw new Error(`refetch returned ${type || "no content type"}`);
         return r.text();
+      })
+      .then((text) => {
+        if (nativeRoot && !looksLikeOnix(text)) throw new Error("refetch returned a different document");
+        return text;
       })
       .catch((err) => {
         dlog("[OnixViewer] re-fetch failed, reading from DOM:", err.message);

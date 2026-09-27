@@ -5,6 +5,15 @@ the main branch.
 
 ## Unreleased
 
+### Fixed
+- **A share link behind a session is taken over.** The re-fetch of such a
+  URL can come back as a 200 with the app's sign-in page, which the
+  extension took at face value as "not ONIX" and left the browser's view in
+  place while the parser held the document. The re-fetch is now trusted
+  only when it returns XML that looks like the document the parser saw;
+  anything else falls back to the parser's own tree, as a failed request
+  always did.
+
 ### Changed
 - **Products are rendered as they near the viewport.** Above 20 products
   each Product keeps its open and close rows and an empty container the
