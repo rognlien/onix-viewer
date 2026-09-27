@@ -1890,14 +1890,24 @@
 
   // The button's own text, as a node: the toolbar buttons carry an icon ahead
   // of their label, and writing textContent would take the icon with it.
+  // A button's label is the text inside its .px-label span — the wrapper is
+  // what lets a narrow window hide the words beside an icon (viewer.css) —
+  // or, for a button written without one, a bare text node, which gets
+  // wrapped on first use.
   function labelNode(btn) {
-    let node = null;
-    for (const child of btn.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) node = child;
+    let span = btn.querySelector(".px-label");
+    if (!span) {
+      span = document.createElement("span");
+      span.className = "px-label";
+      for (const child of [...btn.childNodes]) {
+        if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) span.appendChild(child);
+      }
+      btn.appendChild(span);
     }
+    let node = span.firstChild;
     if (!node) {
       node = document.createTextNode("");
-      btn.appendChild(node);
+      span.appendChild(node);
     }
     return node;
   }
