@@ -3,7 +3,7 @@
   "name": "ONIX Viewer",
   "version": "0.9.19",
   "version_name": "0.9.19-dev",
-  "description": "Readable ONIX XML in Chrome: collapsible tree, product summaries, inline EDItEUR code-list labels and automatic validation.",
+  "description": "Readable ONIX XML: collapsible tree, product summaries, inline EDItEUR code-list labels and automatic validation.",
   "minimum_chrome_version": "119",
   "browser_specific_settings": {
     "gecko": {
