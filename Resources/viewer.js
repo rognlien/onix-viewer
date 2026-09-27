@@ -1140,7 +1140,11 @@
       status.removeAttribute("tabindex");
       return;
     }
-    status.append(icon("error"), document.createTextNode(summariseValidation(result)));
+    // The glyph follows the worst severity present: a document with only
+    // warnings gets the triangle, not the cross.
+    const worst = result.errors ? "error" : "warning";
+    status.classList.add(`px-worst-${worst}`);
+    status.append(icon(worst), document.createTextNode(summariseValidation(result)));
     status.title = "Click for the full list";
     status.setAttribute("role", "button");
     status.setAttribute("tabindex", "0");

@@ -621,6 +621,7 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+#oxv-validation.px-invalid.px-worst-warning { color: var(--severity-warning); }
 #oxv-validation.px-invalid:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

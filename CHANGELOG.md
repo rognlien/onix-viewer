@@ -11,6 +11,9 @@ the main branch.
   is no longer Chrome's alone.
 
 ### Fixed
+- **A warnings-only verdict shows the warning glyph.** The toolbar pill
+  used the error icon and colour whenever there were findings at all;
+  "600 warnings" now carries the triangle, in amber.
 - **A share link behind a session is taken over.** The re-fetch of such a
   URL can come back as a 200 with the app's sign-in page, which the
   extension took at face value as "not ONIX" and left the browser's view in

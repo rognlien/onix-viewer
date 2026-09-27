@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const {
   test, describe, assert, render, renderSource, $$, rowsNamed, findingsFor, findings, codes, validationLabel, FIXTURES, SAMPLES,
@@ -662,6 +663,23 @@ describe("Validation", () => {
     const dirty = validationLabel(render("onix-3.1-invalid.xml"));
     assert(dirty.querySelector("svg"), "problems get an icon too");
     assert(dirty.textContent === "5 errors, 2 warnings", `got: ${dirty.textContent}`);
+  });
+
+  // The glyph follows the worst severity present. The error icon is a
+  // filled circle of radius 7 with a cross knocked out; the warning icon a
+  // triangle with a bang (whose dot is a circle too, a small one) — so the
+  // big circle is the tell.
+  test("a document with only warnings gets the warning glyph, not the error one", () => {
+    const errors = validationLabel(render("onix-3.1-invalid.xml"));
+    assert(errors.querySelector('svg circle[r="7"]') && errors.classList.contains("px-worst-error"),
+      "errors present: the circle-cross");
+    const warnings = validationLabel(renderSource(
+      fs.readFileSync(path.join(SAMPLES, "onix-3.1-refnames.xml"), "utf8"), "refnames.xml"));
+    assert(warnings.textContent === "2 warnings", `a warnings-only document; got "${warnings.textContent}"`);
+    assert(!warnings.querySelector('svg circle[r="7"]') && warnings.querySelector("svg path"),
+      "warnings only: the triangle");
+    assert(warnings.classList.contains("px-worst-warning") && warnings.classList.contains("px-invalid"),
+      "marked as warnings-only, still the clickable state");
   });
 
   test("validation starts on its own and never scrolls the page", () => {
