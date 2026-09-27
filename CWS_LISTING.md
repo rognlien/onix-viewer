@@ -26,7 +26,7 @@ ONIX Viewer
 **Summary / short description** (max 132 chars):
 
 ```
-Readable ONIX XML in Chrome: collapsible tree, product summaries, inline EDItEUR code-list labels and automatic validation.
+Readable ONIX XML: collapsible tree, product summaries, inline EDItEUR code-list labels and automatic validation.
 ```
 
 **Description** (longer marketing copy — paste into Detailed description):

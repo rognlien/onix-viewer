@@ -5,6 +5,11 @@ the main branch.
 
 ## Unreleased
 
+### Changed
+- **The manifest description no longer says "in Chrome".** It is what
+  Safari's Extensions pane and the Firefox listing show, and the extension
+  is no longer Chrome's alone.
+
 ### Fixed
 - **A share link behind a session is taken over.** The re-fetch of such a
   URL can come back as a 200 with the app's sign-in page, which the
