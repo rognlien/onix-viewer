@@ -79,6 +79,11 @@ In Firefox, load the same folder from `about:debugging#/runtime/this-firefox`
 with **Load Temporary Add-on…** and pick `Resources/manifest.json`. The
 Firefox build is in progress; `FIREFOX.md` has the state of it.
 
+In Safari 26 or later, turn on **Show features for web developers** under
+Settings → Advanced, then under Settings → Developer allow unsigned
+extensions and use **Add Temporary Extension…** on the same folder. The
+Safari build is an exploration; `SAFARI.md` has the state of it.
+
 ## Keyboard shortcuts
 
 | Key | Action |

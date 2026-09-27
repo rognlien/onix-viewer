@@ -5,7 +5,43 @@ the main branch.
 
 ## Unreleased
 
+### Fixed
+- **A share link behind a session is taken over.** The re-fetch of such a
+  URL can come back as a 200 with the app's sign-in page, which the
+  extension took at face value as "not ONIX" and left the browser's view in
+  place while the parser held the document. The re-fetch is now trusted
+  only when it returns XML that looks like the document the parser saw;
+  anything else falls back to the parser's own tree, as a failed request
+  always did.
+
+### Changed
+- **Products are rendered as they near the viewport.** Above 20 products
+  each Product keeps its open and close rows and an empty container the
+  height of an unrendered subtree, and an `IntersectionObserver` fills it
+  within two screens of the viewport. Findings inside a Product not yet
+  rendered are pinned when it is; the findings list and the search render
+  what they need first. Cold-load time to the first verdict in Chrome:
+  1.45 s → 0.51 s for 300 products, 4.7 s → 1.5 s for 1,000, and scrolling
+  moves a screenful of rows rather than the feed.
+- **The browser's own document is detached as soon as its root appears**,
+  when that root looks like ONIX. The parser keeps filling it, and the DOM
+  fallback reads it if the re-fetch fails, but the browser no longer styles
+  or lays out the document about to be replaced, and its XML tree viewer
+  has nothing to rebuild when the parse ends. Cold-load time to the first
+  verdict in Chrome: 1.52 s → 1.31 s for 300 products, 4.84 s → 4.38 s for
+  1,000. In Safari it is what keeps WebKit's tree viewer from spending
+  seconds on a large feed first. Non-ONIX XML is untouched: an RSS root ends
+  the watch, and a bare `<Product>` is taken only once an ONIX child
+  corroborates it.
+
 ### Added
+- **A start on Safari.** `tools/package-extension.sh --target=safari`
+  prunes the manifest for Safari (its own `strict_min_version`, the Chrome
+  and Firefox keys dropped), keeps the folder for Safari's *Add Temporary
+  Extension…* and generates the Xcode project with Apple's converter into
+  `dist/safari/`. `SAFARI.md` has what was established, the question a
+  manual run has to answer, and the run itself. Nothing shipped changes.
+
 - **A script that publishes the web page.** `tools/publish-site.sh` syncs
   `site/` into the maendeleo-site repo, commits there naming the commit it
   came from, and pushes; it refuses when the site's copy has edits of its

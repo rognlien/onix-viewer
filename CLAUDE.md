@@ -24,6 +24,7 @@ onix-viewer/
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
 ├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
+├── SAFARI.md                       the Safari port: the same, plus the manual run it needs
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
@@ -49,7 +50,8 @@ onix-viewer/
 │                                   at any other size is never read
 ├── tools/
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
-│   │                               or the -firefox.zip for AMO with --target=firefox
+│   │                               the -firefox.zip for AMO with --target=firefox, or the
+│   │                               folder plus Xcode project in dist/safari/ with --target=safari
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
@@ -134,15 +136,16 @@ The pattern is:
 
 1. Content script runs at `document_start`.
 2. Check `document.contentType` against the MIME whitelist (`application/xml`, `text/xml`, `application/onix+xml`).
+2a. **Detach the browser's own root** the moment the parser produces it, when it looks like ONIX (`rootLooksLikeOnix`: the EDItEUR namespace, or an `ONIXMessage`/`ONIXmessage`/`ONIXMessageAcknowledgement` root; a bare `<Product>` only once an ONIX child has been parsed, the sniff's own corroboration rule). The parser goes on filling the detached root, so nothing is lost, but the browser no longer styles or lays out the document we are about to replace, and its XML tree viewer, which rebuilds the whole document when the parse ends, finds nothing to draw. The watch ends with the take: the browser's tree viewer may still put an `<html>` of its own into the emptied document when the parse ends, and the shell replaces that as it would any root. Removing it from the observer instead crashed Safari — WebKit appends the viewer's stylesheet from C++ right after its script has built that `<html>`, and the observer callback ran at the microtask checkpoint in between (see `SAFARI.md`). Measured in headless Chrome, a tenth off the time to the first verdict on a cold load (1.52 s → 1.31 s for 300 products, 4.84 s → 4.38 s for 1,000); in Safari it is what stops WebKit's tree viewer spending seconds on a large feed first. An RSS root ends the watch instead, so non-ONIX XML keeps the browser's viewer without a flicker.
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
-4. Build a fresh HTML shell via `DOMParser` — the markup comes from `shell.js`, a second content script loaded ahead of `content.js` so the two share one isolated-world global — then `document.replaceChild(newRoot, document.documentElement)` to swap roots. The test harness builds its jsdom window from the same template, which is the point of it being a module: a renamed id or a new toolbar button fails in the suite, where a hand-written copy used to drift.
+4. Build a fresh HTML shell via `DOMParser` — the markup comes from `shell.js`, a second content script loaded ahead of `content.js` so the two share one isolated-world global — then append it to the emptied document (or `document.replaceChild` it over whatever root is there, for a document whose root was not detached). The shell waits for the parser to have produced its root at all: appended earlier, it would sit *beside* the parser's root, since the parser appends without the one-root check. The test harness builds its jsdom window from the same template, which is the point of it being a module: a renamed id or a new toolbar button fails in the suite, where a hand-written copy used to drift.
 5. Stash the source in an inert `<script type="application/xml" id="__oxv-source__">` data block (NOT an inline JS script — file:// pages and many sites have a `script-src` CSP that blocks inline execution; a non-JS script type is just a queryable text holder, which CSP leaves alone), then append `onix-codelists.js`, the validation content model for the document's release (see below), `onix.js`, `onix-validate.js`, `onix-popup.js`, and `viewer.js` as `<script>` elements with `async = false` to preserve order.
 6. Those scripts parse the original XML with `DOMParser` and render to plain DOM.
 
-When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), we fall back to `XMLSerializer().serializeToString(document)` — the browser has already parsed the XML for us, so reading the live document is a reliable second path. This means file:// works without any background script, at the cost of waiting for `DOMContentLoaded` before takeover instead of acting at `document_start`.
+When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), **or succeeds with something other than the document** — a non-XML content type, or a body that does not look like ONIX although the parser's root did, which is what a share link behind a session returns for a second request without its context: a 200 and the app's HTML shell — we fall back to serialising the parser's own tree with `XMLSerializer` — the detached root, which the parser fills to the end regardless, else Chrome's viewer wrapper or `documentElement` for a root that was not detached — and never before `DOMContentLoaded`, since a tree still being built serialises to a truncated document. This means file:// works without any background script, at the cost of waiting for the parse to end before the takeover. The browser test forces this path by refusing the second request for a document and asserts the same tree comes out.
 
-**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`.
+**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`; Firefox 128+). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`. **Safari 27 does not honour the key**, so a blob page there shows Safari's own rendering and nothing can be done about it from the extension — see `SAFARI.md`.
 
 Things that still won't work:
 - **Streaming huge XML**: we hold the full source in memory. A 17 MB feed
@@ -160,7 +163,9 @@ What dominated was the browser's own style, layout, prepaint and text
 shaping over the tree, and it got worse than linear: 5.6 s to the first
 verdict on the small feed, 41 s on the large one, of which the JS was 3.5 s.
 
-**`content-visibility: auto` on each Product's subtree** is the fix, two
+**`content-visibility: auto` on each Product's subtree** was the first fix
+(the second, rendering Products only as they near the viewport, is the next
+section), two
 declarations on `#oxv-root > .px-children > .px-children` in `viewer.css`.
 Chrome then lays out a Product only when it is near the viewport and skips
 the rest until they scroll in — on load, 299 of 301 containers on the small
@@ -189,6 +194,45 @@ The selector is a child chain, so it names the Header's and each Product's
 container and nothing deeper — one skip boundary per Product, which is the
 grain a reader scrolls at. `tests/cases/35-large-feeds.test.js` holds the
 rule in place; the timings above are by hand, since jsdom lays nothing out.
+
+### Products are rendered as they near the viewport
+
+Above **20 products** (`LAZY_FROM_PRODUCTS` in `viewer.js`) the tree is not
+built up front. Each Product child of the message root gets its open row —
+the summary chip, the block badge, the fold chevron — and its close row,
+and an **empty children container** marked `px-pending`, held to the same
+1200px placeholder height as an unrendered subtree (`.px-children.px-pending`
+in `viewer.css`). An `IntersectionObserver` with a two-screen root margin
+renders the container's Product when it comes within reach, once, and stops
+watching it. Measured in headless Chrome, cold load to the first verdict:
+1.45 s → 0.51 s for 300 products, 4.7 s → 1.5 s for 1,000, and what is
+left is the parse and the validation, which run over the parsed document
+whatever is rendered. Below the threshold everything is built up front as
+before, so a small file stays simple and deterministic — jsdom has no
+`IntersectionObserver`, and the suite takes that path unless a test supplies
+one (`tests/cases/36-lazy-products.test.js` does).
+
+Everything that reaches for a row inside a Product goes through
+`ensureRendered(node)` first, or waits for the Product:
+
+- **Findings.** `pinFinding()` queues a finding whose node sits inside a
+  deferred Product (`pendingFindings`, keyed by the Product) and pins it when
+  the Product renders. Pinning at once would render every Product with a
+  finding, which on a feed with a warning per record is the whole feed. The
+  toolbar's verdict counts everything regardless, since validation works on
+  the parsed document; the findings list lists everything; and an entry's
+  click renders its Product before jumping.
+- **Search.** `runSearch()` renders every deferred Product first, because the
+  search reads the rendered tree — tag names, values, and the chips, which a
+  search over the source would have to reproduce. That is the whole feed
+  once, which is what the viewer built on load before this; a source-side
+  search that counts what the chips add is the follow-up if it matters.
+- **Folding.** A deferred Product's open row folds like any other, and its
+  container is `display: none` while it is folded, so it never intersects
+  and renders when unfolded, not before. Collapse's second step therefore
+  folds the whole feed without rendering a row.
+- **The dialect switch** needs nothing: a Product rendered later is built in
+  the displayed dialect, as every row is.
 
 ### The renderer walks with an explicit stack
 

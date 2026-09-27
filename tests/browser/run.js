@@ -27,12 +27,30 @@ const SAMPLES = path.join(ROOT, "Onix");
 
 // Serves tests/fixtures/ and Onix/ as application/xml — the MIME type the
 // content script gates on — so a request looks like an ONIX feed would.
+// Three special names. "once-<fixture>" serves the fixture to the first
+// request only and refuses the rest with a 500; "login-<fixture>" serves
+// the rest a 200 with an HTML page instead, the way a share link behind a
+// session answers a request without its cookies. Both force content.js off
+// its re-fetch and onto the DOM fallback. "large.xml" is the EDItEUR sample
+// product repeated 300 times, a feed that arrives in many chunks.
 function serve() {
+  const served = new Set();
+  const large = largeFeed(300);
   const server = http.createServer((request, response) => {
-    const file = fileFor(request.url);
-    if (file) {
+    const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
+    const once = name.startsWith("once-");
+    const login = name.startsWith("login-");
+    const file = fileFor(once ? name.slice(5) : login ? name.slice(6) : name);
+    if (once && served.has(request.url)) {
+      response.writeHead(500);
+      response.end();
+    } else if (login && served.has(request.url)) {
+      response.writeHead(200, { "Content-Type": "text/html" });
+      response.end("<!doctype html><title>Sign in</title><p>Please sign in.</p>");
+    } else if (name === "large.xml" || file) {
+      served.add(request.url);
       response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
-      response.end(fs.readFileSync(file));
+      response.end(name === "large.xml" ? large : fs.readFileSync(file));
     } else {
       response.writeHead(404);
       response.end();
@@ -46,8 +64,18 @@ function serve() {
   });
 }
 
-function fileFor(url) {
-  const name = path.basename(decodeURIComponent(url.split("?")[0]));
+function largeFeed(count) {
+  const sample = fs.readFileSync(path.join(SAMPLES, "onix-3.1-refnames.xml"), "utf8");
+  const start = sample.indexOf("<Product>");
+  const end = sample.indexOf("</Product>") + "</Product>".length;
+  const product = sample.slice(start, end);
+  const products = Array.from({ length: count }, (_, i) =>
+    product.replace(/<RecordReference>[^<]*<\/RecordReference>/,
+      `<RecordReference>large-${i}</RecordReference>`)).join("\n");
+  return sample.slice(0, start) + products + sample.slice(end);
+}
+
+function fileFor(name) {
   let found = null;
   for (const dir of [FIXTURES, SAMPLES]) {
     const candidate = path.join(dir, name);
@@ -72,8 +100,13 @@ function launch() {
 
 // Open a served document and wait for the viewer to have taken it over and
 // finished validating; the page's globals are then ready to be asked.
+// A realistic window. Headless Chrome defaults to 800×600, and below about
+// 860px the toolbar's right column overlaps its centre one — the issue pill
+// covers the verdict pill, so a click on it opens nothing. A bug of the
+// toolbar's own, not of what these tests are about.
 async function open(browser, url) {
   const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
   page.on("pageerror", (error) => { throw error; });
   await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector("#oxv-root .px-row", { timeout: 10000 });
@@ -199,12 +232,98 @@ async function takeover(browser, served) {
     await page.close();
   });
 
-  await test("a non-ONIX XML file is left to the browser", async () => {
-    const page = await browser.newPage();
-    await page.goto(served.url("rss.xml"), { waitUntil: "load" });
-    const untouched = await page.evaluate(() =>
-      !document.documentElement.hasAttribute("data-oxv") && !document.getElementById("oxv-root"));
-    assert(untouched, "no takeover of an RSS feed");
+  // The two documents below are the promise that detaching the parser's root
+  // costs nothing outside ONIX: an RSS root is never taken, and a bare
+  // <Product> is taken only once an ONIX child corroborates it — so a
+  // non-ONIX one stays put, and Chrome's own viewer renders both as it
+  // always has: the root replaced by its <html>, the source in its wrapper.
+  for (const [name, root] of [["rss.xml", "rss"], ["non-onix-product.xml", "Product"]]) {
+    await test(`a non-ONIX XML file (${name}) is left to Chrome's viewer`, async () => {
+      const page = await browser.newPage();
+      await page.goto(served.url(name), { waitUntil: "load" });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const state = await page.evaluate(() => ({
+        marked: document.documentElement.hasAttribute("data-oxv"),
+        viewer: !!document.getElementById("oxv-root"),
+        native: document.getElementById("webkit-xml-viewer-source-xml")?.firstElementChild?.localName || "",
+      }));
+      assert(!state.marked && !state.viewer, `no takeover of ${name}`);
+      assert(state.native === root, `Chrome's viewer holds <${root}> as the source; got "${state.native}"`);
+      await page.close();
+    });
+  }
+
+  await test("a bare <Product> root with no namespace is taken over once its children corroborate it", async () => {
+    const page = await open(browser, served.url("onix-standalone-product-no-namespace.xml"));
+    const state = await page.evaluate(() => ({
+      marked: document.documentElement.hasAttribute("data-oxv"),
+      meta: document.getElementById("oxv-meta").textContent,
+      children: document.children.length,
+    }));
+    assert(state.marked && state.children === 1, "taken over, the shell alone in the document");
+    assert(state.meta.includes("1 product"), `the pill counts it; got "${state.meta}"`);
+    await page.close();
+  });
+
+  // The fallback is taken when the re-fetch fails, and when it succeeds
+  // with something other than the document — a session's share link
+  // answering a second request with its sign-in page.
+  for (const [prefix, why] of [["once-", "fails"], ["login-", "returns a sign-in page"]]) {
+    await test(`when the re-fetch ${why}, the source is read from the parser's own tree`, async () => {
+      const fetched = await open(browser, served.url("onix-3.1-valid.xml"));
+      const expected = await fetched.evaluate(() => document.querySelectorAll("#oxv-root .px-row").length);
+      await fetched.close();
+      const page = await open(browser, served.url(`${prefix}onix-3.1-valid.xml`));
+      const state = await page.evaluate(() => ({
+        rows: document.querySelectorAll("#oxv-root .px-row").length,
+        verdict: document.getElementById("oxv-validation").textContent,
+        children: document.children.length,
+      }));
+      assert(state.rows === expected, `the same tree as from the fetch; got ${state.rows} rows, expected ${expected}`);
+      assert(state.verdict.includes("Valid"), `validated from the fallback source; got "${state.verdict}"`);
+      assert(state.children === 1, `only the shell is left in the document; got ${state.children} children`);
+      await page.close();
+    });
+  }
+
+  await test("a 300-product feed is taken over whole, with nothing of the native document left", async () => {
+    const page = await open(browser, served.url("large.xml"));
+    const state = await page.evaluate(() => ({
+      meta: document.getElementById("oxv-meta").textContent,
+      verdict: document.getElementById("oxv-validation").textContent,
+      children: document.children.length,
+      native: !!document.getElementById("webkit-xml-viewer-source-xml"),
+      pending: document.querySelectorAll("#oxv-root .px-children.px-pending").length,
+      rows: document.querySelectorAll("#oxv-root .px-row").length,
+    }));
+    assert(state.meta.includes("300 products"), `the pill counts the feed; got "${state.meta}"`);
+    assert(!state.verdict.includes("Validating"), `the verdict is in; got "${state.verdict}"`);
+    assert(state.children === 1 && !state.native, "the shell is the document's only element and Chrome's viewer left nothing");
+    assert(state.pending > 250 && state.rows < 30000,
+      `most Products wait for the viewport; got ${state.pending} pending and ${state.rows} rows`);
+
+    // Scrolling to the end brings the last Products within reach of the
+    // observer, which renders them; the first ones stay as they were.
+    // #oxv-root is the scroll container, not the window.
+    await page.evaluate(() => { const r = document.getElementById("oxv-root"); r.scrollTo(0, r.scrollHeight); });
+    await page.waitForFunction(() => {
+      const containers = document.querySelectorAll("#oxv-root > .px-children > .px-children");
+      return !containers[containers.length - 1].classList.contains("px-pending");
+    }, { timeout: 10000 });
+    const after = await page.evaluate(() =>
+      document.querySelectorAll("#oxv-root .px-children.px-pending").length);
+    assert(after < state.pending && after > 200, `the Products near the end rendered, the middle did not; got ${after} pending`);
+
+    // The findings list reaches into a Product not yet rendered.
+    await page.click("#oxv-validation");
+    await page.waitForSelector("#oxv-findings:not([hidden])");
+    const entries = await page.$$("#oxv-findings .px-findings-item");
+    await entries[Math.floor(entries.length / 2)].click();
+    const jumped = await page.evaluate(() => {
+      const active = document.querySelector("#oxv-root .px-row.px-active");
+      return { active: !!active, pill: !!(active && active.querySelector(".px-finding")) };
+    });
+    assert(jumped.active && jumped.pill, "the entry's row is rendered, active and carries its pill");
     await page.close();
   });
 }

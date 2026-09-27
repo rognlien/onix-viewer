@@ -4,8 +4,10 @@
 //
 // Design notes:
 //  - We render to plain DOM (not innerHTML strings) for safety against XSS
-//    when XML contains markup-looking text. Everything is rendered up front
-//    and opens fully expanded; Collapse folds a level at a time from there.
+//    when XML contains markup-looking text. The tree opens fully expanded;
+//    Collapse folds a level at a time from there. On a feed of more than a
+//    few products each Product's subtree is rendered only as it nears the
+//    viewport (see "lazy products" below); everything else is up front.
 //  - One row per logical "line": opening tag, text, closing tag are separate
 //    rows when the element has children, but combined into one row for
 //    leaf elements (more compact, easier to scan).
@@ -30,6 +32,23 @@
   // Declared up here because validation starts during setup, before the
   // validation section further down has been reached.
   let lastValidation = null;
+
+  // Products rendered on demand. Building rows is what a large feed spends
+  // its time on — 2.6 s of the 4.8 s to the first verdict on 1,000 products —
+  // and the reader only ever looks at a screenful, so above this many
+  // products each Product's subtree waits until it nears the viewport. Below
+  // it the whole tree is built up front, which keeps a small file simple
+  // and deterministic (jsdom has no IntersectionObserver either, so the
+  // suite always takes that path unless a test supplies one).
+  const LAZY_FROM_PRODUCTS = 20;
+  let lazy = false;
+  let pendingObserver = null;
+  // A deferred Product's children container → { el, depth } until rendered.
+  const pendingContainers = new Map();
+  // The reverse: the Product element → its container, for ensureRendered().
+  const pendingByElement = new Map();
+  // Findings inside a deferred Product, pinned when it renders.
+  const pendingFindings = new Map();
 
   // ---- icons ----------------------------------------------------------------
 
@@ -195,15 +214,17 @@
   sourceDialect = onixCtx.dialect;
   displayDialect = preferredDialect();
 
+  const productCount = onixCtx.isOnix
+    ? window.OnixViewerOnix.productElements(doc).length
+    : 0;
+  lazy = productCount > LAZY_FROM_PRODUCTS && typeof window.IntersectionObserver === "function";
+  if (lazy) setupLazyProducts();
+
   renderTree(doc, root, 0);
 
   const sizeKB = (SOURCE.length / 1024).toFixed(1);
 
   if (!onixCtx.isOnix) document.body.classList.add("px-no-onix");
-
-  const productCount = onixCtx.isOnix
-    ? window.OnixViewerOnix.productElements(doc).length
-    : 0;
 
   // The tree opens fully expanded, whatever its size: a reader who opens a
   // file expects to see it, and two presses of Collapse give one line per
@@ -232,7 +253,10 @@
   // order, and an element's close row is pushed *before* its children so it
   // lands after them.
   function renderTree(rootNode, rootParent, rootDepth) {
-    const stack = [{ node: rootNode, parent: rootParent, depth: rootDepth }];
+    drain([{ node: rootNode, parent: rootParent, depth: rootDepth }]);
+  }
+
+  function drain(stack) {
     while (stack.length) {
       const task = stack.pop();
       if (task.close) {
@@ -439,7 +463,8 @@
     // The close row belongs to `parent`, after the container — pushed first so
     // it is handled once every child has been.
     stack.push({ close: el, parent, depth });
-    pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
+    if (isDeferred(el)) deferChildren(el, childrenContainer, depth + 1);
+    else pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
 
     // Folding is delegated on #oxv-root in setupClickHandlers: the chevron
     // toggles, a click anywhere else makes the row active.
@@ -489,6 +514,68 @@
     for (let i = childNodes.length - 1; i >= 0; i--) {
       stack.push({ node: childNodes[i], parent, depth });
     }
+  }
+
+  // ---- lazy products --------------------------------------------------------
+
+  // A deferred Product keeps its open row — the summary chip, the block
+  // badge, the fold chevron — and its close row; only what sits between them
+  // waits. The container is empty, held to a placeholder height by CSS so the
+  // scrollbar has a shape, and rendered when the observer says it is within
+  // two screens of the viewport. A folded Product's container is display:none
+  // and never intersects, so it renders when unfolded, not before.
+  function isDeferred(el) {
+    return lazy && isProductElement(el) && el.parentNode === doc.documentElement;
+  }
+
+  function deferChildren(el, container, depth) {
+    container.classList.add("px-pending");
+    pendingContainers.set(container, { el, depth });
+    pendingByElement.set(el, container);
+    pendingObserver.observe(container);
+  }
+
+  function setupLazyProducts() {
+    pendingObserver = new window.IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) renderPending(entry.target);
+      }
+    }, { rootMargin: "2000px 0px" });
+  }
+
+  function renderPending(container) {
+    const pending = pendingContainers.get(container);
+    if (!pending) return;
+    pendingContainers.delete(container);
+    pendingByElement.delete(pending.el);
+    pendingObserver.unobserve(container);
+    container.classList.remove("px-pending");
+    const stack = [];
+    pushChildren(stack, pending.el.childNodes, container, pending.depth);
+    drain(stack);
+    const queued = pendingFindings.get(pending.el);
+    if (queued) {
+      pendingFindings.delete(pending.el);
+      for (const finding of queued) pinFinding(finding);
+    }
+  }
+
+  // The deferred Product a source node sits inside, or null.
+  function pendingProductOf(node) {
+    if (!pendingByElement.size) return null;
+    let current = node;
+    while (current && current.parentNode !== doc.documentElement) current = current.parentNode;
+    return current && pendingByElement.has(current) ? current : null;
+  }
+
+  // Everything that needs a row for a source node goes through here first.
+  function ensureRendered(node) {
+    const product = pendingProductOf(node);
+    if (product) renderPending(pendingByElement.get(product));
+  }
+
+  function renderAllPending() {
+    for (const container of [...pendingContainers.keys()]) renderPending(container);
   }
 
   function writeOpenTag(row, el, selfClose) {
@@ -1096,6 +1183,7 @@
   }
 
   function clearFindings() {
+    pendingFindings.clear();
     for (const marker of root.querySelectorAll(".px-finding")) marker.remove();
     for (const row of root.querySelectorAll(".px-has-finding, .px-has-error")) {
       row.classList.remove("px-has-finding", "px-has-error");
@@ -1103,8 +1191,17 @@
   }
 
   // Findings carry the element they are about; the marker lands on that
-  // element's row, or on the root row when the element isn't rendered.
+  // element's row, or on the root row when the element isn't rendered. A
+  // finding inside a deferred Product waits with it — pinning it now would
+  // mean rendering every Product with a finding, which on a feed with a
+  // warning per record is the whole feed.
   function pinFinding(finding) {
+    const product = pendingProductOf(finding.at || finding.node);
+    if (product) {
+      if (!pendingFindings.has(product)) pendingFindings.set(product, []);
+      pendingFindings.get(product).push(finding);
+      return;
+    }
     const row = rowFor(finding) || root.querySelector(".px-row");
     if (!row) return;
     const isError = finding.severity === "error";
@@ -1249,6 +1346,7 @@
       // the selection. Keyboard activation leaves the selection collapsed, so
       // Enter and Space still navigate.
       if (hasSelectionInside(item)) return;
+      ensureRendered(finding.at || finding.node);
       const row = rowFor(finding);
       closeFindings();
       if (row) revealRow(row);
@@ -2051,6 +2149,13 @@
       return;
     }
     const needle = q.toLowerCase();
+
+    // The search reads the rendered tree — tag names, values, chips — so
+    // every deferred Product is rendered first. That is the whole feed once,
+    // which is what the viewer built on load before Products were deferred;
+    // a search over the source instead would have to count what the chips
+    // add, and is a change for another day.
+    renderAllPending();
 
     // Walk text nodes. Mark the containing span — full substring highlighting
     // would require splitting text nodes, which is doable but adds complexity

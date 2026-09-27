@@ -505,6 +505,11 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   contain-intrinsic-size: auto 1200px;
 }
 
+/* A Product not yet rendered (viewer.js defers them on a large feed) is an
+   empty container: the same placeholder height, so the scrollbar and the
+   observer that fills it have something to measure. */
+.px-children.px-pending { min-height: 1200px; }
+
 /* Viewer decorations are excluded from text selection, so a drag-select copy
    yields only the XML itself: tags, attributes and text — no "→ label"
    badges, List-N chips, summaries, Block N labels, fold markers or gutter
