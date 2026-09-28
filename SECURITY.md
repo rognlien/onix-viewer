@@ -28,7 +28,7 @@ This document explains how ONIX Viewer handles page content, what permissions it
     "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js",
                   "onix-content-model-3.1.js","onix-content-model-3.0.js",
                   "onix-validate.js","onix-schematron.js","onix-popup.js",
-                  "icons/icon-48.png"],
+                  "icons/icon-28.png","icons/icon-56.png"],
     "matches": ["<all_urls>"]
   }]
 }
@@ -49,7 +49,7 @@ Specifically:
 - **`content_scripts.matches: ["<all_urls>"]`** is needed so the content script *runs* on any page (XML can be served from any URL). It bails immediately on the first 10 lines of `content.js` for any page whose Content-Type isn't `application/xml`, `text/xml`, or `application/onix+xml`. It then bails again unless the XML body contains the EDItEUR ONIX namespace, an `<ONIXMessage>` root, or a `<Product>` root with a corroborating ONIX child. On every other page it does nothing.
 
 - **`web_accessible_resources`** lists the viewer scripts, the
-  stylesheet and one icon, matched against `<all_urls>`. They have to be
+  stylesheet and two sizes of one icon, matched against `<all_urls>`. They have to be
   web-accessible because the viewer runs in the **page's** world, not the
   content script's: `content.js` replaces the document with the markup
   `shell.js` supplies (a second content script, loaded first) and then appends

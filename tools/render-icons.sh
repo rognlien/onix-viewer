@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# tools/render-icons.sh — Render the extension's icon PNGs at every size
-# Chrome may need.
+# tools/render-icons.sh — Render the extension's icon PNGs at every size the
+# manifest declares: the seven a store may ask for, plus 28 and 56, the
+# toolbar mark's box at 1x and 2x.
 #
 # Source-of-truth is icons/icon-original.png (1254×1254 RGBA).
 # The source has the artwork edge-to-edge with transparent corners, so it is
@@ -30,7 +31,7 @@ done
 
 SRC="icons/icon-original.png"
 OUT_DIR="Resources/icons"
-SIZES="16 32 48 96 128 256 512"
+SIZES="$(node -p 'Object.keys(require("./Resources/manifest.json").icons).join(" ")')"
 
 if [ ! -f "$SRC" ]; then
   echo "Missing $SRC." >&2

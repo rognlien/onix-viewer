@@ -18,7 +18,7 @@
 (function () {
   "use strict";
 
-  function html({ title, cssURL, logoURL, version, browser }) {
+  function html({ title, cssURL, logoURL, logoURL2x, version, browser }) {
     return `<!doctype html>
 <html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}" data-oxv-browser="${escapeHtml(browser || "")}">
 <head>
@@ -30,12 +30,14 @@
 <div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
     <!-- The mark says which extension took the page over — a raw XML URL gives
-         no other clue. It is the app icon's own 48px size — no separate copy to
-         keep in step — shown at 28px, and it is the door to the About window.
+         no other clue. It is the app icon at the box's own size, 28px, with
+         the 56px size for a 2x display — both manifest sizes, hand-drawn, so
+         nothing is resampled and no separate copy needs keeping in step. It
+         is the door to the About window.
          If the page's own img-src CSP blocks extension URLs, viewer.js swaps
          the image for the name rather than leave a broken-image glyph. -->
     <button type="button" class="px-logo-btn" data-action="about" title="About ONIX Viewer" aria-label="About ONIX Viewer">
-      <img id="oxv-logo" src="${logoURL}" width="28" height="28" alt="">
+      <img id="oxv-logo" src="${logoURL}" srcset="${logoURL} 1x, ${logoURL2x} 2x" width="28" height="28" alt="">
     </button>
     <!-- Expand and Collapse both work a level at a time; viewer.js prepends
          their icons. -->

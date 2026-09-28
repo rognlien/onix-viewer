@@ -113,7 +113,7 @@ function renderSource(xml, label, beforeScripts, models) {
   // id or a new toolbar button breaks here, not only in the browser. The
   // stylesheet link becomes an inline <style>, since jsdom fetches nothing.
   const html = globalThis.OnixViewerShell.html({
-    title: fixtureName, cssURL: "viewer.css", logoURL: "icons/icon-48.png",
+    title: fixtureName, cssURL: "viewer.css", logoURL: "icons/icon-28.png", logoURL2x: "icons/icon-56.png",
     version: "0.0.0-test", browser: "chrome",
   }).replace('<link rel="stylesheet" href="viewer.css">', `<style>${viewerCss}</style>`);
 

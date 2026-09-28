@@ -15,8 +15,10 @@
 
   "icons": {
     "16": "icons/icon-16.png",
+    "28": "icons/icon-28.png",
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
+    "56": "icons/icon-56.png",
     "96": "icons/icon-96.png",
     "128": "icons/icon-128.png",
     "256": "icons/icon-256.png",
@@ -47,7 +49,8 @@
         "onix-validate.js",
         "onix-schematron.js",
         "onix-popup.js",
-        "icons/icon-48.png"
+        "icons/icon-28.png",
+        "icons/icon-56.png"
       ],
       "matches": ["<all_urls>"]
     }
