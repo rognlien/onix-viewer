@@ -229,6 +229,29 @@ body {
   height: 16px;
   display: block;
 }
+/* The cog is aria-pressed while a rule set is installed, but it is not a
+   toggle the way Soft wrap and the dialect switch are — nothing is on or off,
+   something is loaded — and the accent fill read as a button stuck down. A
+   dot in the corner says "there is something here" instead, ringed in the
+   toolbar's own background so it stands clear of the border. */
+#oxv-toolbar [data-action="rules"][aria-pressed="true"] {
+  position: relative;
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border);
+}
+#oxv-toolbar [data-action="rules"][aria-pressed="true"]:hover { background: var(--bg-hover); }
+#oxv-toolbar [data-action="rules"][aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-toolbar);
+}
 
 /* The document pill and the validation state, hugging the controls to their
    left rather than centred — the pill describes what you are looking at, so it
@@ -246,6 +269,7 @@ body {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
 }
 
 /* Search collapses to its icon. The field is still in the DOM — it holds the
@@ -314,16 +338,16 @@ body.px-search-open #oxv-search {
 body:not(.px-search-open) #oxv-search-status { display: none; }
 
 /* The document pill: file icon, what the document is, which blocks it
-   carries, and its size — one bordered unit, matching the code-list pill at
-   the other end of the toolbar. */
-#oxv-meta,
-#oxv-schema {
+   carries, and its size — one bordered unit, matching the release selector
+   at the other end of the toolbar. */
+#oxv-meta {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   /* A flex item's min-width is its content by default, which would let the
-     document pill push past the code-list pill in its own column on a narrow
-     window instead of shortening. The label ellipsises once it has to. */
+     document pill push past the release selector in its own column on a
+     narrow window instead of shortening. The label ellipsises once it has
+     to. */
   min-width: 0;
   padding: 2px 8px;
   border: 1px solid var(--border);
@@ -344,9 +368,63 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
   color: inherit;
   font: inherit;
 }
-/* The code-list pill is reference material at a fixed width — it shortens for
-   nothing. Only the document pill gives way. */
-#oxv-schema { flex: 0 0 auto; }
+/* The release selector: "ONIX 3.1, Issue 74" — which content model the
+   verdict is against and which code-list issue the labels come from. A
+   native select in the toolbar buttons' box — their border, radius,
+   padding and type — since it is a control, at a fixed width: it is
+   reference material and shortens for nothing, only the document pill
+   gives way. While the choice differs from the release the document
+   declares it takes the accent, the way a pressed toggle does, so an
+   overridden verdict is never mistaken for the file's own. */
+#oxv-release-group {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+#oxv-release {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 24px 4px 10px;
+  color: var(--fg);
+  font: inherit;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+#oxv-release:hover:not(:disabled) { background: var(--bg-hover); }
+/* No ring after a mouse choice — viewer.js marks a pointer press — while a
+   keyboard focus keeps the browser's own. */
+#oxv-release.px-pointer:focus { outline: none; }
+#oxv-release:disabled { cursor: default; color: var(--fg-muted); }
+/* The chevron is drawn here rather than by the platform: the native one
+   sits where the platform puts it, which in Chrome on macOS is below the
+   text's midline once the box has padding of its own. A rotated border
+   corner in the text's colour, centred on the box, kept out of the way of
+   clicks, and white on the accent. */
+#oxv-release-group::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+  color: var(--fg);
+}
+#oxv-release-group:has(> .px-overridden)::after { color: #fff; }
+#oxv-release-group:has(> :disabled)::after { color: var(--fg-muted); }
+#oxv-release-group:has(> #oxv-release:empty) { display: none; }
+#oxv-release.px-overridden {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+#oxv-release option { color: var(--fg); background: var(--bg); }
 
 /* Past a point the document pill has shortened as far as it can and the
    validation state — the one thing in the toolbar that says whether the file
@@ -355,17 +433,18 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
    release and blocks from the tree), the verdict isn't. Two breakpoints
    because an open search field costs 320px of the same row.
 
-   Below 1000px the issue pill goes too. The controls take about 670px with
-   the longer dialect label, and the verdict, the issue pill and the cog
-   another 320 with their gaps; without this the issue pill sat on top of
-   the verdict from 950px down (measured: verdict 664..800, issue 691..810
-   at 850px), and a click on the verdict opened nothing. The issue is in
-   About; the verdict is nowhere else. */
+   Below 1000px the release selector goes too. The controls take about
+   670px with the longer dialect label, and the verdict, the selector and
+   the cog another 320 with their gaps; without this the selector (then a
+   plain issue pill of the same width) sat on top of the verdict from 950px
+   down (measured: verdict 664..800, issue 691..810 at 850px), and a click
+   on the verdict opened nothing. The issue is in About; the verdict is
+   nowhere else. */
 @media (max-width: 1100px) {
   body.px-search-open #oxv-meta { display: none; }
 }
 @media (max-width: 1000px) {
-  #oxv-schema { display: none; }
+  #oxv-release-group { display: none; }
 }
 /* Narrower still, the four buttons that carry an icon keep only the icon.
    Their titles name them for hover and for assistive technology, and the
@@ -379,7 +458,7 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
   #oxv-meta { display: none; }
 }
 #oxv-meta:empty,
-#oxv-schema:empty,
+#oxv-release:empty,
 #oxv-block-list:empty { display: none; }
 
 /* ───────── split layout ───────── */
@@ -1001,11 +1080,28 @@ body.px-popup-open { overflow: hidden; }
 
 /* ---- custom rules editor ------------------------------------------------- */
 
-/* The rules modal is the code-list popup's shell around a textarea. A rule
-   set is XML, so the field is monospace and tall enough to hold a pattern or
-   two without scrolling. */
-.px-rules { max-width: 720px; }
+/* The rules modal is the code-list popup's shell around a textarea, wider
+   and taller than the code-list popup: a rule set is XML, so the field is
+   monospace and holds a pattern or two, with their context expressions,
+   without scrolling or wrapping. The modal itself resizes from its corner,
+   and the field fills whatever it is given, so it is the one handle: a
+   longer rule set gets the window, not a scrollbar inside a fixed one. The
+   caps are the window less the overlay's padding; the floors keep the
+   buttons and a few lines of the field in reach. */
+.px-rules {
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  width: 860px;
+  min-width: 480px;
+  min-height: 360px;
+  resize: both;
+}
+.px-rules .px-popup-body {
+  display: flex;
+  flex-direction: column;
+}
 .px-rules-hint {
+  flex: 0 0 auto;
   margin: 0 0 12px;
   color: var(--fg-muted);
   font-size: 12px;
@@ -1015,8 +1111,9 @@ body.px-popup-open { overflow: hidden; }
   display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 16rem;
-  resize: vertical;
+  flex: 1;
+  min-height: 22rem;
+  resize: none;
   padding: 8px 10px;
   background: var(--bg);
   color: var(--fg);
@@ -1030,6 +1127,7 @@ body.px-popup-open { overflow: hidden; }
 .px-rules-text:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .px-rules-text::placeholder { color: var(--fg-faint); }
 .px-rules-status {
+  flex: 0 0 auto;
   margin-top: 10px;
   font-size: 12px;
   line-height: 1.5;

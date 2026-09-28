@@ -64,16 +64,18 @@ describe("Dialect toggle", () => {
       "the pill describes the file, so translating must not change it");
   });
 
-  test("the meta pill is led by a file icon, and the schema pill drops the vendor", () => {
+  test("the meta pill is led by a file icon, and the release selector names release and issue", () => {
     const w = render("onix-3.0-reference.xml");
     const pill = w.document.getElementById("oxv-meta");
     const glyph = pill.querySelector("svg");
     assert(glyph, "the meta pill should open with a file icon");
     assert(glyph.getAttribute("viewBox") === "0 0 16 16", "from the shared icon set");
     assert(pill.textContent.startsWith("ONIX"), "the icon adds no text");
-    const schema = w.document.getElementById("oxv-schema").textContent;
-    assert(schema === "ONIX 3.1, Issue 74", `got: ${schema}`);
-    assert(!schema.includes("EDItEUR"), "the vendor name is not needed here");
+    const select = w.document.getElementById("oxv-release");
+    const shown = select.options[select.selectedIndex].textContent;
+    assert(shown === "ONIX 3.0, Issue 74", `got: ${shown}`);
+    assert(!shown.includes("EDItEUR"), "the vendor name is not needed here");
+    assert(select.title.startsWith("Validate against this ONIX release"), `got: ${select.title}`);
   });
 
   test("the document pill is one unit: icon, what it is, its blocks, its size", () => {
@@ -122,7 +124,7 @@ describe("Dialect toggle", () => {
     assert(metaMin === "0" || metaMin === "0px",
       `the pill must be allowed to shrink, got min-width "${metaMin}"`);
     assert(style("#oxv-meta").flexShrink !== "0", "and must not be pinned against shrinking");
-    assert(style("#oxv-schema").flexShrink === "0", "the issue pill keeps its width");
+    assert(style("#oxv-release-group").flexShrink === "0", "the release selector keeps its width");
     assert(style("#oxv-validation").flexShrink === "0", "and so does the verdict");
     const label = style("#oxv-meta .px-meta-label");
     assert(label.overflow === "hidden" && label.textOverflow === "ellipsis",
@@ -143,15 +145,15 @@ describe("Dialect toggle", () => {
       `expected the pill dropped when the search field is open on a narrow window; got ${dropped.join("; ")}`);
     assert(dropped.some((d) => d.includes("760px")),
       `expected the pill dropped outright when very narrow; got ${dropped.join("; ")}`);
-    assert(dropped.some((d) => d.includes("1000px") && d.includes("oxv-schema")),
-      `expected the issue pill dropped below 1000px, where it overlapped the verdict; got ${dropped.join("; ")}`);
+    assert(dropped.some((d) => d.includes("1000px") && d.includes("oxv-release")),
+      `expected the release selector dropped below 1000px, where it overlapped the verdict; got ${dropped.join("; ")}`);
     assert(!dropped.some((d) => d.includes("oxv-validation")),
       `the verdict is never dropped; got ${dropped.join("; ")}`);
   });
 
-  test("the toolbar reads left to right: controls, document, validation, then issue", () => {
+  test("the toolbar reads left to right: controls, document, validation, then release", () => {
     const w = render("onix-3.0-single-product-blocks.xml");
-    const ids = ["oxv-meta", "oxv-validation", "oxv-schema"]
+    const ids = ["oxv-meta", "oxv-validation", "oxv-release"]
       .map((id) => w.document.getElementById(id));
     for (let i = 1; i < ids.length; i++) {
       const order = ids[i - 1].compareDocumentPosition(ids[i]);
@@ -162,7 +164,7 @@ describe("Dialect toggle", () => {
     // reference material and goes to the far right, in its own column.
     assert(ids[0].closest(".px-center"), "the document pill belongs in the centre group");
     assert(ids[1].closest(".px-center"), "so does the validation state");
-    assert(ids[2].closest(".px-right"), "the issue pill belongs in the right group");
+    assert(ids[2].closest(".px-right"), "the release selector is about the viewer, so it goes right");
   });
 
   test("switching keeps fold state, code-list badges and summaries intact", () => {

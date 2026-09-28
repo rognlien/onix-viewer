@@ -310,7 +310,7 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 ```
 [ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   🔍 ]
         [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB]  [✓ Valid]
-                                                … [ONIX 3.1, Issue 74] [⚙]
+                                                … [ONIX 3.1, Issue 74 ▾] [⚙]
 ```
 
 - **`.px-center`** holds the **document pill** (`#oxv-meta`) and the
@@ -385,16 +385,55 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   container and the baseline never enters into it — every control now shares
   one midline. `align-self: stretch` on the dialect and search groups keeps
   their divider spanning the full button height.
-- **`.px-right`** holds the **code-list issue** (`#oxv-schema`) and the
+- **`.px-right`** holds the **release selector** (`#oxv-release`) and the
   **cog** (`data-action="rules"`, the custom rules editor). Both are about
-  the viewer rather than this document — which EDItEUR issue the labels came
-  from, which rules of your own are in force — so they sit apart, pushed to
-  the edge by the centre column. The cog is `aria-pressed` while a rule set
-  is installed and its title carries the count.
+  the viewer rather than this document — which release and code-list issue
+  the verdict rests on, which rules of your own are in force — so they sit
+  apart, pushed to the edge by the centre column. The cog is `aria-pressed`
+  while a rule set is installed — shown as an accent dot in its corner, not
+  the accent fill (see *The rules editor*) — and its title carries the count.
+
+  The selector reads `ONIX 3.1, Issue 74` and is the code-list issue pill
+  that used to stand there, made a control: a native `<select>` in the
+  toolbar buttons' own box — border, 6px radius, padding and type — so it
+  stands level with the cog, filled by `setupReleaseSelect()` in `viewer.js`
+  with one `ONIX N, Issue I` option per bundled release, and ahead of them
+  the document's own when that is not bundled (`ONIX 2.1, Issue 74`, or
+  `Undeclared release, Issue 74` for a standalone `<Product>` with no
+  namespace). The issue is the same on every option, since code lists are
+  release-independent; it comes from `OnixViewerCodeListSchema`, and the
+  title carries the issue's release date. It starts on the declared release.
+  While the choice differs from it the select carries `px-overridden` and
+  takes the accent, the way a pressed toggle does, and its title names both
+  releases; the verdict's note (the tick's title, the findings list's
+  eyebrow) says `Checked against the bundled ONIX 3.0 content model; the
+  document declares ONIX 3.1`. See *Validation* for what a switch does. An
+  Acknowledgement, never checked structurally, gets its one release and the
+  issue in a disabled select; a non-ONIX document validates nothing, so its
+  select is left empty and hidden. The choice is not remembered: a document
+  says which release it is, and an override carried to the next file would
+  judge it against the wrong schema in silence.
+
+  Chrome draws its focus ring on a `<select>` after a mouse click, where a
+  button gets one from the keyboard alone, so the selector sat outlined
+  after every choice. `quietPointerFocus()` marks a pointer press with
+  `px-pointer`, which the stylesheet mutes; a key press or a blur clears the
+  mark, so keyboard focus keeps the browser's ring. A choice made by mouse
+  also leaves the control — `blur()` on `change` — since the ring came back
+  now and then after the platform's popup had shuffled focus; a choice made
+  by key keeps focus for the next arrow press.
+
+  The chevron is drawn by the stylesheet, not the platform: with
+  `appearance: none` on the select, `#oxv-release-group::after` — the
+  wrapper span around it — draws a rotated border corner centred on the
+  box, in the text's colour and white on the accent. Chrome on macOS put
+  the native one below the text's midline once the box had padding of its
+  own. The wrapper is what the 1000px breakpoint hides, and it hides itself
+  when the select is empty.
 
 **What gives way on a narrow window**, in order: the document pill's label
 ellipsises, then the search field shortens, then the pill is dropped
-altogether, and below 1000px the issue pill as well. `#oxv-validation` is
+altogether, and below 1000px the release selector as well. `#oxv-validation` is
 `flex-shrink: 0` and never gives way — the size, release and issue are
 recoverable from the file, the tree and About, `103 errors` is not. Four
 things are needed to make that happen:
@@ -408,14 +447,15 @@ things are needed to make that happen:
   field is open (it costs 320px of the same row), `max-width: 760px`
   regardless. Without them the verdict, being last in the group, is what gets
   clipped.
-- A breakpoint dropping the **issue pill** at `max-width: 1000px`. The
-  controls alone take about 670px with the longer dialect label ("View as
-  reference names"), and the verdict, the issue pill and the cog need
+- A breakpoint dropping the **release selector** at `max-width: 1000px`.
+  The controls alone take about 670px with the longer dialect label ("View
+  as reference names"), and the verdict, the selector and the cog need
   another 320 with their gaps. Below that the grid's right column sat on
-  top of the centre one — measured at 850px: verdict 664..800, issue
-  691..810 — so a click on the verdict landed on the issue pill and opened
-  nothing. Headless Chrome's default 800px window is where the browser test
-  found it; the test now runs at 1280px.
+  top of the centre one — measured at 850px with the issue pill the
+  selector replaced, of the same width: verdict 664..800, issue 691..810 —
+  so a click on the verdict landed on the pill and opened nothing. Headless
+  Chrome's default 800px window is where the browser test found it; the
+  test now runs at 1280px.
 - A breakpoint at `max-width: 900px` hiding the **labels** of the four
   buttons that carry an icon (Expand, Collapse, Soft wrap, Copy XML), which
   are wrapped in `.px-label` for the purpose; their `title`s still name
@@ -907,6 +947,38 @@ reword it.
    The property this rests on is tested directly: every ONIX fixture must
    produce the same findings from its own model alone as it does from both.
 
+   **The other release is a choice**, through the toolbar's release selector
+   (see *The toolbar's right-hand side*). `start()` and `run()` take
+   `options.version`, the release to judge against, defaulting to the
+   document's own; the viewer passes what the selector says. Two things make
+   the switch honest:
+
+   - **The missing model is fetched on demand.** `content.js` stamps the URL
+     of every bundled model on the shell as `data-oxv-models` (a JSON map,
+     release → URL, from `modelURLsByVersion()`), and `ensureModel()` in
+     `viewer.js` appends the one asked for as a `<script>` the first time,
+     showing *Validating…* meanwhile. A page still loads one model. Either
+     outcome runs the pass: without the model it reports `model.missing`,
+     which is the truth.
+   - **The `release` attribute is exempt under an override.** Judged as 3.0,
+     a document saying `release="3.1"` can only disagree, and the
+     disagreement is the reader's choice rather than a defect, so the one
+     finding every override would carry is left out. The attribute rule
+     compares `api.version` — the release judged — with the document's own.
+
+   What a reader gets from it: 3.0 and 3.1 disagree about what is an error
+   and what a warning. `<TitleText>` is plain in 3.0 and deprecated in 3.1;
+   `<AudienceCode>` and the `Conference*` composites are deprecated in 3.0
+   and unknown to 3.1, an error. A feed about to move between them can be
+   read both ways, and a standalone `<Product>` with no namespace, which
+   declares nothing, can be checked structurally at all — its first option
+   is *Validate as declared*, which reports `model.missing` as before.
+
+   A pass that is superseded — the reader picks another release, or applies
+   rules, while a large feed is still being sliced — stops at its next slice
+   rather than finishing and pinning a stale verdict over the new one:
+   `pumpValidation()` compares its session with `activeSession`.
+
 Everything the schema expresses is now checked, so the seam is demonstrated with
 a **house rule** instead — something no schema can express. The test registers
 one (this publisher's ISBNs must sit in its own 978-82 prefix range), with its
@@ -1206,13 +1278,19 @@ The reader pastes a rule set into a modal behind the toolbar's cog
 (`#oxv-rules`, built in `viewer.js` on the findings list's pattern: the
 popup shell, the focus contract, `keepTabInside()` shared between them). A
 `<textarea>` with the house-rules example as its placeholder, a status line,
-**Apply** and **Clear**. The window opens already applied: the status line
+**Apply** and **Clear**. The modal is 860px wide to start and **resizes
+from its corner** (`resize: both` on `.px-rules`, capped by the window);
+its body is a flex column and the field `flex: 1` with no handle of its
+own, so one drag gives a longer rule set the room, not a scrollbar inside a
+fixed box. The window opens already applied: the status line
 shows the rules in force — `3 patterns, 5 assertions, applied.`, `No custom
 rules.`, or the problems as a list — from the last install, so a rule set
 that failed on load explains itself the moment the cog is pressed. Apply
 installs the text, re-runs validation so the pills update at once, and
 prints the same status afresh; Clear does the same with nothing. The cog is
-pressed while rules are in force.
+`aria-pressed` while rules are in force, shown as an accent dot in its
+corner rather than the accent fill the other toggles take: nothing is on or
+off, something is loaded, and a filled cog read as a button stuck down.
 
 Keeping the rules across pages is what cost the extension its first
 permission. Three places were weighed:
@@ -1615,7 +1693,7 @@ node tools/generate-codelists.js                                  # default path
 node tools/generate-codelists.js --json=PATH --xsd=PATH --short-xsd=PATH
 ```
 
-The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant and shows "ONIX 3.1, Issue 74" as a toolbar pill so users can see at a glance which code lists they're looking at.
+The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `window.OnixViewerCodeListSchema = { version, issue, releaseDate }` to the output. `viewer.js` reads this constant into the toolbar's release selector, whose options read "ONIX 3.1, Issue 74", so users can see at a glance which code lists they're looking at.
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
@@ -1667,9 +1745,10 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `__oxv-rules__` — the inert data block the reader's rule set arrives in, beside `__oxv-source__`; `oxv-rules`, `oxv-rules-text`, `oxv-rules-status` are the editor modal and its parts
 - `oxv-rules` / `oxv-rules-kept` — the two `postMessage` types between the viewer and `content.js`, the only traffic between the page's world and the content script
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-release`, `oxv-release-group`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`)
 - `data-oxv-version` — the extension version on the replaced `<html>`, `-dev` when loaded unpacked
 - `data-oxv-browser` — `chrome`, `firefox` or `safari` on the replaced `<html>`, read off the scheme of `runtime.getURL("")` by `content.js`; the About window words itself and picks its install link from it
+- `data-oxv-models` — on the replaced `<html>`, a JSON map from bundled release to the URL of its content model, stamped by `content.js`; the release selector fetches the model it was not sent from it
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-icon` — a tiny inline SVG from `icon(name)`; `px-sev-error` / `px-sev-warning` are the severity modifiers (not `px-error`, which is the parse-error panel)
@@ -1714,9 +1793,10 @@ refactor:
 - **The untrusted XML never becomes markup.** It reaches the page as
   `textContent` on an inert `<script type="application/xml">` block and is
   rendered to DOM nodes one at a time. The shell HTML is a template string in
-  `shell.js`, but its only five interpolations are three `runtime.getURL()`
-  values, the manifest version and an `escapeHtml`'d page title — no
-  document content goes near it.
+  `shell.js`, but its only interpolations are `runtime.getURL()` values (the
+  stylesheet, the mark in two sizes, the content-model map the release
+  selector fetches from), the manifest version, the browser and an
+  `escapeHtml`'d page title — no document content goes near it.
 - **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
   a rogue `fetch` to a third party is blocked by CORS in the browser, not
   merely absent from the code. There is no capability for a page to borrow.

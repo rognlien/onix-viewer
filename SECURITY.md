@@ -54,7 +54,9 @@ Specifically:
   content script's: `content.js` replaces the document with the markup
   `shell.js` supplies (a second content script, loaded first) and then appends
   ordinary `<script src="chrome-extension://…">` tags, which the page must be
-  allowed to load. The `<all_urls>` match follows from the same fact as the
+  allowed to load. The viewer itself appends one more the same way when the
+  reader picks the other ONIX release in the toolbar: the content model it
+  was not sent, from a URL `content.js` stamped on the shell. The `<all_urls>` match follows from the same fact as the
   content script's — ONIX can be served from any URL.
 
   What this exposes is the extension's own static files, all of which are in

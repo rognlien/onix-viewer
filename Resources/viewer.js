@@ -32,6 +32,13 @@
   // Declared up here because validation starts during setup, before the
   // validation section further down has been reached.
   let lastValidation = null;
+  // The pass under way, so a slice of a pass that has been superseded — the
+  // reader picked another release or applied rules mid-way — stops rather
+  // than finishing and pinning its findings over the new pass's.
+  let activeSession = null;
+  // The release the document is judged against: what it declares, unless the
+  // reader picked the other bundled one from the toolbar's selector.
+  let validationRelease = null;
 
   // Products rendered on demand. Building rows is what a large feed spends
   // its time on — 2.6 s of the 4.8 s to the first verdict on 1,000 products —
@@ -178,16 +185,6 @@
   if (!root || root.firstElementChild) return;
 
   const meta = document.getElementById("oxv-meta");
-  // EDItEUR schema info label in the toolbar — driven by the constant
-  // OnixViewerCodeListSchema baked into onix-codelists.js at generation time.
-  const schemaLabel = document.getElementById("oxv-schema");
-  if (schemaLabel && window.OnixViewerCodeListSchema) {
-    const s = window.OnixViewerCodeListSchema;
-    if (s.issue != null) {
-      schemaLabel.textContent = `ONIX ${s.version}, Issue ${s.issue}`;
-      if (s.releaseDate) schemaLabel.title = `Schema released ${s.releaseDate}`;
-    }
-  }
   const search = document.getElementById("oxv-search");
   const status = document.getElementById("oxv-search-status");
 
@@ -232,7 +229,9 @@
   // multi-product feed, which made every file open on a list of chips.)
   fillMetaPill(sizeKB, productCount);
 
+  validationRelease = onixCtx.version;
   setupToolbar();
+  setupReleaseSelect();
   setupDialectToggle();
   setupSearch();
   setupKeyboard();
@@ -1063,7 +1062,8 @@
       return;
     }
     clearFindings();
-    const session = window.OnixViewerValidation.start(doc, onixCtx);
+    const session = window.OnixViewerValidation.start(doc, onixCtx, { version: validationRelease });
+    activeSession = session;
     session.step(12);
     if (session.done) {
       finishValidation(session);
@@ -1075,6 +1075,7 @@
 
   function pumpValidation(session) {
     afterYield(() => {
+      if (session !== activeSession) return;
       session.step(SLICE_MS);
       if (session.done) finishValidation(session);
       else pumpValidation(session);
@@ -1151,9 +1152,151 @@
   }
 
   function validationScopeNote(result) {
-    return result.checkedStructure
-      ? `Checked against the bundled ONIX ${result.version} content model`
-      : `No content model bundled for ONIX ${onixCtx.version || "?"} — code lists were still checked`;
+    if (!result.checkedStructure) {
+      return `No content model bundled for ONIX ${validationRelease || "?"} — code lists were still checked`;
+    }
+    const note = `Checked against the bundled ONIX ${result.version} content model`;
+    return result.version === onixCtx.version ? note : `${note}; ${declaredReleaseNote()}`;
+  }
+
+  function declaredReleaseNote() {
+    return onixCtx.version ? `the document declares ONIX ${onixCtx.version}` : "the document declares no release";
+  }
+
+  // ---- release selector -----------------------------------------------------
+
+  // Which release the verdict is against, and the code-list issue it rests
+  // on — "ONIX 3.1, Issue 74", the two things the labels and the findings
+  // come from. The document's own release is the default and the norm; the
+  // other bundled release is a choice, for a feed about to move from 3.0 to
+  // 3.1 — where <TitleText> becomes a deprecation and the Conference
+  // composites unknown elements — or for a standalone <Product> with no
+  // namespace, which declares nothing and can be checked no other way. The
+  // choice is not remembered: a document says which release it is, and an
+  // override carried to the next file would judge it against the wrong
+  // schema in silence. An Acknowledgement is never checked structurally, so
+  // its select names its release and the issue and offers nothing else; a
+  // non-ONIX document validates nothing, and its empty select stays hidden.
+  function setupReleaseSelect() {
+    const select = document.getElementById("oxv-release");
+    if (!select || !onixCtx.isOnix) return;
+    const declared = onixCtx.version;
+    if (onixCtx.messageType === "acknowledgement") {
+      addReleaseOption(select, declared || "", releaseLabel(declared));
+      select.disabled = true;
+      select.title = "Acknowledgement messages have their own schema, which isn't bundled; code lists are still checked";
+      return;
+    }
+    const releases = bundledReleases();
+    if (!releases.includes(declared)) addReleaseOption(select, declared || "", releaseLabel(declared));
+    for (const release of releases) addReleaseOption(select, release, releaseLabel(release));
+    select.value = declared || "";
+    select.title = selectorTitle();
+    select.addEventListener("change", () => selectRelease(select.value || null));
+    quietPointerFocus(select);
+  }
+
+  // Chrome draws its focus ring on a <select> after a mouse click, where a
+  // button gets one from the keyboard alone, so the selector sat outlined
+  // after every choice. A press marks the element and the mark is what the
+  // stylesheet mutes; a key press or a blur clears it, so keyboard focus
+  // keeps its ring. And a choice made by mouse is finished: the control is
+  // left, so no ring can settle on it afterwards however the platform's
+  // popup shuffled focus on the way — it came back blue now and then
+  // otherwise. A choice made by key keeps focus, since the next arrow
+  // press is the natural way to change it again.
+  function quietPointerFocus(element) {
+    let pointer = false;
+    element.addEventListener("mousedown", () => {
+      pointer = true;
+      element.classList.add("px-pointer");
+    });
+    element.addEventListener("keydown", () => {
+      pointer = false;
+      element.classList.remove("px-pointer");
+    });
+    element.addEventListener("blur", () => element.classList.remove("px-pointer"));
+    element.addEventListener("change", () => {
+      if (pointer) element.blur();
+    });
+  }
+
+  // The issue is one for every release: code lists are release-independent,
+  // and OnixViewerCodeListSchema is baked into onix-codelists.js at
+  // generation time.
+  function releaseLabel(release) {
+    const schema = window.OnixViewerCodeListSchema;
+    const issue = schema && schema.issue != null ? `, Issue ${schema.issue}` : "";
+    return `${release ? `ONIX ${release}` : "Undeclared release"}${issue}`;
+  }
+
+  function selectorTitle() {
+    const schema = window.OnixViewerCodeListSchema;
+    const released = schema && schema.releaseDate ? `; code lists released ${schema.releaseDate}` : "";
+    return `Validate against this ONIX release${released}`;
+  }
+
+  function addReleaseOption(select, value, label) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  }
+
+  // The releases with a model: loaded already, or fetchable from the URLs
+  // content.js stamped on the shell.
+  function bundledReleases() {
+    const validation = window.OnixViewerValidation;
+    const loaded = validation ? validation.availableVersions() : [];
+    return [...new Set([...loaded, ...Object.keys(modelURLs())])].sort();
+  }
+
+  function modelURLs() {
+    let urls = {};
+    try {
+      urls = JSON.parse(document.documentElement.getAttribute("data-oxv-models") || "{}");
+    } catch {
+      urls = {};
+    }
+    return urls;
+  }
+
+  function selectRelease(release) {
+    validationRelease = release;
+    markReleaseSelect();
+    ensureModel(release, startValidation);
+  }
+
+  // The accent while the choice differs from what the document declares, the
+  // way a pressed toggle shows, so an overridden verdict is never mistaken
+  // for the file's own.
+  function markReleaseSelect() {
+    const select = document.getElementById("oxv-release");
+    if (!select) return;
+    const overridden = validationRelease !== onixCtx.version;
+    select.classList.toggle("px-overridden", overridden);
+    select.title = overridden
+      ? `Validating as ONIX ${validationRelease}; ${declaredReleaseNote()}`
+      : selectorTitle();
+  }
+
+  // content.js sends only the model matching the document's release (its
+  // contentModelURLs); the other is fetched the first time it is asked for,
+  // appended the way content.js appends the rest. Either outcome continues:
+  // without the model the pass reports model.missing, which is the truth.
+  function ensureModel(release, done) {
+    const validation = window.OnixViewerValidation;
+    const url = release && modelURLs()[release];
+    if (!validation || validation.modelFor(release) || !url) {
+      done();
+      return;
+    }
+    renderValidationStatus("validating");
+    const script = document.createElement("script");
+    script.src = url;
+    script.addEventListener("load", done);
+    script.addEventListener("error", done);
+    document.body.appendChild(script);
   }
 
   // "3 errors, 2 warnings" says more than "5 problems": the two counts are
@@ -1486,8 +1629,17 @@
     dialog.append(rulesHeader(), rulesBody(), rulesFooter());
     keepTabInside(dialog, "button:not([disabled]), textarea");
 
+    // A press inside that is released outside is not a click on the backdrop:
+    // a drag of the modal's corner handle ends there — the modal is centred,
+    // so its corner moves at half the cursor's speed — and so does a text
+    // selection dragged out of the field. Only a press that began on the
+    // backdrop closes it.
+    let pressedBackdrop = false;
+    overlay.addEventListener("mousedown", (event) => {
+      pressedBackdrop = event.target === overlay;
+    });
     overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) closeRules();
+      if (event.target === overlay && pressedBackdrop) closeRules();
     });
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);

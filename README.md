@@ -42,7 +42,10 @@ searchable tree, and adds:
   GTIN-13 and ISBN-10 check digits. Each finding is a pill on its row with the
   message in it; a row with several shows the first and `+n more`. Click a pill
   or the toolbar count, or press `v`, for the full list, and click an entry to
-  jump to its row. ONIX 2.1 and Acknowledgement messages have no bundled
+  jump to its row. The verdict is against the release the file declares; the
+  selector at the toolbar's right end judges it against the other bundled
+  release instead, for a feed about to move from 3.0 to 3.1, or a standalone
+  `<Product>` that declares none. ONIX 2.1 and Acknowledgement messages have no bundled
   schema, so only their code lists are checked and the toolbar says so.
 - **Copy node XML.** The `⋮` button on any element row copies that subtree as
   plain source.

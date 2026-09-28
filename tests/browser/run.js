@@ -180,6 +180,7 @@ async function main() {
   console.log(`\nIn Chrome ${await browser.version()}`);
   try {
     await takeover(browser, served);
+    await releaseSelector(browser, served);
     await schematronInChrome(browser, served);
     await rulesRoundTrip(browser, served);
   } finally {
@@ -324,6 +325,42 @@ async function takeover(browser, served) {
       return { active: !!active, pill: !!(active && active.querySelector(".px-finding")) };
     });
     assert(jumped.active && jumped.pill, "the entry's row is rendered, active and carries its pill");
+    await page.close();
+  });
+}
+
+// The release selector's one path jsdom cannot walk: the model the content
+// script did not send is fetched from the extension when its release is
+// picked, from the URL content.js stamped on the shell.
+async function releaseSelector(browser, served) {
+  console.log("\nThe release selector");
+
+  await test("picking the other release fetches its model and judges the document again", async () => {
+    const page = await open(browser, served.url("onix-3.1-valid.xml"));
+    const before = await page.evaluate(() => ({
+      loaded: window.OnixViewerValidation.availableVersions(),
+      offered: Array.from(document.getElementById("oxv-release").options).map((o) => o.value),
+      selected: document.getElementById("oxv-release").value,
+    }));
+    assert(before.loaded.join() === "3.1", `only the document's model is sent; got ${before.loaded}`);
+    assert(before.offered.join() === "3.0,3.1", `both are offered; got ${before.offered}`);
+    assert(before.selected === "3.1", `starting on the declared release; got ${before.selected}`);
+
+    await page.select("#oxv-release", "3.0");
+    await page.waitForFunction(
+      () => !document.getElementById("oxv-validation").textContent.includes("Validating"),
+      { timeout: 10000 });
+    const after = await page.evaluate(() => ({
+      loaded: window.OnixViewerValidation.availableVersions(),
+      verdict: document.getElementById("oxv-validation").textContent,
+      note: document.getElementById("oxv-validation").title,
+      overridden: document.getElementById("oxv-release").classList.contains("px-overridden"),
+    }));
+    assert(after.loaded.join() === "3.0,3.1", `the 3.0 model arrived; got ${after.loaded}`);
+    assert(after.verdict.includes("Valid"), `valid 3.0 too, the release attribute aside; got "${after.verdict}"`);
+    assert(after.note === "Checked against the bundled ONIX 3.0 content model; the document declares ONIX 3.1",
+      `the note names both; got "${after.note}"`);
+    assert(after.overridden, "the selector shows the override");
     await page.close();
   });
 }

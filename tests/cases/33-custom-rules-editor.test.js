@@ -17,6 +17,22 @@ const field = (w) => w.document.getElementById("oxv-rules-text");
 const status = (w) => w.document.getElementById("oxv-rules-status");
 const button = (w, cls) => modal(w).querySelector(`.${cls}`);
 
+// The stylesheet's declarations for one selector, since jsdom lays nothing
+// out and computes only what it parses.
+function declarations(w, selector) {
+  for (const rule of w.document.styleSheets[0].cssRules) {
+    if (rule.selectorText === selector) return rule.style;
+  }
+  return null;
+}
+// The same as text, for a value jsdom's CSS parser drops (a calc()).
+function declarationsText(w, selector) {
+  for (const rule of w.document.styleSheets[0].cssRules) {
+    if (rule.selectorText === selector) return rule.cssText;
+  }
+  return "";
+}
+
 // What the page posted to its own window, which is content.js's cue to store.
 function postedRules(w) {
   const posted = [];
@@ -151,5 +167,41 @@ describe("Custom rules editor", () => {
     button(w, "px-rules-apply").click();
     assert(status(w).textContent.includes("applied"), "the rules install");
     assert(validationLabel(w).textContent === "", "no validation of a non-ONIX document");
+  });
+
+  test("the modal resizes from its corner, and the field fills it", () => {
+    // One handle, on the window: the field grows with it rather than
+    // carrying a second handle of its own inside a fixed box.
+    const w = render("onix-3.1-valid.xml");
+    cog(w).click();
+    const dialog = modal(w).querySelector(".px-popup");
+    assert(dialog.classList.contains("px-rules"), "the rules modal");
+    const rules = declarations(w, ".px-rules");
+    assert(rules && rules.resize === "both", `the modal resizes both ways; got ${rules && rules.resize}`);
+    const capped = declarationsText(w, ".px-rules");
+    assert(capped.includes("100vw") && capped.includes("100vh"),
+      `capped by the window, not a fixed size; got ${capped}`);
+    const text = declarations(w, ".px-rules-text");
+    assert(text.resize === "none", "the field has no handle of its own");
+    assert(text.flex.startsWith("1") || text.flexGrow === "1", `the field fills the body; got flex ${text.flex}`);
+    const body = declarationsText(w, ".px-rules .px-popup-body");
+    assert(body.includes("display: flex") && body.includes("flex-direction: column"),
+      `the body is a column for the field to fill; got ${body}`);
+  });
+
+  test("a drag that starts inside the modal and ends on the backdrop does not close it", () => {
+    // The corner handle's drag ends on the backdrop, since a centred modal's
+    // corner moves at half the cursor's speed; so does a selection dragged
+    // out of the field. The click that follows is not a click on the backdrop.
+    const w = render("onix-3.1-valid.xml");
+    cog(w).click();
+    const overlay = modal(w);
+    const dialog = overlay.querySelector(".px-popup");
+    dialog.dispatchEvent(new w.MouseEvent("mousedown", { bubbles: true }));
+    overlay.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+    assert(!overlay.hidden, "still open after a press inside released outside");
+    overlay.dispatchEvent(new w.MouseEvent("mousedown", { bubbles: true }));
+    overlay.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+    assert(overlay.hidden, "a press on the backdrop itself closes it");
   });
 });

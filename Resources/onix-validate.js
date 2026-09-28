@@ -141,6 +141,8 @@
    * { findings, total, errors, warnings, version, checkedStructure, truncated }.
    * `options.maxFindings` caps the array (default 500) so a badly broken feed
    * can't build an unbounded list; counting continues past the cap.
+   * `options.version` is the release to judge the document against — the
+   * viewer's release selector — and defaults to the one the document declares.
    */
   function run(doc, onixCtx, options) {
     const session = start(doc, onixCtx, options);
@@ -156,12 +158,16 @@
     // judging one against it would report every element as unknown. Its code
     // lists are still checked, which is the point of Acknowledgement support.
     const isAcknowledgement = onixCtx.messageType === "acknowledgement";
-    const model = isAcknowledgement ? null : modelFor(onixCtx.version);
+    const version = settings.version || onixCtx.version;
+    const model = isAcknowledgement ? null : modelFor(version);
     const findings = [];
     const counts = { error: 0, warning: 0 };
 
     const api = {
       onixCtx,
+      // The release judged against — the document's own unless the caller
+      // picked another — for the one rule that has to know the difference.
+      version,
       // The document itself, for a rule that judges it whole rather than
       // element by element (onix-schematron.js selects with XPath).
       doc,
@@ -204,7 +210,7 @@
     if (!model) {
       api.report(isAcknowledgement ? "model.acknowledgement" : "model.missing",
         doc.documentElement, {
-          version: onixCtx.version || "(unknown release)",
+          version: version || "(unknown release)",
           available: availableVersions().join(", "),
         });
     }
@@ -727,6 +733,11 @@
       api.report("attribute.unknown", node, { name, element: node.nodeName });
       return;
     }
+    // Judged against a release other than its own, a document's `release`
+    // attribute can only disagree — the disagreement is the reader's choice,
+    // not a defect — so the one finding every override would carry is left
+    // out.
+    if (name === "release" && api.version !== api.onixCtx.version) return;
 
     const spec = api.model.attributes[name];
     if (!spec) return;

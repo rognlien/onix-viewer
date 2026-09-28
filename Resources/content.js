@@ -214,6 +214,11 @@
   // <Product> with no namespace — both go in. No model can match those anyway,
   // but the validator's "no content model bundled for X (bundled: …)" warning
   // lists whatever loaded, so it would otherwise under-report what ships.
+  //
+  // The other release stays a choice: the toolbar's release selector lets the
+  // reader judge the document against it, and viewer.js fetches that model
+  // the first time it is asked for, from the URLs stamped on the shell
+  // (modelURLsByVersion).
   function contentModelURLs(xml) {
     const head = (xml || "").slice(0, 2048);
     for (const version of MODEL_VERSIONS) {
@@ -226,6 +231,12 @@
 
   function modelURL(version) {
     return browserAPI().runtime.getURL(`onix-content-model-${version}.js`);
+  }
+
+  function modelURLsByVersion() {
+    const urls = {};
+    for (const version of MODEL_VERSIONS) urls[version] = modelURL(version);
+    return urls;
   }
 
   // The re-fetch is trusted only when it plainly returned the document: an
@@ -387,6 +398,7 @@
     const shellHtml = OnixViewerShell.html({
       title: deriveTitle(document.location.href), cssURL, logoURL, logoURL2x,
       version: extensionVersion(), browser: extensionBrowser(),
+      modelURLs: modelURLsByVersion(),
     });
 
     const parsed = new DOMParser().parseFromString(shellHtml, "text/html");
