@@ -30,9 +30,9 @@
 <div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
     <!-- The mark says which extension took the page over — a raw XML URL gives
-         no other clue. It is the app icon's own 48px size — no separate copy to
-         keep in step — shown at 28px, with the 96px size for a 2x display,
-         where the box is 56 device pixels and the 48 would be stretched. It
+         no other clue. It is the app icon at the box's own size, 28px, with
+         the 56px size for a 2x display — both manifest sizes, hand-drawn, so
+         nothing is resampled and no separate copy needs keeping in step. It
          is the door to the About window.
          If the page's own img-src CSP blocks extension URLs, viewer.js swaps
          the image for the name rather than leave a broken-image glyph. -->

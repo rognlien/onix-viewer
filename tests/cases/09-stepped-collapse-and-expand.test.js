@@ -154,8 +154,8 @@ describe("Stepped collapse and expand", () => {
       "the button carries the accessible name, the image none, so it is not read twice");
     assert(logo.getAttribute("width") === "28" && logo.getAttribute("height") === "28",
       "28px is the toolbar's content height — the largest that does not make it taller");
-    assert(logo.getAttribute("srcset") === "icons/icon-48.png 1x, icons/icon-96.png 2x",
-      "a 2x display gets the 96px size: 28px is 56 device pixels there, and the 48 would be stretched");
+    assert(logo.getAttribute("srcset") === "icons/icon-28.png 1x, icons/icon-56.png 2x",
+      "the box's own size for each display density, so the mark is never resampled");
     assert(button.closest(".px-left"), "it belongs with the controls, at the left");
     assert(button === button.parentElement.firstElementChild, "and leads them");
 

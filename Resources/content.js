@@ -374,8 +374,8 @@
     // The markup itself is shell.js's, loaded ahead of this script.
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
-    const logoURL = browserAPI().runtime.getURL("icons/icon-48.png");
-    const logoURL2x = browserAPI().runtime.getURL("icons/icon-96.png");
+    const logoURL = browserAPI().runtime.getURL("icons/icon-28.png");
+    const logoURL2x = browserAPI().runtime.getURL("icons/icon-56.png");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
     const modelURLs = contentModelURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
