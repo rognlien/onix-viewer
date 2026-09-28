@@ -5,6 +5,13 @@ the main branch.
 
 ## Unreleased
 
+### Added
+- **The store manifests are tested.** `tools/prune-manifest.js` is now the
+  one place the committed manifest is cut down per browser — the packager
+  runs it — and the suite runs it for all three targets against the real
+  manifest, holding the Chrome Web Store's and App Store Connect's
+  description limits, and checks that no shipped copy names a browser.
+
 ### Fixed
 - **The About window no longer says "in Chrome"**, and its install link
   follows the browser: the Chrome Web Store in Chrome, the web page in
