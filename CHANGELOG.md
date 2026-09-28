@@ -9,7 +9,7 @@ the main branch.
 - **The code-list issue pill is now a release selector.** It still reads
   `ONIX 3.1, Issue 74`, but its options judge the document against ONIX 3.0
   or 3.1, whichever the reader picks; it starts on the release the file
-  declares and carries a dot in its corner while the choice differs. 3.0 and 3.1 disagree about what is an error
+  declares. 3.0 and 3.1 disagree about what is an error
   and what a warning — `<AudienceCode>` is deprecated in 3.0 and unknown to
   3.1 — so a feed about to move between them can be read both ways, and a
   standalone `<Product>` with no namespace, which declares nothing, can be

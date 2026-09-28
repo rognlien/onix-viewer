@@ -403,9 +403,10 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   namespace). The issue is the same on every option, since code lists are
   release-independent; it comes from `OnixViewerCodeListSchema`, and the
   title carries the issue's release date. It starts on the declared release.
-  While the choice differs from it the select carries `px-overridden`,
-  shown as the cog's corner dot on the wrapper rather than an accent fill,
-  and its title names both releases; the verdict's note (the tick's title, the findings list's
+  While the choice differs from it the select shows nothing of its own —
+  an accent fill and then a corner dot were both rejected on sight as a
+  control stuck down; the document pill beside the verdict says what the
+  file is — but its title names both releases; the verdict's note (the tick's title, the findings list's
   eyebrow) says `Checked against the bundled ONIX 3.0 content model; the
   document declares ONIX 3.1`. See *Validation* for what a switch does. An
   Acknowledgement, never checked structurally, gets its one release and the

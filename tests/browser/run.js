@@ -354,13 +354,11 @@ async function releaseSelector(browser, served) {
       loaded: window.OnixViewerValidation.availableVersions(),
       verdict: document.getElementById("oxv-validation").textContent,
       note: document.getElementById("oxv-validation").title,
-      overridden: document.getElementById("oxv-release").classList.contains("px-overridden"),
     }));
     assert(after.loaded.join() === "3.0,3.1", `the 3.0 model arrived; got ${after.loaded}`);
     assert(after.verdict.includes("Valid"), `valid 3.0 too, the release attribute aside; got "${after.verdict}"`);
     assert(after.note === "Checked against the bundled ONIX 3.0 content model; the document declares ONIX 3.1",
       `the note names both; got "${after.note}"`);
-    assert(after.overridden, "the selector shows the override");
     await page.close();
   });
 }

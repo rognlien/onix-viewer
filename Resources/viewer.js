@@ -1267,14 +1267,14 @@
     ensureModel(release, startValidation);
   }
 
-  // A dot in the corner while the choice differs from what the document
-  // declares — the cog's mark for "something is loaded here" — so an
-  // overridden verdict is never mistaken for the file's own.
+  // The title names both releases while the choice differs from what the
+  // document declares; the control itself shows nothing of it — the
+  // document pill says what the file is, and a fill or a badge read as a
+  // control stuck down.
   function markReleaseSelect() {
     const select = document.getElementById("oxv-release");
     if (!select) return;
     const overridden = validationRelease !== onixCtx.version;
-    select.classList.toggle("px-overridden", overridden);
     select.title = overridden
       ? `Validating as ONIX ${validationRelease}; ${declaredReleaseNote()}`
       : selectorTitle();

@@ -32,7 +32,6 @@ describe("Release selector", () => {
     const w = render("onix-3.1-valid.xml");
     assert(options(w).join("|") === "3.0=ONIX 3.0, Issue 74|3.1=ONIX 3.1, Issue 74", `got ${options(w).join("|")}`);
     assert(select(w).value === "3.1", `expected 3.1 selected, got ${select(w).value}`);
-    assert(!select(w).classList.contains("px-overridden"), "the declared release is not an override");
     assert(select(w).closest(".px-right"), "it sits in the right-hand group");
   });
 
@@ -81,7 +80,6 @@ describe("Release selector", () => {
     pick(w, "3.1");
     assert(validationLabel(w).textContent === "1 error", `under 3.1; got ${validationLabel(w).textContent}`);
     assert(pinned(w).join() === "structure.unknown", `pinned afresh; got ${pinned(w).join()}`);
-    assert(select(w).classList.contains("px-overridden"), "the override is marked");
     assert(select(w).title.includes("Validating as ONIX 3.1") && select(w).title.includes("declares ONIX 3.0"),
       `the title names both; got "${select(w).title}"`);
     assert(scopeNote(w) === "Checked against the bundled ONIX 3.1 content model; the document declares ONIX 3.0",
@@ -90,7 +88,7 @@ describe("Release selector", () => {
     pick(w, "3.0");
     assert(validationLabel(w).textContent === "1 warning", "back to the file's own release");
     assert(pinned(w).join() === "element.deprecated", "and the 3.1 finding is gone");
-    assert(!select(w).classList.contains("px-overridden"), "no longer an override");
+    assert(select(w).title.startsWith("Validate against"), `the title no longer names an override; got "${select(w).title}"`);
   });
 
   test("the findings list's eyebrow says which release was checked, and what the file declares", () => {
@@ -117,7 +115,6 @@ describe("Release selector", () => {
 
     pick(w, "3.1");
     assert(!pinned(w).includes("model.missing"), `structure is checked now; got ${pinned(w).join()}`);
-    assert(select(w).classList.contains("px-overridden"), "an override, since the file declares nothing");
     assert(select(w).title.includes("declares no release"), `got "${select(w).title}"`);
 
     pick(w, "");

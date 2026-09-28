@@ -373,10 +373,10 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
    native select in the toolbar buttons' box — their border, radius,
    padding and type — since it is a control, at a fixed width: it is
    reference material and shortens for nothing, only the document pill
-   gives way. While the choice differs from the release the document
-   declares it carries the cog's corner dot — not the accent fill, which
-   read as a control stuck down — so an overridden verdict is never
-   mistaken for the file's own. */
+   gives way. It shows nothing of its own while the choice differs from
+   the release the document declares: the document pill beside the verdict
+   says what the file is, the tooltip and the verdict's note say what was
+   checked, and a fill or a badge here read as a control stuck down. */
 #oxv-release-group {
   position: relative;
   display: inline-flex;
@@ -419,18 +419,6 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
 }
 #oxv-release-group:has(> :disabled)::after { color: var(--fg-muted); }
 #oxv-release-group:has(> #oxv-release:empty) { display: none; }
-#oxv-release-group:has(> .px-overridden)::before {
-  content: "";
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--bg-toolbar);
-  pointer-events: none;
-}
 #oxv-release option { color: var(--fg); background: var(--bg); }
 
 /* Past a point the document pill has shortened as far as it can and the
