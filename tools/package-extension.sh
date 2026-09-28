@@ -62,6 +62,11 @@ node -e "
     delete manifest.minimum_chrome_version;
     // Safari 18 is the floor: content-visibility arrived there (MDN).
     manifest.browser_specific_settings = { safari: { strict_min_version: '18.0' } };
+    // App Store Connect rejects a Safari extension whose description runs
+    // past 112 characters; the shared one is 113. Same sentence, one word
+    // fewer.
+    manifest.description = 'Readable ONIX XML: collapsible tree, product summaries, EDItEUR code-list labels and automatic validation.';
+    if (manifest.description.length > 112) throw new Error('Safari description over 112 characters');
   }
   fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n');
 "
@@ -84,8 +89,13 @@ if [ "$TARGET" = "safari" ]; then
   # The signing team is yours, not the repo's: APPLE_TEAM_ID in the
   # environment writes it into every target, so a regenerated project is
   # ready to archive without a visit to Xcode's Signing pane.
+  # App Store Connect also refuses an app without LSApplicationCategoryType,
+  # which the converter does not write; the app target's generated
+  # Info.plist gets it, and a copyright line while there.
   PBXPROJ="$PROJECT/ONIX Viewer/ONIX Viewer.xcodeproj/project.pbxproj"
   sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/" "$PBXPROJ"
+  sed -i '' -E "s/INFOPLIST_KEY_NSMainStoryboardFile = Main;/INFOPLIST_KEY_NSMainStoryboardFile = Main;\\
+				INFOPLIST_KEY_LSApplicationCategoryType = \"public.app-category.developer-tools\";/; s/INFOPLIST_KEY_NSHumanReadableCopyright = \"\";/INFOPLIST_KEY_NSHumanReadableCopyright = \"© 2026 Bendik Rognlien Johansen\";/" "$PBXPROJ"
   if [ -n "${APPLE_TEAM_ID:-}" ]; then
     sed -i '' -E "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;\\
 				DEVELOPMENT_TEAM = $APPLE_TEAM_ID;/" "$PBXPROJ"

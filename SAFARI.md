@@ -245,8 +245,12 @@ number). Nothing can ship before that. Then:
 
 1. **Generate the project with the team in it.** `APPLE_TEAM_ID=<team id>
    tools/package-extension.sh --target=safari` writes the team into every
-   target, sets the app's version to the manifest's, and lowers the
-   deployment target — so the project is ready to archive as generated, and
+   target, sets the app's version to the manifest's, lowers the deployment
+   target, gives the app the `LSApplicationCategoryType` App Store Connect
+   demands (Developer Tools) and a copyright line, and shortens the
+   manifest description to the 112 characters Apple allows a Safari
+   extension (the shared one is 113; the first upload was refused on both
+   counts) — so the project is ready to archive as generated, and
    regenerating it for the next release costs nothing. The team id is on
    the developer account's Membership page. Automatic signing then makes the
    certificates and the two App IDs (`io.maendeleo.ONIX-Viewer` and its
