@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.21 — 2026-09-28
 
 ### Added
 - **The store manifests are tested.** `tools/prune-manifest.js` is now the
