@@ -40,6 +40,27 @@ describe("About window", () => {
       "links open in a new tab without a referrer to the page");
   });
 
+  // content.js stamps the browser on the shell; the harness says "chrome".
+  // Under another stamp the wording stays neutral and the install link is
+  // the web page, since only Chrome has a listing to point at yet.
+  test("the wording names no browser, and the install link follows the stamped one", () => {
+    const chrome = render("onix-3.1-valid.xml");
+    mark(chrome).click();
+    assert(!chrome.document.querySelector("#oxv-about .px-about-text").textContent.includes("Chrome"),
+      "the description does not say which browser");
+    const stamped = (browser) => render("onix-3.1-valid.xml", (w) => {
+      w.document.documentElement.setAttribute("data-oxv-browser", browser);
+    });
+    for (const browser of ["firefox", "safari"]) {
+      const w = stamped(browser);
+      mark(w).click();
+      const labels = [...$$(w, "#oxv-about a")].map((a) => `${a.textContent} → ${a.href}`);
+      assert(labels.some((l) => l.startsWith("Web page → https://maendeleo.io/onix-viewer/")),
+        `${browser} gets the web page; got ${labels.join(", ")}`);
+      assert(!labels.some((l) => l.includes("chromewebstore")), `${browser} does not get the Chrome store`);
+    }
+  });
+
   test("? opens it, Escape closes it, and shortcuts stay quiet while it is up", () => {
     const w = render("onix-3.1-valid.xml");
     w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "?", bubbles: true }));

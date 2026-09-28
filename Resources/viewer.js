@@ -1674,11 +1674,20 @@
     ["?", "This window"],
   ];
 
-  const ABOUT_LINKS = [
-    ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
-    ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"],
-    ["ONIX at EDItEUR", "https://www.editeur.org/8/ONIX/"],
-  ];
+  // The middle link is the place to install from, which depends on the
+  // browser content.js stamped on the shell: Chrome and its relatives have
+  // the Web Store listing; Firefox and Safari get the web page, which
+  // carries their install links, until each has a listing of its own.
+  function aboutLinkList() {
+    const store = extensionBrowser() === "chrome"
+      ? ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"]
+      : ["Web page", "https://maendeleo.io/onix-viewer/"];
+    return [
+      ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
+      store,
+      ["ONIX at EDItEUR", "https://www.editeur.org/8/ONIX/"],
+    ];
+  }
 
   function ensureAboutModal() {
     if (aboutModal) return aboutModal;
@@ -1706,6 +1715,12 @@
 
   function extensionVersion() {
     return document.documentElement.getAttribute("data-oxv-version") || "";
+  }
+
+  // "chrome", "firefox" or "safari", as content.js stamped it; "chrome" when
+  // nothing did, since that is where the viewer began.
+  function extensionBrowser() {
+    return document.documentElement.getAttribute("data-oxv-browser") || "chrome";
   }
 
   function aboutHeader() {
@@ -1737,7 +1752,7 @@
     body.className = "px-popup-body";
     const text = document.createElement("p");
     text.className = "px-about-text";
-    text.textContent = "Readable ONIX XML in Chrome: a collapsible tree, product summaries, " +
+    text.textContent = "Readable ONIX XML: a collapsible tree, product summaries, " +
       "EDItEUR code-list labels in place, and automatic validation against the ONIX 3.0 " +
       "and 3.1 content models, plus any rules of your own.";
     const credit = document.createElement("p");
@@ -1789,7 +1804,7 @@
   function aboutLinks() {
     const links = document.createElement("div");
     links.className = "px-about-links";
-    for (const [label, href] of ABOUT_LINKS) {
+    for (const [label, href] of aboutLinkList()) {
       const a = document.createElement("a");
       a.className = "px-popup-link";
       a.href = href;
