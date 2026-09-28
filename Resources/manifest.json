@@ -47,7 +47,8 @@
         "onix-validate.js",
         "onix-schematron.js",
         "onix-popup.js",
-        "icons/icon-48.png"
+        "icons/icon-48.png",
+        "icons/icon-96.png"
       ],
       "matches": ["<all_urls>"]
     }

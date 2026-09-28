@@ -375,6 +375,7 @@
 
     const cssURL = browserAPI().runtime.getURL("viewer.css");
     const logoURL = browserAPI().runtime.getURL("icons/icon-48.png");
+    const logoURL2x = browserAPI().runtime.getURL("icons/icon-96.png");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
     const modelURLs = contentModelURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
@@ -384,7 +385,7 @@
     const viewerURL = browserAPI().runtime.getURL("viewer.js");
 
     const shellHtml = OnixViewerShell.html({
-      title: deriveTitle(document.location.href), cssURL, logoURL,
+      title: deriveTitle(document.location.href), cssURL, logoURL, logoURL2x,
       version: extensionVersion(), browser: extensionBrowser(),
     });
 

@@ -129,7 +129,8 @@ name. If that bites, rename the overrides — `render-icons.sh` looks for
 
 The toolbar mark deliberately has **no file of its own**: it loads
 `Resources/icons/icon-48.png`, the app icon's 48px size, rather than a
-`logo-48.png` copy that would need keeping in step.
+`logo-48.png` copy that would need keeping in step, and the 96px size for a
+2x display (see *The toolbar's right-hand side*).
 
 ## Architecture: why we replace the document
 
@@ -306,6 +307,14 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   measured, 30px grows the bar from 45.6px to 47px. While the artwork was opaque
   this had to be 24px plus a 2px chip hiding the baked background; a transparent
   asset removed both.
+
+  A 28px box is 56 device pixels on a 2x display, and every Mac is one, so
+  the 48 there was stretched by a sixth and read soft. The `<img>` carries a
+  `srcset` naming the 96px size for `2x` — a reduction rather than an
+  enlargement, and enough for a 3x phone too — so `icon-96.png` is
+  web-accessible as well. It is rendered from the master, not hand-drawn
+  like 32, 48 and 128; if it ever looks soft at 56, a hand-drawn
+  `icons/icon-96.png` wins through the override rule, with no other change.
 
   The mark sits in a borderless button (`.px-logo-btn`,
   `data-action="about"`) and opens the **About window** (`#oxv-about`, also
@@ -1680,7 +1689,7 @@ refactor:
 - **The untrusted XML never becomes markup.** It reaches the page as
   `textContent` on an inert `<script type="application/xml">` block and is
   rendered to DOM nodes one at a time. The shell HTML is a template string in
-  `shell.js`, but its only four interpolations are two `runtime.getURL()`
+  `shell.js`, but its only five interpolations are three `runtime.getURL()`
   values, the manifest version and an `escapeHtml`'d page title — no
   document content goes near it.
 - **Nothing is privileged.** With `permissions: []` and no `host_permissions`,
@@ -1816,6 +1825,6 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **ONIX detection / codelist resolution / Product summaries**: live in `onix.js`. The viewer calls into the ONIX module via the `window.OnixViewerOnix` API — keep that contract narrow so non-ONIX docs don't pay for ONIX features.
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
-- **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes all seven manifest sizes. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-48.png`, the app icon's own 48px size, so there is nothing to keep in step. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
+- **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes all seven manifest sizes. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-48.png`, the app icon's own 48px size, with `icon-96.png` for 2x displays, so there is nothing to keep in step. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
 - **Store screenshots**: `npm run screenshots` re-takes the Chrome set into `Screenshots/Chrome/` and `npm run screenshots:firefox` the Firefox set into `Screenshots/Firefox/`, each at 1280×800 in the light scheme over `Onix/onix-3.1-refnames-defects.xml`: the tree, the code-list popup from the `<NotificationType>` row, and the findings list. Commit the result. Those directories are the record of what the listings show — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source (the Chrome set), so re-taking the screenshots means copying them there too.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.
