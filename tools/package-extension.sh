@@ -91,11 +91,14 @@ if [ "$TARGET" = "safari" ]; then
   # ready to archive without a visit to Xcode's Signing pane.
   # App Store Connect also refuses an app without LSApplicationCategoryType,
   # which the converter does not write; the app target's generated
-  # Info.plist gets it, and a copyright line while there.
+  # Info.plist gets it, a copyright line, and the export-compliance answer
+  # (no encryption of its own) that TestFlight otherwise asks for on every
+  # build.
   PBXPROJ="$PROJECT/ONIX Viewer/ONIX Viewer.xcodeproj/project.pbxproj"
   sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/" "$PBXPROJ"
   sed -i '' -E "s/INFOPLIST_KEY_NSMainStoryboardFile = Main;/INFOPLIST_KEY_NSMainStoryboardFile = Main;\\
-				INFOPLIST_KEY_LSApplicationCategoryType = \"public.app-category.developer-tools\";/; s/INFOPLIST_KEY_NSHumanReadableCopyright = \"\";/INFOPLIST_KEY_NSHumanReadableCopyright = \"© 2026 Bendik Rognlien Johansen\";/" "$PBXPROJ"
+				INFOPLIST_KEY_LSApplicationCategoryType = \"public.app-category.developer-tools\";\\
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;/; s/INFOPLIST_KEY_NSHumanReadableCopyright = \"\";/INFOPLIST_KEY_NSHumanReadableCopyright = \"© 2026 Bendik Rognlien Johansen\";/" "$PBXPROJ"
   if [ -n "${APPLE_TEAM_ID:-}" ]; then
     sed -i '' -E "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;\\
 				DEVELOPMENT_TEAM = $APPLE_TEAM_ID;/" "$PBXPROJ"
