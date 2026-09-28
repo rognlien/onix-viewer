@@ -385,7 +385,7 @@
 
     const shellHtml = OnixViewerShell.html({
       title: deriveTitle(document.location.href), cssURL, logoURL,
-      version: extensionVersion(),
+      version: extensionVersion(), browser: extensionBrowser(),
     });
 
     const parsed = new DOMParser().parseFromString(shellHtml, "text/html");
@@ -473,6 +473,18 @@
   function extensionVersion() {
     const manifest = browserAPI().runtime.getManifest();
     return manifest.version_name || manifest.version;
+  }
+
+  // Which browser this is, from the scheme the extension's own files are
+  // served under — the one fact about the host the viewer needs, for the
+  // About window's wording and store link. Chrome's scheme is also what
+  // every other Chromium browser uses, which is right: they install from
+  // the same store.
+  function extensionBrowser() {
+    const scheme = browserAPI().runtime.getURL("").split(":")[0];
+    if (scheme === "moz-extension") return "firefox";
+    if (scheme === "safari-web-extension") return "safari";
+    return "chrome";
   }
 
   function browserAPI() {

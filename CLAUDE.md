@@ -315,7 +315,11 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 
   **The version comes from `content.js`**, the one script that can read the
   manifest: `extensionVersion()` stamps it on the shell as
-  `data-oxv-version` and `viewer.js` reads it back. It is the manifest's
+  `data-oxv-version` and `viewer.js` reads it back. The **browser** rides
+  along as `data-oxv-browser`, from the scheme of `runtime.getURL("")`
+  (`chrome-extension:`, `moz-extension:`, `safari-web-extension:`), so About
+  names no browser in its wording and offers the Chrome Web Store only to
+  Chrome; Firefox and Safari get the web page until each has a listing. It is the manifest's
   **`version_name`** when there is one, else `version`. The committed
   manifest carries `"version_name": "0.9.19-dev"`, which is also what
   `chrome://extensions` displays in place of the version — so an unpacked
@@ -1629,6 +1633,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-schema`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`)
 - `data-oxv-version` — the extension version on the replaced `<html>`, `-dev` when loaded unpacked
+- `data-oxv-browser` — `chrome`, `firefox` or `safari` on the replaced `<html>`, read off the scheme of `runtime.getURL("")` by `content.js`; the About window words itself and picks its install link from it
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-icon` — a tiny inline SVG from `icon(name)`; `px-sev-error` / `px-sev-warning` are the severity modifiers (not `px-error`, which is the parse-error panel)

@@ -3,6 +3,14 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Fixed
+- **The About window no longer says "in Chrome"**, and its install link
+  follows the browser: the Chrome Web Store in Chrome, the web page in
+  Firefox and Safari until each has a listing. `content.js` stamps the
+  browser on the shell beside the version.
+
 ## 0.9.20 — 2026-09-27
 
 ### Changed

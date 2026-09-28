@@ -18,9 +18,9 @@
 (function () {
   "use strict";
 
-  function html({ title, cssURL, logoURL, version }) {
+  function html({ title, cssURL, logoURL, version, browser }) {
     return `<!doctype html>
-<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}">
+<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}" data-oxv-browser="${escapeHtml(browser || "")}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
