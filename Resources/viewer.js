@@ -1267,9 +1267,9 @@
     ensureModel(release, startValidation);
   }
 
-  // The accent while the choice differs from what the document declares, the
-  // way a pressed toggle shows, so an overridden verdict is never mistaken
-  // for the file's own.
+  // A dot in the corner while the choice differs from what the document
+  // declares — the cog's mark for "something is loaded here" — so an
+  // overridden verdict is never mistaken for the file's own.
   function markReleaseSelect() {
     const select = document.getElementById("oxv-release");
     if (!select) return;

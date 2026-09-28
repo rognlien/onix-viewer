@@ -374,8 +374,9 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
    padding and type — since it is a control, at a fixed width: it is
    reference material and shortens for nothing, only the document pill
    gives way. While the choice differs from the release the document
-   declares it takes the accent, the way a pressed toggle does, so an
-   overridden verdict is never mistaken for the file's own. */
+   declares it carries the cog's corner dot — not the accent fill, which
+   read as a control stuck down — so an overridden verdict is never
+   mistaken for the file's own. */
 #oxv-release-group {
   position: relative;
   display: inline-flex;
@@ -402,7 +403,7 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
    sits where the platform puts it, which in Chrome on macOS is below the
    text's midline once the box has padding of its own. A rotated border
    corner in the text's colour, centred on the box, kept out of the way of
-   clicks, and white on the accent. */
+   clicks. */
 #oxv-release-group::after {
   content: "";
   position: absolute;
@@ -416,13 +417,19 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
   pointer-events: none;
   color: var(--fg);
 }
-#oxv-release-group:has(> .px-overridden)::after { color: #fff; }
 #oxv-release-group:has(> :disabled)::after { color: var(--fg-muted); }
 #oxv-release-group:has(> #oxv-release:empty) { display: none; }
-#oxv-release.px-overridden {
+#oxv-release-group:has(> .px-overridden)::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-toolbar);
+  pointer-events: none;
 }
 #oxv-release option { color: var(--fg); background: var(--bg); }
 
