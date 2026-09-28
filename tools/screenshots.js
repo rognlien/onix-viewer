@@ -2,6 +2,7 @@
 //
 //   npm run screenshots            # Chrome  → Screenshots/Chrome/
 //   npm run screenshots:firefox    # Firefox → Screenshots/Firefox/
+//   npm run screenshots:safari     # Safari  → Screenshots/Safari/
 //   FIREFOX_BIN=/path/to/firefox node tools/screenshots.js firefox
 //
 // Three 1280×800 captures of the viewer over Onix/onix-3.1-refnames-defects.xml,
@@ -19,10 +20,27 @@
 // On macOS 27 the Firefox side needs the terminal it runs from to have Full
 // Disk Access, or Firefox exits with "Could not find profile folder." —
 // see FIREFOX.md.
+//
+// Safari is the odd one out: puppeteer cannot drive it, and safaridriver's
+// automation windows are isolated like private browsing, where the extension
+// is not on. So the Safari set is taken from the Safari you use — the
+// extension enabled and allowed on 127.0.0.1 in the profile of the front
+// window — by AppleScript: a tab is opened on the served sample, the window
+// sized until the page's viewport is exactly 1280×800, and that rectangle of
+// the screen captured with screencapture. The captures are 2560×1600 on a
+// Retina display, which the App Store accepts as it does 1280×800. It needs
+// two switches, each once: Safari → Settings → Developer → "Allow JavaScript
+// from Apple Events", which is how the script reads the page and opens the
+// popups, and Screen Recording for the terminal in System Settings →
+// Privacy & Security, without which screencapture returns the wallpaper. If
+// the system appearance is dark it is set light for the run and put back.
+// Keep the pointer off the Safari window while it runs: a row under it
+// would show its hover tint.
 
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const puppeteer = require("puppeteer-core");
 
 const ROOT = path.join(__dirname, "..");
@@ -34,11 +52,11 @@ const WIDTH = 1280;
 const HEIGHT = 800;
 
 const BROWSER = process.argv[2] || "chrome";
-if (!["chrome", "firefox"].includes(BROWSER)) {
-  console.error("usage: node tools/screenshots.js [chrome|firefox]");
+if (!["chrome", "firefox", "safari"].includes(BROWSER)) {
+  console.error("usage: node tools/screenshots.js [chrome|firefox|safari]");
   process.exit(2);
 }
-const OUT = path.join(ROOT, "Screenshots", BROWSER === "chrome" ? "Chrome" : "Firefox");
+const OUT = path.join(ROOT, "Screenshots", BROWSER[0].toUpperCase() + BROWSER.slice(1));
 
 // ---- the sample, served as application/xml ---------------------------------
 
@@ -144,11 +162,123 @@ async function openFindings(page) {
   await page.waitForSelector("#oxv-findings:not([hidden])");
 }
 
+// ---- Safari, by AppleScript ------------------------------------------------
+
+function osascript(script) {
+  return execFileSync("osascript", ["-e", script], { encoding: "utf8" }).trim();
+}
+
+function appleScriptString(text) {
+  return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+// Runs JavaScript in the front window's current tab and returns its result
+// as text. This is the call "Allow JavaScript from Apple Events" gates.
+function safariEval(code) {
+  return osascript(`tell application "Safari" to do JavaScript ${appleScriptString(code)} in current tab of front window`);
+}
+
+async function safariWait(code, what, timeoutMs = 20000) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    if (safariEval(code) === "true") return;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`Safari: timed out waiting for ${what}`);
+}
+
+function safariBounds() {
+  return osascript('tell application "Safari" to get bounds of front window').split(", ").map(Number);
+}
+
+// Sizes the front window until the page's viewport is WIDTH × HEIGHT, and
+// returns that rectangle in screen points. The window's chrome is measured
+// rather than assumed: the tab bar comes and goes.
+function safariViewport() {
+  let [left, top] = [40, 60];
+  let [width, height] = [WIDTH, HEIGHT + 100];
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    osascript(`tell application "Safari" to set bounds of front window to {${left}, ${top}, ${left + width}, ${top + height}}`);
+    const [inner, outer] = [
+      safariEval("window.innerWidth + ',' + window.innerHeight").split(",").map(Number),
+      safariBounds(),
+    ];
+    [left, top] = outer;
+    width = outer[2] - outer[0];
+    height = outer[3] - outer[1];
+    if (inner[0] === WIDTH && inner[1] === HEIGHT) {
+      return { x: left, y: outer[3] - HEIGHT, width: WIDTH, height: HEIGHT };
+    }
+    width += WIDTH - inner[0];
+    height += HEIGHT - inner[1];
+  }
+  throw new Error("Safari: could not size the window to a 1280×800 viewport");
+}
+
+function systemDarkMode(value) {
+  const script = value === undefined
+    ? 'tell application "System Events" to tell appearance preferences to get dark mode'
+    : `tell application "System Events" to tell appearance preferences to set dark mode to ${value}`;
+  return osascript(script) === "true";
+}
+
+async function safariOpen(url) {
+  osascript(`tell application "Safari"
+    activate
+    if (count of windows) is 0 then make new document
+    tell front window to set current tab to (make new tab with properties {URL:${appleScriptString(url)}})
+  end tell`);
+  await safariWait("document.readyState === 'complete' && !!document.querySelector('#oxv-root .px-row')",
+    "the viewer to take the page over — is the extension on, and allowed on 127.0.0.1, in this profile?");
+  await safariWait("!document.getElementById('oxv-validation').textContent.includes('Validating')", "validation");
+  await safariWait("document.fonts.status === 'loaded'", "fonts");
+}
+
+function safariCapture(rect, name) {
+  const file = path.join(OUT, `${name}.png`);
+  execFileSync("screencapture", ["-x", "-R", `${rect.x},${rect.y},${rect.width},${rect.height}`, file]);
+  console.log(`  wrote ${path.relative(ROOT, file)}`);
+}
+
+async function safariShots(url) {
+  const wasDark = systemDarkMode();
+  if (wasDark) systemDarkMode(false);
+  try {
+    await safariOpen(url);
+    const rect = safariViewport();
+    console.log(`safari: ${safariEval("document.getElementById('oxv-meta').textContent.trim()")}, ` +
+      `${safariEval("document.getElementById('oxv-validation').textContent.trim()")}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    safariCapture(rect, "Main");
+    safariEval(`[...document.querySelectorAll('#oxv-root .px-row')]
+      .find((r) => r.querySelector('.px-tag-name')?.textContent === 'NotificationType')
+      .querySelector('.px-codelist-link').click()`);
+    await safariWait("!!document.querySelector('.px-popup-overlay:not([hidden]) #px-popup-title')", "the code-list popup");
+    safariCapture(rect, "CodeList");
+    safariEval("OnixViewerPopup.close()");
+    await safariWait("!document.querySelector('.px-popup-overlay:not([hidden])')", "the popup to close");
+    safariEval("document.getElementById('oxv-validation').click()");
+    await safariWait("!document.getElementById('oxv-findings').hidden", "the findings list");
+    safariCapture(rect, "Violations");
+  } finally {
+    osascript('tell application "Safari" to close current tab of front window');
+    if (wasDark) systemDarkMode(true);
+  }
+}
+
 // ---- main ---------------------------------------------------------------------
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const served = await serve();
+  if (BROWSER === "safari") {
+    try {
+      await safariShots(served.url);
+    } finally {
+      served.server.close();
+    }
+    return;
+  }
   const browser = await launch();
   try {
     const page = await open(browser, served.url);

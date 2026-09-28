@@ -121,9 +121,21 @@ The Mac App Store wants screenshots of the **app** at a Mac size — 1280 ×
 takes up to ten. Use:
 
 1. `Screenshots/Safari/Main.png`, `CodeList.png`, `Violations.png` — the
-   extension at work, taken by `npm run screenshots:firefox`'s sibling
-   `node tools/screenshots.js safari`, once that exists; until then the
-   Firefox set, which shows the same page.
+   extension at work, taken by `npm run screenshots:safari`. Safari cannot
+   be driven headless (puppeteer has no Safari, and safaridriver's
+   automation windows are isolated like private browsing, where the
+   extension is off), so the script uses the Safari you have open: it
+   opens a tab on the served sample in the front window, sizes the window
+   until the viewport is exactly 1280 × 800, captures that rectangle with
+   `screencapture`, opens the two popups by script, and closes the tab.
+   Before the first run, once each: the extension on and allowed on
+   127.0.0.1 in that window's profile; Safari → Settings → Developer →
+   *Allow JavaScript from Apple Events*; and Screen Recording for the
+   terminal under System Settings → Privacy & Security, without which the
+   captures show the wallpaper. Keep the pointer off the window while it
+   runs. On a Retina display the files are 2560 × 1600, which App Store
+   Connect accepts alongside 1280 × 800; a dark system appearance is set
+   light for the run and put back.
 2. One of the host app's window — the converter's template: the owl, the
    extension's state, and the button that opens Safari's Extensions
    settings — taken by hand with ⇧⌘4 at 1280 × 800 or larger.

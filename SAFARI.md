@@ -266,7 +266,9 @@ number). Nothing can ship before that. Then:
      Privacy declaration ("Data Not Collected" — the manifest's
      `data_collection_permissions` has no standing there), a category, and
      screenshots of the *app window* as well as the extension at one of the
-     Mac sizes (1280×800 is one). Free apps still go through review.
+     Mac sizes (1280×800 is one; `npm run screenshots:safari` takes the
+     extension's three from the Safari you use, see `SAFARI_LISTING.md`).
+     Free apps still go through review.
    - **Outside the store**: *Direct Distribution* (Developer ID). Xcode
      signs with the Developer ID certificate and submits the app for
      notarization; export the notarized app, zip it, and put the zip on the

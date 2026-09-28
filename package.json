@@ -12,6 +12,7 @@
     "check:icons": "node tools/check-icons.js",
     "screenshots": "node tools/screenshots.js chrome",
     "screenshots:firefox": "node tools/screenshots.js firefox",
+    "screenshots:safari": "node tools/screenshots.js safari",
     "lint": "eslint ."
   },
   "devDependencies": {
