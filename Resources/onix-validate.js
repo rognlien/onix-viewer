@@ -25,6 +25,7 @@
     "structure.missing": "<{parent}> is missing a required <{expected}>",
     "structure.expected-one-of": "<{parent}> requires one of {expected} here",
     "structure.unexpected": "<{found}> is not allowed at this position in <{parent}>",
+    "structure.not-allowed": "<{found}> is not allowed in <{parent}> in ONIX {version}",
     "structure.repeated": "<{found}> may appear at most {max}× in <{parent}>",
     "structure.stray-text": "<{found}> contains text (\"{text}\") where only elements are allowed",
     "structure.childless": "<{found}> takes a value, not child elements",
@@ -412,10 +413,24 @@
     // Error recovery: an element the model has never heard of is reported on
     // its own visit as structure.unknown, so it is left out of the match
     // rather than derailing it. Without this, one typo makes every following
-    // sibling "not allowed at this position". Elements that ARE known but
-    // misplaced stay in — that mismatch is the finding worth showing.
-    const children = api.childElements(node)
-      .filter((child) => api.shapeOf(child));
+    // sibling "not allowed at this position". An element the model knows but
+    // this parent never takes — <SequenceNumber> inside <TextContent> is
+    // ONIX 3.1's, and a 3.1 feed judged as 3.0 has one in every text — is
+    // reported here as structure.not-allowed and left out the same way; it
+    // used to derail the composite into eight findings for the one fault.
+    // Elements this parent DOES take but in the wrong place stay in — that
+    // mismatch is the finding worth showing.
+    const allowed = namesWithin(particle);
+    const children = [];
+    for (const child of api.childElements(node)) {
+      if (!api.shapeOf(child)) continue;
+      if (allowed.has(api.referenceName(child))) {
+        children.push(child);
+      } else {
+        api.report("structure.not-allowed", child,
+          { found: child.nodeName, parent: node.nodeName, version: api.model.version });
+      }
+    }
     const names = children.map((child) => api.referenceName(child));
     const state = { children, names, pos: 0, parentName, node };
     matchParticle(particle, state, api);
@@ -521,6 +536,26 @@
       }
     }
     firstSets.set(particle, names);
+    return names;
+  }
+
+  // Every element name a particle can take, anywhere in it: what tells a
+  // child this parent never accepts from one it accepts elsewhere. Memoised
+  // like the first sets.
+  const nameSets = new WeakMap();
+
+  function namesWithin(particle) {
+    let names = nameSets.get(particle);
+    if (names) return names;
+    names = new Set();
+    if (particle[0] === "e") {
+      names.add(particle[1]);
+    } else {
+      for (const part of particle.slice(2)) {
+        for (const name of namesWithin(part)) names.add(name);
+      }
+    }
+    nameSets.set(particle, names);
     return names;
   }
 

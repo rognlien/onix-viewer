@@ -172,8 +172,9 @@ describe("Validation", () => {
       assert(allowed.total === 0,
         `<EpubLicenseDate> is legal under <DescriptiveDetail>; got: ${codes(allowed).join(", ")}`);
 
+      // Not "at this position": the <Price> variant never takes it at all.
       const refused = findingsFor(w, message("", licence(licenceDate)));
-      assert(codes(refused).join() === "structure.unexpected",
+      assert(codes(refused).join() === "structure.not-allowed",
         `and illegal under <Price>; got: ${codes(refused).join(", ")}`);
 
       const plain = findingsFor(w, message("", licence("")));
@@ -358,6 +359,33 @@ describe("Validation", () => {
     assert(!codes(result).includes("structure.unexpected"),
       `a typo should not cascade; got: ${codes(result).join(", ")}`);
     assert(result.total === 7, `expected 7 findings, got ${result.total}: ${codes(result).join(", ")}`);
+  });
+
+  test("an element the parent never takes is reported once and left out of the match", () => {
+    // <SequenceNumber> is ONIX 3.1's inside <TextContent>, and a known
+    // element of 3.0 elsewhere, so a 3.1 feed judged as 3.0 has one in every
+    // text. It used to derail the composite: three "missing", five "not
+    // allowed at this position". libxml2 reports it once, and so do we now.
+    const w = render("onix-3.1-valid.xml");
+    const text = "<TextContent><SequenceNumber>1</SequenceNumber><TextType>03</TextType>" +
+      "<ContentAudience>00</ContentAudience><Text>x</Text></TextContent>";
+    const xml = w.__OXV_SOURCE__
+      .replace("</DescriptiveDetail>", `</DescriptiveDetail><CollateralDetail>${text}</CollateralDetail>`)
+      .replace(/3\.1/g, "3.0");
+    const result = findingsFor(w, xml);
+    assert(result.version === "3.0", `judged as 3.0; got ${result.version}`);
+    assert(codes(result).join() === "structure.not-allowed", `once; got ${codes(result).join(", ")}`);
+    assert(result.findings[0].node.nodeName === "SequenceNumber", "pinned to the element itself");
+    assert(w.OnixViewerValidation.message(result.findings[0]) ===
+      "<SequenceNumber> is not allowed in <TextContent> in ONIX 3.0",
+      `got "${w.OnixViewerValidation.message(result.findings[0])}"`);
+    // An element the parent takes, out of place, still shows the mismatch.
+    const swapped = w.__OXV_SOURCE__.replace(
+      /<ProductComposition>00<\/ProductComposition>(\s*)(<ProductForm>\w+<\/ProductForm>)/,
+      "$2$1<ProductComposition>00</ProductComposition>");
+    assert(swapped !== w.__OXV_SOURCE__, "the fixture has the two in order");
+    assert(codes(findingsFor(w, swapped)).includes("structure.unexpected"),
+      `got ${codes(findingsFor(w, swapped)).join(", ")}`);
   });
 
   test("findings are pinned to the rows they are about", () => {

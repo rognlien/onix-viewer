@@ -19,6 +19,18 @@ the main branch.
   disagree, and the verdict's note says which release was checked and which
   the file declares. The choice is not remembered between documents.
 
+- **The content models are checked against libxml2.** `npm run test:oracle`
+  judges every ONIX document in the repository as 3.0 and as 3.1 with
+  `xmllint` against EDItEUR's own Issue 74 schemas and with the viewer's
+  validator, and the verdicts must agree. They do, on all 42.
+
+### Fixed
+- **A known element the parent never takes no longer derails the composite.**
+  `<SequenceNumber>` inside `<TextContent>` is ONIX 3.1's, so a 3.1 feed
+  judged as 3.0 reported eight findings per text for that one fault. It is
+  now one, `structure.not-allowed`, as libxml2 reports it. No document at
+  its own release changed a recorded finding.
+
 ### Changed
 - **The custom-rules cog shows a dot** in its corner while a rule set is
   installed, in place of the accent fill, which read as a button stuck down.

@@ -8,6 +8,7 @@
     "test": "node tests/run.js",
     "test:update-expected": "UPDATE_EXPECTED=1 node tests/run.js expected",
     "test:browser": "node tests/browser/run.js",
+    "test:oracle": "node tools/oracle-xmllint.js",
     "test:firefox": "node tests/browser/firefox.js",
     "check:icons": "node tools/check-icons.js",
     "icons": "tools/render-icons.sh",

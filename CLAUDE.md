@@ -68,6 +68,7 @@ onix-viewer/
 │   ├── publish-site.sh             syncs site/ into the maendeleo-site repo, commits, pushes
 │   ├── screenshots.js              takes the three store screenshots in a headless Chrome or Firefox,
 │   │                               or from the Safari you use, by AppleScript
+│   ├── oracle-xmllint.js           the content models against libxml2 and EDItEUR's own XSDs (npm run test:oracle)
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
@@ -1465,6 +1466,37 @@ match. Without that recovery a single typo makes every following sibling "not
 allowed at this position" — nine findings for four defects in the test fixture,
 versus five with it.
 
+**So is a known element the parent never takes.** `matchChildren()` asks
+`namesWithin(particle)` — every name anywhere in the parent's content model,
+memoised like the first sets — and a child outside that set is reported once
+as `structure.not-allowed` (`<SequenceNumber> is not allowed in <TextContent>
+in ONIX 3.0`) and left out the same way. The release selector is what made
+this matter: 3.1 adds elements to composites that exist in 3.0, and those
+elements are often known to 3.0 elsewhere, so a 3.1 feed judged as 3.0 had
+eight findings per `<TextContent>` for its one `<SequenceNumber>` — three
+"missing", five "not allowed at this position" — where libxml2 reports one.
+An element the parent *does* take, out of place, stays in the match, since
+that mismatch is the finding worth showing (`ProductForm` before
+`ProductComposition` is still `structure.unexpected`). No document at its own
+release changed a single recorded finding when this went in; it is a
+cross-release matter in practice.
+
+**The models are checked against libxml2.** `npm run test:oracle` runs
+`tools/oracle-xmllint.js`: every ONIX document in `tests/fixtures/` and
+`Onix/`, plus EDItEUR's own sample from the bundle, rewritten to declare
+3.0 and then 3.1, is judged by `xmllint --schema` against EDItEUR's Issue
+74 XSDs and by our validator, and the verdicts must agree. It downloads the
+two schema bundles into `dist/oracle/` on first use (network; the two files
+the generator leaves out, `ONIX_BookProduct_CodeLists.xsd` and
+`ONIX_XHTML_Subset.xsd`, come from there) and checks that the bundles'
+structure XSDs are byte-identical to the committed inputs. Only findings an
+XSD 1.0 processor can see are counted on our side: not the check digits,
+not the second-order lists, not the custom rules, and not warnings. Counts
+differ where libxml2 stops at the first fault in an element and skips the
+rest, so the verdict is the contract, and the tool prints both sides for
+any document where they part. It is not part of `npm test`: it needs the
+network once and `xmllint`, which macOS and the Ubuntu runners have.
+
 ### Icons
 
 `icon(name)` in `viewer.js` builds a tiny inline SVG from the `ICONS` table,
@@ -1819,6 +1851,7 @@ npm test        # runs the 281-test jsdom suite (~9s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
+npm run test:oracle    # every ONIX document as 3.0 and as 3.1, our verdict against xmllint's (downloads EDItEUR's bundles once)
 npm test -- x512          # just the tests matching "x512" (~0.2s)
 npm test -- validation    # a whole describe block
 ```
