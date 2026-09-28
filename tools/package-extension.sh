@@ -51,25 +51,9 @@ mkdir -p "$STAGE"
 cp -R Resources/. "$STAGE"
 find "$STAGE" -name .DS_Store -delete
 
-node -e "
-  const fs = require('fs');
-  const path = '$STAGE/manifest.json';
-  const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
-  delete manifest.version_name;
-  if ('$TARGET' === 'chrome') delete manifest.browser_specific_settings;
-  if ('$TARGET' === 'firefox') delete manifest.minimum_chrome_version;
-  if ('$TARGET' === 'safari') {
-    delete manifest.minimum_chrome_version;
-    // Safari 18 is the floor: content-visibility arrived there (MDN).
-    manifest.browser_specific_settings = { safari: { strict_min_version: '18.0' } };
-    // App Store Connect rejects a Safari extension whose description runs
-    // past 112 characters; the shared one is 113. Same sentence, one word
-    // fewer.
-    manifest.description = 'Readable ONIX XML: collapsible tree, product summaries, EDItEUR code-list labels and automatic validation.';
-    if (manifest.description.length > 112) throw new Error('Safari description over 112 characters');
-  }
-  fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n');
-"
+# The manifest each store gets — one module, so the suite can run it for
+# every target against the real manifest (tests/cases/37-store-manifests).
+node tools/prune-manifest.js "$TARGET" "$STAGE/manifest.json"
 
 if [ "$TARGET" = "safari" ]; then
   # Apple's converter wraps the folder in an app + extension Xcode project.

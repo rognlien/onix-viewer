@@ -50,6 +50,7 @@ onix-viewer/
 │                                   Only manifest sizes are consulted, so a file
 │                                   at any other size is never read
 ├── tools/
+│   ├── prune-manifest.js           the manifest each store gets; the packager runs it, the suite tests it
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
 │   │                               the -firefox.zip for AMO with --target=firefox, or the
 │   │                               folder plus Xcode project in dist/safari/ with --target=safari
@@ -325,8 +326,9 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   `chrome://extensions` displays in place of the version — so an unpacked
   load says `-dev` on the card and in About alike, and a development copy is
   never mistaken for the store's. `tools/package-extension.sh` zips a
-  staging copy with the field deleted (and refuses a zip in which it
-  survived), so the store build shows the bare version; `tools/release.sh`
+  staging copy with the field deleted by `tools/prune-manifest.js` (and
+  refuses a zip in which it survived), so the store build shows the bare
+  version; `tools/release.sh`
   moves `version` and `version_name` together; and a test holds
   `version_name` to `<version>-dev` so neither can drift. The browser test
   asserts the `-dev` form, since that is what it loads. An earlier take
