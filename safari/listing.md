@@ -46,7 +46,8 @@ first archive.
 Open any ONIX feed in Safari and read it: a collapsible tree, EDItEUR code lists resolved in place, and validation against the ONIX 3.0 and 3.1 schemas.
 ```
 
-**Description** (max 4,000 chars):
+**Description** (max 4,000 chars; no angle brackets or arrows, which App
+Store Connect rejects as invalid characters):
 
 ```
 ONIX Viewer turns raw ONIX XML into a readable, collapsible tree inside
@@ -67,7 +68,7 @@ Features
   • Read and copy the other dialect: one switch shows a short-tag
     file under reference names, or the reverse, and the copy follows
     what you see
-  • <Product> blocks fold to a one-line summary (ISBN · form · title),
+  • Product records fold to a one-line summary (ISBN · form · title),
     so two presses of Collapse make a 10,000-product feed scannable
   • Code-list labels (ProductIDType, ProductForm, ContributorRole,
     LanguageCode, CountryCode, …) shown beside every value
@@ -86,8 +87,8 @@ How it works
   network request is a re-fetch of the
   page you are already viewing, to read its source.
 
-  After installing, turn the extension on in Safari → Settings →
-  Extensions, and allow it on the sites your ONIX comes from — or on
+  After installing, turn the extension on under Extensions in Safari's
+  Settings, and allow it on the sites your ONIX comes from — or on
   every website, since a feed can be served from any URL.
 
 ONIX for Books and its code lists are developed and maintained by
