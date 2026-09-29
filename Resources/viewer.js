@@ -59,15 +59,13 @@
 
   // ---- held-back features ---------------------------------------------------
 
-  // Two features are built and tested but off in the shipped build until
-  // they are ready: the custom-rules editor behind the toolbar's cog, and the
-  // manual release selector. With both off the release to validate against
-  // is chosen from the document alone, the cog is not in the toolbar, and
-  // the manifest asks for no permission at all. Their tests turn them on
-  // through window.OnixViewerFeatures before the viewer loads; content.js
-  // carries its own copy of the customRules switch, since it runs in the
-  // other world.
-  const FEATURES = Object.assign({ customRules: false, releaseSelector: false }, window.OnixViewerFeatures);
+  // The custom-rules editor behind the toolbar's cog is built and tested but
+  // off in the shipped build until it is ready: the cog is not in the
+  // toolbar, a rules block on the page is ignored, and the manifest asks for
+  // no permission at all. Its tests turn it on through
+  // window.OnixViewerFeatures before the viewer loads; content.js carries
+  // its own copy of the switch, since it runs in the other world.
+  const FEATURES = Object.assign({ customRules: false }, window.OnixViewerFeatures);
   window.OnixViewerFeatures = FEATURES;
 
   // ---- icons ----------------------------------------------------------------
@@ -1199,14 +1197,6 @@
       addReleaseOption(select, declared || "", releaseLabel(declared));
       select.disabled = true;
       select.title = "Acknowledgement messages have their own schema, which isn't bundled; code lists are still checked";
-      return;
-    }
-    if (!FEATURES.releaseSelector) {
-      // The plain pill: the release the document declares, and no choice.
-      addReleaseOption(select, declared || "", releaseLabel(declared));
-      select.disabled = true;
-      select.parentElement.classList.add("px-static");
-      select.title = declared ? `Validated against ONIX ${declared}` : "No release declared; only the code lists are checked";
       return;
     }
     const releases = bundledReleases();

@@ -6,12 +6,11 @@ the main branch.
 ## Unreleased
 
 ### Held back
-Built and tested, and in the code behind switches that are off in 0.9.20
-(`FEATURES` in `viewer.js`, `CUSTOM_RULES` in `content.js`): the release
-selector, and the custom-rules editor with its cog and its `storage`
-permission. Until they ship, the release to validate against is the one the
-document declares, the toolbar has no cog, and the manifest asks for no
-permission at all.
+Built and tested, and in the code behind a switch that is off in 0.9.20
+(`FEATURES.customRules` in `viewer.js`, `CUSTOM_RULES` in `content.js`): the
+custom-rules editor with its cog and its `storage` permission. Until it
+ships, the toolbar has no cog and the manifest asks for no permission at
+all.
 
 - **Your own validation rules, written as Schematron.** A cog in the
   toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
@@ -24,18 +23,6 @@ permission at all.
   `role="warning"` the severity. Problems with a rule set are listed in the
   editor and reported as warnings rather than thrown. The rule set is kept
   in the extension's storage, so it follows you from page to page.
-- **The code-list issue pill is now a release selector.** It still reads
-  `ONIX 3.1, Issue 74`, but its options judge the document against ONIX 3.0
-  or 3.1, whichever the reader picks; it starts on the release the file
-  declares. 3.0 and 3.1 disagree about what is an error
-  and what a warning — `<AudienceCode>` is deprecated in 3.0 and unknown to
-  3.1 — so a feed about to move between them can be read both ways, and a
-  standalone `<Product>` with no namespace, which declares nothing, can be
-  checked structurally at all. The other release's content model is fetched
-  the first time it is asked for, so a page still loads one model. Under an
-  override the `release` attribute is not judged, since it can only
-  disagree, and the verdict's note says which release was checked and which
-  the file declares. The choice is not remembered between documents.
 - **The custom-rules cog shows a dot** in its corner while a rule set is
   installed, in place of the accent fill, which read as a button stuck down.
 - **The rules editor is larger, and resizes**: 860px wide with a taller
@@ -48,6 +35,18 @@ permission at all.
 ## 0.9.20 — 2026-09-29
 
 ### Added
+- **The code-list issue pill is now a release selector.** It still reads
+  `ONIX 3.1, Issue 74`, but its options judge the document against ONIX 3.0
+  or 3.1, whichever the reader picks; it starts on the release the file
+  declares. 3.0 and 3.1 disagree about what is an error
+  and what a warning — `<AudienceCode>` is deprecated in 3.0 and unknown to
+  3.1 — so a feed about to move between them can be read both ways, and a
+  standalone `<Product>` with no namespace, which declares nothing, can be
+  checked structurally at all. The other release's content model is fetched
+  the first time it is asked for, so a page still loads one model. Under an
+  override the `release` attribute is not judged, since it can only
+  disagree, and the verdict's note says which release was checked and which
+  the file declares. The choice is not remembered between documents.
 - **A new owl.** The icon is redrawn as vector artwork, `icons/icon-original.svg`,
   with hand-drawn sizes for everything small, and `npm run icons` is the whole
   of an icon change: it renders the nine shipped sizes, copies the 128 to the

@@ -181,8 +181,7 @@ async function main() {
   try {
     await takeover(browser, served);
     const features = await heldBack(browser, served);
-    if (features.releaseSelector) await releaseSelector(browser, served);
-    else console.log("\nThe release selector is held back; its test is skipped");
+    await releaseSelector(browser, served);
     await schematronInChrome(browser, served);
     if (features.customRules) await rulesRoundTrip(browser, served);
     else console.log("\nThe rules editor is held back; the storage round trip is skipped");
@@ -198,8 +197,8 @@ async function main() {
   }
 }
 
-// The shipped build has both features off (viewer.js FEATURES); the tests
-// that drive them through the real UI run only when they are on.
+// The shipped build has the custom rules off (viewer.js FEATURES); the test
+// that drives the editor through the real UI runs only when it is on.
 async function heldBack(browser, served) {
   const page = await open(browser, served.url("onix-3.1-valid.xml"));
   const features = await page.evaluate(() => window.OnixViewerFeatures);

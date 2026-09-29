@@ -1,17 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const {
-  test, describe, assert, findings, codes, validationLabel, RES,
+  test, describe, assert, render, renderSource, findings, codes, validationLabel, RES,
 } = require("../harness");
-const harness = require("../harness");
-
-// The feature is held back in the shipped build; these tests turn it on.
-const enabled = (before) => (w) => {
-  w.OnixViewerFeatures = { releaseSelector: true };
-  if (before) before(w);
-};
-const render = (name, before) => harness.render(name, enabled(before));
-const renderSource = (xml, label, before, models) => harness.renderSource(xml, label, enabled(before), models);
 
 // The toolbar's release selector: the verdict is against the release the
 // document declares unless the reader picks the other bundled one. 3.0 and

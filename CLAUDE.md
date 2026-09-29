@@ -1280,15 +1280,13 @@ numbers and the tax sum.
 tested but off in the shipped build: `FEATURES.customRules` in `viewer.js`
 and `CUSTOM_RULES` in `content.js` are both `false`, the cog is removed from
 the toolbar, a rules block on the page is ignored, no storage call runs, and
-the manifest's `permissions` is `[]`. The release selector below the toolbar
-notes is held back the same way (`FEATURES.releaseSelector`): the pill
-states the document's release and offers no choice. Their tests turn the
-switches on through `window.OnixViewerFeatures` before the viewer loads, and
-`tests/cases/38-held-back-features.test.js` holds the shipped defaults.
-Turning a feature back on is the switch, the permission, and the docs and
-listings that say "no permissions" — all in one commit, "Hold back the
-custom rules and the release selector", to revert. What follows describes
-the feature as built.
+the manifest's `permissions` is `[]`. Its tests turn the switch on through
+`window.OnixViewerFeatures` before the viewer loads, and
+`tests/cases/38-held-back-features.test.js` holds the shipped default.
+Turning it back on is the switch, the permission, and the docs and listings
+that say "no permissions" — one commit, "Hold back the custom rules and the
+release selector" (the selector was let back in straight after), to revert.
+What follows describes the feature as built.
 
 The reader pastes a rule set into a modal behind the toolbar's cog
 (`#oxv-rules`, built in `viewer.js` on the findings list's pattern: the
