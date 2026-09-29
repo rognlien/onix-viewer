@@ -167,8 +167,9 @@ is the tree, `CodeList.png` the code-list popup, `Violations.png` the
 findings list. `Screenshots/Firefox/` is the same set from Firefox, for AMO.
 
 The icon and the two promo tiles are **generated**, so they are not committed —
-`dist/` is gitignored in full. Rebuild them into `dist/listing/` when you need
-to upload:
+`dist/` is gitignored in full. `npm run icons` rebuilds them into
+`dist/listing/` along with the shipped icon sizes, which is these three
+commands after the render:
 
 ```bash
 cp Resources/icons/icon-128.png dist/listing/icon-128.png

@@ -43,13 +43,15 @@ onix-viewer/
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-schematron.js          custom rules: a Schematron subset over the browser's XPath
 │   ├── onix-popup.js               modal popup listing all entries of a code list
-│   └── icons/                      icon-{16,32,48,96,128,256,512}.png, built from icons/
+│   └── icons/                      icon-{16,28,32,48,56,96,128,256,512}.png, built from icons/
 ├── icons/                          SOURCE artwork — not shipped. The master plus
-│                                   any hand-drawn per-size overrides
-│   ├── icon-original.png           1254×1254 RGBA master — the render source
+│                                   the hand-drawn per-size overrides, each with
+│                                   the SVG it was exported from
+│   ├── icon-original.svg           the vector master — the render source
+│   ├── icon-original.png           the same at 2048×2048 RGBA; the promo tiles embed it
 │   └── icon-<size>.png             hand-drawn overrides; used verbatim when present.
 │                                   Only manifest sizes are consulted, so a file
-│                                   at any other size is never read
+│                                   at any other size (the 24) is never read
 ├── tools/
 │   ├── prune-manifest.js           the manifest each store gets; the packager runs it, the suite tests it
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
@@ -111,13 +113,22 @@ ships — `tools/package-extension.sh` does `cd Resources` before it zips, so th
 extension is exactly the contents of `Resources/` and nothing else.
 
 ```
-icons/icon-original.png     master artwork          }  source, never shipped
+icons/icon-original.svg     master artwork          }  source, never shipped
 icons/icon-48.png           hand-drawn override     }
         │
-        │  tools/render-icons.sh
+        │  tools/render-icons.sh  (npm run icons)
         ▼
 Resources/icons/icon-*.png  the nine manifest sizes     shipped
+site/icon-128.png           the web page's copy        published with the page
+dist/listing/*.png          the store's icon and tiles  uploaded, never committed
 ```
+
+`npm run icons` is the whole of an icon change after the artwork is in
+place: it renders the nine sizes (a hand-drawn file winning over the
+master), copies the 128 to `site/`, re-renders the promo tiles into
+`dist/listing/`, and runs `check:icons`. Screenshots are separate, since
+the mark is in them: `npm run screenshots` and its Firefox and Safari
+siblings afterwards.
 
 The output is **committed**, not built on demand, for the same reason
 `onix-codelists.js` and the content models are: *Load unpacked* points Chrome
@@ -1834,6 +1845,6 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **ONIX detection / codelist resolution / Product summaries**: live in `onix.js`. The viewer calls into the ONIX module via the `window.OnixViewerOnix` API — keep that contract narrow so non-ONIX docs don't pay for ONIX features.
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
 - **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
-- **Icon changes**: edit `icons/icon-original.png` (1254×1254 RGBA, artwork edge-to-edge), then `tools/render-icons.sh` rebakes every manifest size (the seven store sizes plus the toolbar's 28 and 56). **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-28.png`, the app icon at the box's own size, with `icon-56.png` for 2x displays, so there is nothing to keep in step; both are hand-drawn in the style of the 32 and 48, since the master's facets do not survive that size. The promo SVGs reference the same master, so `rsvg-convert` re-renders those too (commands in `CWS_LISTING.md`).
+- **Icon changes**: put the new artwork in `icons/` — `icon-original.svg` (the vector master; `icon-original.png` beside it at 2048×2048 for the promo tiles) and the hand-drawn sizes — then `npm run icons` rebakes every manifest size (the seven store sizes plus the toolbar's 28 and 56), copies the 128 to `site/`, re-renders the tiles and runs the check. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px — so new artwork needs the hand-drawn sizes redrawn too, or they keep the old mark exactly where it is seen most. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-28.png`, the app icon at the box's own size, with `icon-56.png` for 2x displays, so there is nothing to keep in step; both are hand-drawn in the style of the 32 and 48, since the master's facets do not survive that size. The promo SVGs embed the PNG master, which is why `npm run icons` re-renders them.
 - **Store screenshots**: `npm run screenshots` re-takes the Chrome set into `Screenshots/Chrome/`, `npm run screenshots:firefox` the Firefox set into `Screenshots/Firefox/` and `npm run screenshots:safari` the Safari set into `Screenshots/Safari/`, each at 1280×800 in the light scheme over `Onix/onix-3.1-refnames-defects.xml`: the tree, the code-list popup from the `<NotificationType>` row, and the findings list. Chrome and Firefox are headless; Safari cannot be, so that set is taken from the Safari you use, by AppleScript and `screencapture` — the extension on and allowed on 127.0.0.1 in the front window's profile, "Allow JavaScript from Apple Events" on in Safari's Developer settings, Screen Recording granted to the terminal, and the pointer kept off the window. On a Retina display those three come out at 2560×1600, which the App Store takes. Commit the result. Those directories are the record of what the listings show — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source (the Chrome set), so re-taking the screenshots means copying them there too.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.

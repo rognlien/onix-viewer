@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # tools/render-icons.sh — Render the extension's icon PNGs at every size the
 # manifest declares: the seven a store may ask for, plus 28 and 56, the
-# toolbar mark's box at 1x and 2x.
+# toolbar mark's box at 1x and 2x. Then copy the 128 to site/, re-render the
+# two promo tiles into dist/listing/, and run the icon check. `npm run icons`.
 #
-# Source-of-truth is icons/icon-original.png (1254×1254 RGBA).
-# The source has the artwork edge-to-edge with transparent corners, so it is
-# rendered without padding. Adding the Google-spec 16-px margin made the icon
-# visibly smaller than other extensions in chrome://extensions, because their
-# full canvas IS the artwork.
+# Source-of-truth is icons/icon-original.svg, the vector master; a size with
+# no hand-drawn file is rendered from it. icons/icon-original.png (2048×2048
+# RGBA) is the same artwork rasterised, kept because the promo tiles embed
+# it, and rendered from when the SVG is absent. The artwork sits edge-to-edge
+# with transparent corners, so it is rendered without padding. Adding the
+# Google-spec 16-px margin made the icon visibly smaller than other
+# extensions in chrome://extensions, because their full canvas IS the artwork.
 #
 # HAND-DRAWN SIZES WIN. A downscale of a detailed mark loses definition at 16
 # and 32 px, so a custom icons/icon-<size>.png is used verbatim when one exists
@@ -29,7 +32,8 @@ for tool in rsvg-convert node; do
   fi
 done
 
-SRC="icons/icon-original.png"
+SRC="icons/icon-original.svg"
+if [ ! -f "$SRC" ]; then SRC="icons/icon-original.png"; fi
 OUT_DIR="Resources/icons"
 SIZES="$(node -p 'Object.keys(require("./Resources/manifest.json").icons).join(" ")')"
 
@@ -62,12 +66,19 @@ trap 'rm -f "$TMP_SVG"' EXIT
 
 render_from_master() {
   local size="$1"
-  cat > "$TMP_SVG" <<EOF
+  case "$SRC" in
+    *.svg)
+      rsvg-convert -w "$size" -h "$size" "$SRC" -o "$OUT_DIR/icon-${size}.png"
+      ;;
+    *)
+      cat > "$TMP_SVG" <<EOF
 <svg xmlns="http://www.w3.org/2000/svg" width="$size" height="$size" viewBox="0 0 $size $size">
   <image href="$(basename "$SRC")" x="0" y="0" width="$size" height="$size"/>
 </svg>
 EOF
-  rsvg-convert -w "$size" -h "$size" "$TMP_SVG" -o "$OUT_DIR/icon-${size}.png"
+      rsvg-convert -w "$size" -h "$size" "$TMP_SVG" -o "$OUT_DIR/icon-${size}.png"
+      ;;
+  esac
 }
 
 refused=0
@@ -93,5 +104,19 @@ if [ "$refused" -gt 0 ]; then
   echo "Re-export them as RGBA and re-run to use them." >&2
 fi
 
+# The web page carries its own copy of the 128, which a test holds to the
+# shipped one; and the two promo tiles embed the master, so they are stale
+# the moment it changes. Neither tile is committed — dist/ is build output.
+cp "$OUT_DIR/icon-128.png" site/icon-128.png
+echo "  site/icon-128.png  <- icon-128.png"
+
+mkdir -p dist/listing
+cp "$OUT_DIR/icon-128.png" dist/listing/icon-128.png
+rsvg-convert -w 440  -h 280 promo-tile.svg -o dist/listing/promo-tile-440x280.png
+rsvg-convert -w 1400 -h 560 marquee.svg    -o dist/listing/marquee-1400x560.png
+echo "  dist/listing/      <- icon-128, promo-tile-440x280, marquee-1400x560"
+
+echo
+node tools/check-icons.js
 echo
 echo "Don't forget to repackage: tools/package-extension.sh"
