@@ -55,6 +55,14 @@ manual run has to look for. `content.js` is unchanged.
 tools/package-extension.sh --target=safari
 #   dist/onix-viewer-<v>-safari/          the pruned folder, for Add Temporary Extension…
 #   dist/safari/ONIX Viewer/ONIX Viewer.xcodeproj   the converter's project, to build and sign
+tools/package-extension.sh --dev --target=safari   # or npm run build:dev, for all three
+#   dist/dev/onix-viewer-safari/          the same folder with version_name kept
+#   dist/dev/safari/ONIX Viewer Dev/ONIX Viewer Dev.xcodeproj
+#       Run it from Xcode: an "ONIX Viewer Dev" app, bundle id
+#       io.maendeleo.ONIX-Viewer.dev, beside the store's app rather than in
+#       its place, whose extension stays in Safari across quits. With
+#       APPLE_TEAM_ID set it is development-signed; without, Safari needs
+#       Allow Unsigned Extensions.
 ```
 
 The staging copy is made as for the other two targets, and its manifest

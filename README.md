@@ -81,8 +81,18 @@ Firefox build is in progress; `FIREFOX.md` has the state of it.
 
 In Safari 26 or later, turn on **Show features for web developers** under
 Settings → Advanced, then under Settings → Developer allow unsigned
-extensions and use **Add Temporary Extension…** on the same folder. The
-Safari build is an exploration; `SAFARI.md` has the state of it.
+extensions and use **Add Temporary Extension…** on the same folder. A
+temporary extension goes when Safari quits; for one that stays, build the
+dev app instead: `npm run build:dev`, open
+`dist/dev/safari/ONIX Viewer Dev/ONIX Viewer Dev.xcodeproj` in Xcode and
+Run. That installs an "ONIX Viewer Dev" app beside any store copy, with
+its own bundle identifier, and Safari lists its extension under that name,
+saying `-dev` in About. `SAFARI.md` has the rest of the Safari story.
+
+`npm run build:dev` builds all three browsers' packages into `dist/dev/`
+without bumping the version: the store builds with the `-dev` version name
+kept, so a local install is never mistaken for the store's. `npm run clean`
+empties `dist/`.
 
 ## Keyboard shortcuts
 

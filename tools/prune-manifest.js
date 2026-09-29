@@ -1,16 +1,19 @@
 // tools/prune-manifest.js — the manifest each store gets.
 //
-//   node tools/prune-manifest.js <chrome|firefox|safari> <path/to/manifest.json>
+//   node tools/prune-manifest.js <chrome|firefox|safari> <path/to/manifest.json> [--dev]
 //
 // The committed manifest carries every browser's keys, so one Resources/
 // directory loads unpacked in any of them. A store build keeps only its
 // own: Chrome's without browser_specific_settings, Firefox's without
 // minimum_chrome_version, Safari's with a strict_min_version of its own and
 // a description inside Apple's limit. version_name — the "-dev" the checkout
-// shows — goes from all three. tools/package-extension.sh calls this on its
-// staging copy; the suite calls pruneManifest() on the real manifest for all
-// three targets, which is what keeps the limits from being learnt again from
-// a store's rejection.
+// shows — goes from all three. A --dev build keeps it, so a local install
+// says -dev in About and on the extensions page like an unpacked load does,
+// and its Safari build is named "ONIX Viewer Dev", since Safari lists
+// extensions by the manifest's name and the dev app sits beside the store's.
+// tools/package-extension.sh calls this on its staging copy; the suite calls
+// pruneManifest() on the real manifest for all three targets, which is what
+// keeps the limits from being learnt again from a store's rejection.
 
 "use strict";
 
@@ -28,10 +31,13 @@ const SAFARI_DESCRIPTION =
 // Safari 18 is the floor: content-visibility arrived there (MDN).
 const SAFARI_MIN_VERSION = "18.0";
 
-function pruneManifest(source, target) {
+const DEV_NAME_SUFFIX = " Dev";
+
+function pruneManifest(source, target, options = {}) {
   if (!TARGETS.includes(target)) throw new Error(`unknown target ${target}`);
   const manifest = JSON.parse(JSON.stringify(source));
-  delete manifest.version_name;
+  if (!options.dev) delete manifest.version_name;
+  if (options.dev && target === "safari") manifest.name += DEV_NAME_SUFFIX;
   if (target === "chrome") {
     delete manifest.browser_specific_settings;
     if (manifest.description.length > CHROME_DESCRIPTION_LIMIT) {
@@ -51,18 +57,20 @@ function pruneManifest(source, target) {
 }
 
 function main() {
-  const [target, file] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const dev = args.includes("--dev");
+  const [target, file] = args.filter((arg) => arg !== "--dev");
   if (!target || !file) {
-    console.error("usage: node tools/prune-manifest.js <chrome|firefox|safari> <manifest.json>");
+    console.error("usage: node tools/prune-manifest.js <chrome|firefox|safari> <manifest.json> [--dev]");
     process.exit(2);
   }
   const fs = require("fs");
-  const pruned = pruneManifest(JSON.parse(fs.readFileSync(file, "utf8")), target);
+  const pruned = pruneManifest(JSON.parse(fs.readFileSync(file, "utf8")), target, { dev });
   fs.writeFileSync(file, JSON.stringify(pruned, null, 2) + "\n");
 }
 
 if (require.main === module) main();
 
 module.exports = {
-  pruneManifest, TARGETS, CHROME_DESCRIPTION_LIMIT, SAFARI_DESCRIPTION_LIMIT, SAFARI_MIN_VERSION,
+  pruneManifest, TARGETS, CHROME_DESCRIPTION_LIMIT, SAFARI_DESCRIPTION_LIMIT, SAFARI_MIN_VERSION, DEV_NAME_SUFFIX,
 };
