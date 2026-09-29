@@ -135,7 +135,10 @@ if [ "$TARGET" = "safari" ]; then
   # (no encryption of its own) that TestFlight otherwise asks for on every
   # build.
   PBXPROJ="$PROJECT/$APP_NAME/$APP_NAME.xcodeproj/project.pbxproj"
-  sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/" "$PBXPROJ"
+  # App Store Connect refuses a build whose version and build number it has
+  # seen, and 0.9.20 (1) was on TestFlight before that tag was taken back,
+  # so the build number can be set: APPLE_BUILD_NUMBER=2 for that upload.
+  sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/; s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${APPLE_BUILD_NUMBER:-1};/" "$PBXPROJ"
   sed -i '' -E "s/INFOPLIST_KEY_NSMainStoryboardFile = Main;/INFOPLIST_KEY_NSMainStoryboardFile = Main;\\
 				INFOPLIST_KEY_LSApplicationCategoryType = \"public.app-category.developer-tools\";\\
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;/; s/INFOPLIST_KEY_NSHumanReadableCopyright = \"\";/INFOPLIST_KEY_NSHumanReadableCopyright = \"© 2026 Bendik Rognlien Johansen\";/" "$PBXPROJ"

@@ -24,80 +24,12 @@ the main branch.
   `xmllint` against EDItEUR's own Issue 74 schemas and with the viewer's
   validator, and the verdicts must agree. They do, on all 42.
 
-### Fixed
-- **A known element the parent never takes no longer derails the composite.**
-  `<SequenceNumber>` inside `<TextContent>` is ONIX 3.1's, so a 3.1 feed
-  judged as 3.0 reported eight findings per text for that one fault. It is
-  now one, `structure.not-allowed`, as libxml2 reports it. No document at
-  its own release changed a recorded finding.
-
-### Changed
-- **The custom-rules cog shows a dot** in its corner while a rule set is
-  installed, in place of the accent fill, which read as a button stuck down.
-- **The rules editor is larger, and resizes**: 860px wide with a taller
-  field to start, and a drag of the modal's corner gives a longer rule set
-  the window — the field fills whatever the modal is given.
-
-## 0.9.21 — 2026-09-28
-
-### Added
 - **The store manifests are tested.** `tools/prune-manifest.js` is now the
   one place the committed manifest is cut down per browser — the packager
   runs it — and the suite runs it for all three targets against the real
   manifest, holding the Chrome Web Store's and App Store Connect's
   description limits, and checks that no shipped copy names a browser.
 
-### Fixed
-- **The About window no longer says "in Chrome"**, and its install link
-  follows the browser: the Chrome Web Store in Chrome, the web page in
-  Firefox and Safari until each has a listing. `content.js` stamps the
-  browser on the shell beside the version.
-
-## 0.9.20 — 2026-09-27
-
-### Changed
-- **The manifest description no longer says "in Chrome".** It is what
-  Safari's Extensions pane and the Firefox listing show, and the extension
-  is no longer Chrome's alone.
-
-### Fixed
-- **A warnings-only verdict shows the warning glyph.** The toolbar pill
-  used the error icon and colour whenever there were findings at all;
-  "600 warnings" now carries the triangle, in amber.
-- **The toolbar's issue pill no longer covers the verdict on a narrow
-  window.** Below 1000px the two columns overlapped, so a click on
-  "6 errors, 5 warnings" opened nothing; the issue pill now gives way there,
-  since the issue is also in About and the verdict is nowhere else, and
-  below 900px the icon buttons keep only their icons.
-- **A share link behind a session is taken over.** The re-fetch of such a
-  URL can come back as a 200 with the app's sign-in page, which the
-  extension took at face value as "not ONIX" and left the browser's view in
-  place while the parser held the document. The re-fetch is now trusted
-  only when it returns XML that looks like the document the parser saw;
-  anything else falls back to the parser's own tree, as a failed request
-  always did.
-
-### Changed
-- **Products are rendered as they near the viewport.** Above 20 products
-  each Product keeps its open and close rows and an empty container the
-  height of an unrendered subtree, and an `IntersectionObserver` fills it
-  within two screens of the viewport. Findings inside a Product not yet
-  rendered are pinned when it is; the findings list and the search render
-  what they need first. Cold-load time to the first verdict in Chrome:
-  1.45 s → 0.51 s for 300 products, 4.7 s → 1.5 s for 1,000, and scrolling
-  moves a screenful of rows rather than the feed.
-- **The browser's own document is detached as soon as its root appears**,
-  when that root looks like ONIX. The parser keeps filling it, and the DOM
-  fallback reads it if the re-fetch fails, but the browser no longer styles
-  or lays out the document about to be replaced, and its XML tree viewer
-  has nothing to rebuild when the parse ends. Cold-load time to the first
-  verdict in Chrome: 1.52 s → 1.31 s for 300 products, 4.84 s → 4.38 s for
-  1,000. In Safari it is what keeps WebKit's tree viewer from spending
-  seconds on a large feed first. Non-ONIX XML is untouched: an RSS root ends
-  the watch, and a bare `<Product>` is taken only once an ONIX child
-  corroborates it.
-
-### Added
 - **A privacy policy page and the App Store listing copy.** `site/privacy.html`
   is the URL the stores ask for; `SAFARI_LISTING.md` is the App Store Connect
   record, paste-ready, with the review notes. The front page's privacy
@@ -153,6 +85,12 @@ the main branch.
   copy is never mistaken for the store's.
 
 ### Changed
+- **The custom-rules cog shows a dot** in its corner while a rule set is
+  installed, in place of the accent fill, which read as a button stuck down.
+- **The rules editor is larger, and resizes**: 860px wide with a taller
+  field to start, and a drag of the modal's corner gives a longer rule set
+  the window — the field fills whatever the modal is given.
+
 - **Large feeds render in a fraction of the time.** Each Product's subtree
   is laid out only when it is near the viewport (`content-visibility:
   auto`), so the browser skips the work for Products off screen: a 5 MB
@@ -167,6 +105,34 @@ the main branch.
 - **A browser test.** `npm run test:browser` loads the extension into a
   headless Chrome, checks the takeover of a served XML page, and runs the
   custom rules on Chrome's own XPath engine. CI runs it as its own job.
+
+### Fixed
+- **A known element the parent never takes no longer derails the composite.**
+  `<SequenceNumber>` inside `<TextContent>` is ONIX 3.1's, so a 3.1 feed
+  judged as 3.0 reported eight findings per text for that one fault. It is
+  now one, `structure.not-allowed`, as libxml2 reports it. No document at
+  its own release changed a recorded finding.
+
+- **The About window no longer says "in Chrome"**, and its install link
+  follows the browser: the Chrome Web Store in Chrome, the web page in
+  Firefox and Safari until each has a listing. `content.js` stamps the
+  browser on the shell beside the version.
+
+- **A warnings-only verdict shows the warning glyph.** The toolbar pill
+  used the error icon and colour whenever there were findings at all;
+  "600 warnings" now carries the triangle, in amber.
+- **The toolbar's issue pill no longer covers the verdict on a narrow
+  window.** Below 1000px the two columns overlapped, so a click on
+  "6 errors, 5 warnings" opened nothing; the issue pill now gives way there,
+  since the issue is also in About and the verdict is nowhere else, and
+  below 900px the icon buttons keep only their icons.
+- **A share link behind a session is taken over.** The re-fetch of such a
+  URL can come back as a 200 with the app's sign-in page, which the
+  extension took at face value as "not ONIX" and left the browser's view in
+  place while the parser held the document. The re-fetch is now trusted
+  only when it returns XML that looks like the document the parser saw;
+  anything else falls back to the parser's own tree, as a failed request
+  always did.
 
 ## 0.9.19 — 2026-09-12
 
