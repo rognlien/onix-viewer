@@ -105,10 +105,10 @@ if [ "$refused" -gt 0 ]; then
 fi
 
 # The web page carries its own copy of the 128, which a test holds to the
-# shipped one; and the two promo tiles embed the master, so they are stale
+# shipped one, and refers to it with a content-hash query (tools/site-sync.js
+# does both); and the two promo tiles embed the master, so they are stale
 # the moment it changes. Neither tile is committed — dist/ is build output.
-cp "$OUT_DIR/icon-128.png" site/icon-128.png
-echo "  site/icon-128.png  <- icon-128.png"
+node tools/site-sync.js
 
 mkdir -p dist/chrome
 cp "$OUT_DIR/icon-128.png" dist/chrome/icon-128.png

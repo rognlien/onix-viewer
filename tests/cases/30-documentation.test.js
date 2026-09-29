@@ -67,6 +67,22 @@ describe("Documentation", () => {
     }
   });
 
+  // The host caches images for thirty days and the HTML not at all, so a
+  // re-taken screenshot stayed the old picture for a month after the page
+  // around it had changed. Every local asset reference carries the file's
+  // content hash as a query; tools/site-sync.js writes them.
+  test("site/'s asset references carry each file's content hash", () => {
+    const { references, PAGES } = require(path.join(ROOT, "tools", "site-sync.js"));
+    for (const page of PAGES) {
+      const refs = references(page);
+      assert(refs.length > 0, `${page} refers to local assets`);
+      for (const ref of refs) {
+        assert(ref.version === ref.expected,
+          `site/${page}: ${ref.asset} should carry ?v=${ref.expected}, has "${ref.version}"; run npm run site:sync`);
+      }
+    }
+  });
+
   test("site/'s screenshots and icon are the committed ones, byte for byte", () => {
     const pairs = {
       "site/Main.png": "chrome/screenshots/Main.png",

@@ -15,7 +15,8 @@
 // which is why the Chrome and Firefox sets differ only in text rendering.
 //
 // The site copies in site/ are held to chrome/screenshots/ by a test, so
-// after re-taking the Chrome set copy the three files there too.
+// after the Chrome set tools/site-sync.js copies the three there and
+// re-versions the page's references to them.
 //
 // On macOS 27 the Firefox side needs the terminal it runs from to have Full
 // Disk Access, or Firefox exits with "Could not find profile folder." —
@@ -349,6 +350,9 @@ async function safariShots(url) {
     await closeCodeList(page);
     await openFindings(page);
     await capture(page, "Violations");
+    if (BROWSER === "chrome") {
+      for (const change of require("./site-sync.js").sync()) console.log(`  ${change}`);
+    }
   } finally {
     await browser.close();
     served.server.close();
