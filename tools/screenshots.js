@@ -44,6 +44,7 @@
 
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const puppeteer = require("puppeteer-core");
@@ -253,7 +254,9 @@ async function safariOpen(url) {
 // window's width in points; 2 on a Retina display).
 function safariCapture(win, name) {
   const file = path.join(OUT, `${name}.png`);
-  const whole = path.join(OUT, `.${name}-window.png`);
+  // Not a dot-file: screencapture refuses a name that starts with one, says
+  // so on stderr, and exits 0 regardless.
+  const whole = path.join(os.tmpdir(), `onix-viewer-${name}-window.png`);
   try {
     execFileSync("screencapture", ["-x", "-o", "-l", String(win.id), whole], { stdio: "pipe" });
   } catch (error) {
@@ -266,6 +269,7 @@ function safariCapture(win, name) {
       "you run npm from (System Settings → Privacy & Security → Screen & System Audio Recording), " +
       `quit and reopen it, and run again. (${String(error.stderr || error.message).trim()})`);
   }
+  if (!fs.existsSync(whole)) throw new Error(`screencapture exited 0 but wrote nothing to ${whole}`);
   const scale = pngSize(whole).width / win.width;
   execFileSync("sips", [
     "-c", String(Math.round(HEIGHT * scale)), String(Math.round(WIDTH * scale)),
