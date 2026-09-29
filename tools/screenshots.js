@@ -1,6 +1,6 @@
 // tools/screenshots.js — the store screenshots, taken by a headless browser.
 //
-//   npm run screenshots            # Chrome  → Screenshots/Chrome/
+//   npm run screenshots:chrome     # Chrome  → Screenshots/Chrome/
 //   npm run screenshots:firefox    # Firefox → Screenshots/Firefox/
 //   npm run screenshots:safari     # Safari  → Screenshots/Safari/
 //   FIREFOX_BIN=/path/to/firefox node tools/screenshots.js firefox
