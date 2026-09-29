@@ -2,7 +2,8 @@
 
 The Mac App Store record for the Safari extension, in the shape App Store
 Connect asks for it. `CWS_LISTING.md` is the Chrome equivalent and the
-source of the wording; keep the two saying the same thing. The build itself
+source of the wording, `AMO_LISTING.md` the Firefox one; keep the three
+saying the same thing. The build itself
 is `SAFARI.md` → *Distribution*.
 
 ## App information

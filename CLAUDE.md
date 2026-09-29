@@ -23,6 +23,7 @@ onix-viewer/
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
 ├── CWS_LISTING.md                  paste-ready CWS dashboard copy
+├── AMO_LISTING.md                  the same for addons.mozilla.org, plus the reviewer notes
 ├── SAFARI_LISTING.md               the same for App Store Connect, plus the privacy answers
 ├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
 ├── SAFARI.md                       the Safari port: the same, plus the manual run it needs
