@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { test, describe, assert, ROOT, RES } = require("../harness");
 const {
-  pruneManifest, TARGETS, CHROME_DESCRIPTION_LIMIT, SAFARI_DESCRIPTION_LIMIT, SAFARI_MIN_VERSION,
+  pruneManifest, TARGETS, CHROME_DESCRIPTION_LIMIT, SAFARI_DESCRIPTION_LIMIT, SAFARI_MIN_VERSION, DEV_NAME_SUFFIX,
 } = require(path.join(ROOT, "tools", "prune-manifest.js"));
 
 const manifest = JSON.parse(fs.readFileSync(path.join(RES, "manifest.json"), "utf8"));
@@ -60,6 +60,23 @@ describe("Store manifests", () => {
     assert(pruned.description.length <= SAFARI_DESCRIPTION_LIMIT,
       `description within ${SAFARI_DESCRIPTION_LIMIT}; is ${pruned.description.length}`);
     assert(pruned.description.startsWith("Readable ONIX XML:"), "the same sentence, shortened");
+  });
+
+  test("a dev build keeps the -dev version name, and Safari's is named apart from the store's", () => {
+    // A local install must not pass for the store's: About and the
+    // extensions page say -dev, as an unpacked load does. Safari lists
+    // extensions by name and the dev app sits beside the App Store's, so
+    // that one is "ONIX Viewer Dev"; Chrome and Firefox load it unpacked
+    // instead, and their names stay.
+    for (const target of TARGETS) {
+      const dev = pruneManifest(manifest, target, { dev: true });
+      assert(dev.version_name === `${manifest.version}-dev`, `${target}: says -dev`);
+      assert(dev.version === manifest.version, `${target}: the version itself is not bumped`);
+      const expected = target === "safari" ? manifest.name + DEV_NAME_SUFFIX : manifest.name;
+      assert(dev.name === expected, `${target}: named ${dev.name}`);
+      const store = pruneManifest(manifest, target);
+      assert(!("version_name" in store) && store.name === manifest.name, `${target}: the store build is unchanged`);
+    }
   });
 
   test("an unknown target is refused", () => {

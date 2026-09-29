@@ -56,7 +56,10 @@ onix-viewer/
 │   ├── prune-manifest.js           the manifest each store gets; the packager runs it, the suite tests it
 │   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
 │   │                               the -firefox.zip for AMO with --target=firefox, or the
-│   │                               folder plus Xcode project in dist/safari/ with --target=safari
+│   │                               folder plus Xcode project in dist/safari/ with --target=safari;
+│   │                               --dev builds the same into dist/dev/ with -dev kept and no
+│   │                               version bump (npm run build:dev), the Safari one as an
+│   │                               "ONIX Viewer Dev" app with a bundle id of its own
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
@@ -357,7 +360,9 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   never mistaken for the store's. `tools/package-extension.sh` zips a
   staging copy with the field deleted by `tools/prune-manifest.js` (and
   refuses a zip in which it survived), so the store build shows the bare
-  version; `tools/release.sh`
+  version — except a `--dev` build, which keeps it on purpose and refuses a
+  zip without it, so a local install from `dist/dev/` says `-dev` like an
+  unpacked load; `tools/release.sh`
   moves `version` and `version_name` together; and a test holds
   `version_name` to `<version>-dev` so neither can drift. The browser test
   asserts the `-dev` form, since that is what it loads. An earlier take
