@@ -6,6 +6,23 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **A new owl.** The icon is redrawn as vector artwork, `icons/icon-original.svg`,
+  with hand-drawn sizes for everything small, and `npm run icons` is the whole
+  of an icon change: it renders the nine shipped sizes, copies the 128 to the
+  web page, re-renders the promo tiles and runs the icon check.
+- **Dev builds.** `npm run build:dev` builds all three browsers' packages into
+  `dist/dev/` without bumping the version, the `-dev` version name kept so a
+  local install never passes for the store's. The Safari one is an
+  "ONIX Viewer Dev" app with a bundle identifier of its own, which sits beside
+  the App Store app and whose extension stays in Safari across quits.
+- **Safari screenshots.** `npm run screenshots:safari` takes the App Store set
+  from the Safari you use, since Safari cannot be driven headless: it opens a
+  tab on the served sample, sizes the window to a 1280×800 viewport, captures
+  the window and crops the page out of it.
+- **A listing file for addons.mozilla.org**, `AMO_LISTING.md`, beside the
+  Chrome and App Store ones: the product-page fields, the reviewer notes and
+  the source-archive rebuild steps.
+
 - **The code-list issue pill is now a release selector.** It still reads
   `ONIX 3.1, Issue 74`, but its options judge the document against ONIX 3.0
   or 3.1, whichever the reader picks; it starts on the release the file
@@ -85,6 +102,16 @@ the main branch.
   copy is never mistaken for the store's.
 
 ### Changed
+- **The toolbar mark is drawn at its own size.** It was the 48px icon in a
+  28px box, resampled on every display and soft on all of them; it is now a
+  hand-drawn 28 on a 1x display and a hand-drawn 56 on 2x, through a
+  `srcset`, so nothing is resampled.
+- **`npm run screenshots` is `npm run screenshots:chrome`**, beside the
+  Firefox and Safari scripts.
+- **A store build sweeps `dist/`** of other versions' artefacts first, since a
+  stale zip beside the current one is what gets uploaded by mistake; `npm run
+  clean` empties it.
+
 - **The custom-rules cog shows a dot** in its corner while a rule set is
   installed, in place of the accent fill, which read as a button stuck down.
 - **The rules editor is larger, and resizes**: 860px wide with a taller
