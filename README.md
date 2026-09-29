@@ -36,10 +36,11 @@ SVG) is left to the browser.
 - **Chrome 119+:** [Chrome Web Store](https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife).
   For local files, turn on *Allow access to file URLs* in the extension's
   details.
+- **Firefox 140+:** [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/onix-viewer/).
+  Local files need no setting.
 - **From source:** in `chrome://extensions`, turn on Developer mode, click
   *Load unpacked* and pick `Resources/`.
-- **Firefox and Safari:** in progress; see [firefox/](firefox/README.md) and
-  [safari/](safari/README.md).
+- **Safari:** in progress; see [safari/](safari/README.md).
 
 ## Keyboard
 

@@ -51,13 +51,19 @@ describe("About window", () => {
     const stamped = (browser) => render("onix-3.1-valid.xml", (w) => {
       w.document.documentElement.setAttribute("data-oxv-browser", browser);
     });
-    for (const browser of ["firefox", "safari"]) {
+    const linksIn = (browser) => {
       const w = stamped(browser);
       mark(w).click();
-      const labels = [...$$(w, "#oxv-about a")].map((a) => `${a.textContent} → ${a.href}`);
-      assert(labels.some((l) => l.startsWith("Web page → https://maendeleo.io/onix-viewer/")),
-        `${browser} gets the web page; got ${labels.join(", ")}`);
-      assert(!labels.some((l) => l.includes("chromewebstore")), `${browser} does not get the Chrome store`);
+      return [...$$(w, "#oxv-about a")].map((a) => `${a.textContent} → ${a.href}`);
+    };
+    const firefox = linksIn("firefox");
+    assert(firefox.some((l) => l.startsWith("Firefox Add-ons → https://addons.mozilla.org/firefox/addon/onix-viewer/")),
+      `Firefox gets its AMO listing; got ${firefox.join(", ")}`);
+    const safari = linksIn("safari");
+    assert(safari.some((l) => l.startsWith("Web page → https://maendeleo.io/onix-viewer/")),
+      `Safari gets the web page until it has a listing; got ${safari.join(", ")}`);
+    for (const labels of [firefox, safari]) {
+      assert(!labels.some((l) => l.includes("chromewebstore")), "neither gets the Chrome store");
     }
   });
 

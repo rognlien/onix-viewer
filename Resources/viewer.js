@@ -1898,12 +1898,14 @@
 
   // The middle link is the place to install from, which depends on the
   // browser content.js stamped on the shell: Chrome and its relatives have
-  // the Web Store listing; Firefox and Safari get the web page, which
-  // carries their install links, until each has a listing of its own.
+  // the Web Store listing, Firefox the AMO one; Safari gets the web page,
+  // which carries its install link, until it has a listing of its own.
   function aboutLinkList() {
-    const store = extensionBrowser() === "chrome"
-      ? ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"]
-      : ["Web page", "https://maendeleo.io/onix-viewer/"];
+    const stores = {
+      chrome: ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"],
+      firefox: ["Firefox Add-ons", "https://addons.mozilla.org/firefox/addon/onix-viewer/"],
+    };
+    const store = stores[extensionBrowser()] || ["Web page", "https://maendeleo.io/onix-viewer/"];
     return [
       ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
       store,
