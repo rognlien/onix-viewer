@@ -215,11 +215,11 @@ and what it looks like.
    `.github/workflows/test.yml`; GitHub's Ubuntu runners ship Firefox, and
    `FIREFOX_BIN` is there for it.
 3. `release.yml`: build both zips and attach both to the release.
-4. Listing: AMO is a separate developer account and a separate review.
-   `firefox/listing.md` is the paste-ready copy; the manifest `description`
-   names no browser since 0.9.20. AMO signs every build, including
-   self-distributed ones, so a Firefox install outside the store is
-   `web-ext sign`, not a zip.
+4. Listing: done. 0.9.20 was approved on addons.mozilla.org on 2026-09-29,
+   at https://addons.mozilla.org/firefox/addon/onix-viewer/; `listing.md`
+   beside this file is the paste-ready copy for the next version. AMO signs
+   every build, including self-distributed ones, so a Firefox install
+   outside the store is `web-ext sign`, not a zip.
 5. `SECURITY.md` and `README.md` then say Firefox alongside Chrome. Until
    then they describe what ships.
 

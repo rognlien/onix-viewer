@@ -59,6 +59,10 @@ Requires Chrome 119 or later.
 Updates arrive on their own. To open local `.xml` files, enable **Allow
 access to file URLs** under the extension's **Details** in `chrome://extensions`.
 
+**From Firefox Add-ons.** [ONIX Viewer](https://addons.mozilla.org/firefox/addon/onix-viewer/) on
+addons.mozilla.org, for Firefox 140 or later; updates arrive on their own,
+and local `.xml` files need no setting.
+
 **From a release zip.** Download `onix-viewer-<version>.zip` from the
 [releases page](https://github.com/rognlien/onix-viewer/releases), unzip it
 somewhere permanent, then in `chrome://extensions` turn on **Developer mode**,
@@ -71,8 +75,8 @@ and pressing the reload arrow on the card.
 an edit, press the reload arrow on the card and refresh the page.
 
 In Firefox, load the same folder from `about:debugging#/runtime/this-firefox`
-with **Load Temporary Add-on…** and pick `Resources/manifest.json`. The
-Firefox build is in progress; `firefox/README.md` has the state of it.
+with **Load Temporary Add-on…** and pick `Resources/manifest.json`; it lasts
+until Firefox quits. `firefox/README.md` has the port's notes.
 
 In Safari 26 or later, turn on **Show features for web developers** under
 Settings → Advanced, then under Settings → Developer allow unsigned
