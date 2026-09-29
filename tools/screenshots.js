@@ -249,6 +249,29 @@ async function safariOpen(url) {
   await safariWait("document.fonts.status === 'loaded'", "fonts");
 }
 
+// The crop, through the system's own image API from a JavaScript-for-
+// Automation snippet. sips was tried: it ignores a --cropOffset whose x is
+// 0, which is exactly this crop, and exits 0 having written the whole
+// window. Arguments: input, output, x, y, width, height, in pixels.
+const CROP_JXA = `
+ObjC.import("AppKit");
+function run(argv) {
+  const [input, output, x, y, width, height] = argv;
+  const image = $.NSImage.alloc.initWithContentsOfFile(input);
+  const source = image.CGImageForProposedRectContextHints($(), $(), $());
+  const rect = $.CGRectMake(Number(x), Number(y), Number(width), Number(height));
+  const cropped = $.CGImageCreateWithImageInRect(source, rect);
+  const rep = $.NSBitmapImageRep.alloc.initWithCGImage(cropped);
+  const png = rep.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $.NSDictionary.dictionary);
+  return png.writeToFileAtomically(output, true) ? "ok" : "failed";
+}`;
+
+function cropPng(input, output, x, y, width, height) {
+  const result = execFileSync("osascript", ["-l", "JavaScript", "-e", CROP_JXA, input, output,
+    String(x), String(y), String(width), String(height)], { encoding: "utf8" }).trim();
+  if (result !== "ok") throw new Error(`could not crop ${input}: ${result}`);
+}
+
 // The window without its shadow, then the viewport: the bottom HEIGHT points
 // of it, at whatever scale the display captured (the image's width over the
 // window's width in points; 2 on a Retina display).
@@ -271,11 +294,7 @@ function safariCapture(win, name) {
   }
   if (!fs.existsSync(whole)) throw new Error(`screencapture exited 0 but wrote nothing to ${whole}`);
   const scale = pngSize(whole).width / win.width;
-  execFileSync("sips", [
-    "-c", String(Math.round(HEIGHT * scale)), String(Math.round(WIDTH * scale)),
-    "--cropOffset", String(Math.round((win.height - HEIGHT) * scale)), "0",
-    whole, "--out", file,
-  ], { stdio: "ignore" });
+  cropPng(whole, file, 0, Math.round((win.height - HEIGHT) * scale), Math.round(WIDTH * scale), Math.round(HEIGHT * scale));
   fs.unlinkSync(whole);
   console.log(`  wrote ${path.relative(ROOT, file)} (${scale}x)`);
 }
