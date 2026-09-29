@@ -82,12 +82,16 @@ describe("Reviewability", () => {
       `version_name must be "${manifest.version}-dev", got ${JSON.stringify(manifest.version_name)}`);
   });
 
-  test("the manifest declares one permission, storage, and nothing else", () => {
+  test("the manifest declares no permission at all", () => {
+    // `storage` came with the custom-rules editor and goes with it while the
+    // editor is held back (viewer.js FEATURES, content.js CUSTOM_RULES).
     // `storage` holds the reader's own rule set and nothing else; it is the
     // one permission, and it shows no install warning. Anything more is a
     // change to the security story that has to be argued in SECURITY.md.
-    assert(JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]),
-      `permissions must be exactly ["storage"], got ${JSON.stringify(manifest.permissions)}`);
+    assert(JSON.stringify(manifest.permissions) === "[]",
+      `permissions must be exactly [], got ${JSON.stringify(manifest.permissions)}`);
+    assert(/const CUSTOM_RULES = false;/.test(sourceOf("content.js")),
+      "content.js's CUSTOM_RULES switch is off, so no storage call runs");
     assert(!manifest.host_permissions,
       `host_permissions must be absent, got ${JSON.stringify(manifest.host_permissions)}`);
     assert(!manifest.background,

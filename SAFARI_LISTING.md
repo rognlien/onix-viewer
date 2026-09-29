@@ -73,8 +73,6 @@ Features
     LanguageCode, CountryCode, …) shown beside every value
   • One-click popup listing every entry of a code list, linked to
     the EDItEUR definition page — all 165 lists bundled
-  • Your own rules: paste a Schematron rule set behind the toolbar's
-    cog and it is checked on every document alongside the schema
   • Large feeds open fast: products are rendered as you scroll to them
   • Search that sees folded rows, keyboard shortcuts, soft wrap, dark
     mode, copy of any node's XML
@@ -84,8 +82,8 @@ How it works
   The extension acts only on pages served as XML whose content is
   ONIX: the EDItEUR namespace or an ONIX root element. Every other
   page — HTML, JSON, RSS, generic XML — is left exactly as Safari
-  shows it. Nothing is stored except the rules you paste in, nothing
-  is sent anywhere, and the only network request is a re-fetch of the
+  shows it. Nothing is stored, nothing is sent anywhere, and the only
+  network request is a re-fetch of the
   page you are already viewing, to read its source.
 
   After installing, turn the extension on in Safari → Settings →
@@ -109,8 +107,7 @@ plural removed.
 
 ## App Privacy
 
-**Data collection**: **Data Not Collected.** The extension stores one
-thing on the user's own machine — the validation rules they paste in —
+**Data collection**: **Data Not Collected.** The extension stores nothing
 and sends nothing anywhere. The re-fetch of the page's own URL is the
 page's own origin. Answer the questionnaire accordingly; there is no
 tracking, no third-party SDK, and no identifier.
@@ -155,8 +152,7 @@ What the extension does: on a page served as XML whose content is ONIX
 readable tree of the same document, with EDItEUR code-list labels and
 validation findings. On every other page it does nothing.
 
-Permissions: "storage" only, holding the validation rules the user pastes
-in. No host permissions. No background page. No remote code. One network
+Permissions: none. No host permissions. No background page. No remote code. One network
 request in the whole bundle: a same-origin re-fetch of the page's own URL,
 to read the XML source.
 

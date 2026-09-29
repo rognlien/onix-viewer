@@ -4,8 +4,17 @@
 const fs = require("fs");
 const path = require("path");
 const {
-  test, describe, assert, render, renderSource, rowsNamed, validationLabel, FIXTURES,
+  test, describe, assert, rowsNamed, validationLabel, FIXTURES,
 } = require("../harness");
+const harness = require("../harness");
+
+// The feature is held back in the shipped build; these tests turn it on.
+const enabled = (before) => (w) => {
+  w.OnixViewerFeatures = { customRules: true };
+  if (before) before(w);
+};
+const render = (name, before) => harness.render(name, enabled(before));
+const renderSource = (xml, label, before, models) => harness.renderSource(xml, label, enabled(before), models);
 
 const HOUSE_RULES = fs.readFileSync(path.join(FIXTURES, "house-rules.sch"), "utf8");
 const VALID = fs.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");

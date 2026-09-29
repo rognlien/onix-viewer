@@ -25,7 +25,7 @@
     "512": "icons/icon-512.png"
   },
 
-  "permissions": ["storage"],
+  "permissions": [],
 
   "content_scripts": [
     {

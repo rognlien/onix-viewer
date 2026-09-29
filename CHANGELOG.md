@@ -3,6 +3,48 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Held back
+Built and tested, and in the code behind switches that are off in 0.9.20
+(`FEATURES` in `viewer.js`, `CUSTOM_RULES` in `content.js`): the release
+selector, and the custom-rules editor with its cog and its `storage`
+permission. Until they ship, the release to validate against is the one the
+document declares, the toolbar has no cog, and the manifest asks for no
+permission at all.
+
+- **Your own validation rules, written as Schematron.** A cog in the
+  toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
+  context>`, `<assert>` and `<report>` and it is checked on every ONIX
+  document alongside the schema, with findings in the same pills and list.
+  Tests are XPath 1.0, run on the browser's own engine with nothing
+  bundled. Rules are written in reference names, unprefixed, and serve
+  short-tag files too through a renamed mirror of the document; the
+  assertion's `id` becomes the finding code, its text the message,
+  `role="warning"` the severity. Problems with a rule set are listed in the
+  editor and reported as warnings rather than thrown. The rule set is kept
+  in the extension's storage, so it follows you from page to page.
+- **The code-list issue pill is now a release selector.** It still reads
+  `ONIX 3.1, Issue 74`, but its options judge the document against ONIX 3.0
+  or 3.1, whichever the reader picks; it starts on the release the file
+  declares. 3.0 and 3.1 disagree about what is an error
+  and what a warning — `<AudienceCode>` is deprecated in 3.0 and unknown to
+  3.1 — so a feed about to move between them can be read both ways, and a
+  standalone `<Product>` with no namespace, which declares nothing, can be
+  checked structurally at all. The other release's content model is fetched
+  the first time it is asked for, so a page still loads one model. Under an
+  override the `release` attribute is not judged, since it can only
+  disagree, and the verdict's note says which release was checked and which
+  the file declares. The choice is not remembered between documents.
+- **The custom-rules cog shows a dot** in its corner while a rule set is
+  installed, in place of the accent fill, which read as a button stuck down.
+- **The rules editor is larger, and resizes**: 860px wide with a taller
+  field to start, and a drag of the modal's corner gives a longer rule set
+  the window — the field fills whatever the modal is given.
+- **The extension now declares one permission, `storage`**, which holds the
+  custom rule set and nothing else; it was empty since 0.9.8. Chrome shows
+  no install warning for it. SECURITY.md describes the round trip.
+
 ## 0.9.20 — 2026-09-29
 
 ### Added
@@ -22,19 +64,6 @@ the main branch.
 - **A listing file for addons.mozilla.org**, `AMO_LISTING.md`, beside the
   Chrome and App Store ones: the product-page fields, the reviewer notes and
   the source-archive rebuild steps.
-
-- **The code-list issue pill is now a release selector.** It still reads
-  `ONIX 3.1, Issue 74`, but its options judge the document against ONIX 3.0
-  or 3.1, whichever the reader picks; it starts on the release the file
-  declares. 3.0 and 3.1 disagree about what is an error
-  and what a warning — `<AudienceCode>` is deprecated in 3.0 and unknown to
-  3.1 — so a feed about to move between them can be read both ways, and a
-  standalone `<Product>` with no namespace, which declares nothing, can be
-  checked structurally at all. The other release's content model is fetched
-  the first time it is asked for, so a page still loads one model. Under an
-  override the `release` attribute is not judged, since it can only
-  disagree, and the verdict's note says which release was checked and which
-  the file declares. The choice is not remembered between documents.
 
 - **The content models are checked against libxml2.** `npm run test:oracle`
   judges every ONIX document in the repository as 3.0 and as 3.1 with
@@ -82,18 +111,6 @@ the main branch.
   for and how to reproduce the upload from it. Not yet released for Firefox —
   `FIREFOX.md` has what remains.
 
-- **Your own validation rules, written as Schematron.** A cog in the
-  toolbar opens an editor; paste a rule set of `<pattern>`, `<rule
-  context>`, `<assert>` and `<report>` and it is checked on every ONIX
-  document alongside the schema, with findings in the same pills and list.
-  Tests are XPath 1.0, run on the browser's own engine with nothing
-  bundled. Rules are written in reference names, unprefixed, and serve
-  short-tag files too through a renamed mirror of the document; the
-  assertion's `id` becomes the finding code, its text the message,
-  `role="warning"` the severity. Problems with a rule set are listed in the
-  editor and reported as warnings rather than thrown. The rule set is kept
-  in the extension's storage, so it follows you from page to page.
-
 - **An About window.** Click the owl, or press `?`: the version, the
   code-list issue, the keyboard shortcuts, and links to the source, the
   store listing and EDItEUR. The committed manifest names its version
@@ -112,12 +129,6 @@ the main branch.
   stale zip beside the current one is what gets uploaded by mistake; `npm run
   clean` empties it.
 
-- **The custom-rules cog shows a dot** in its corner while a rule set is
-  installed, in place of the accent fill, which read as a button stuck down.
-- **The rules editor is larger, and resizes**: 860px wide with a taller
-  field to start, and a drag of the modal's corner gives a longer rule set
-  the window — the field fills whatever the modal is given.
-
 - **Large feeds render in a fraction of the time.** Each Product's subtree
   is laid out only when it is near the viewport (`content-visibility:
   auto`), so the browser skips the work for Products off screen: a 5 MB
@@ -126,12 +137,9 @@ the main branch.
   Search and findings jumps are now instant rather than smooth, since a
   smooth scroll past Products still being laid out landed short of its
   target.
-- **The extension now declares one permission, `storage`**, which holds the
-  custom rule set and nothing else; it was empty since 0.9.8. Chrome shows
-  no install warning for it. SECURITY.md describes the round trip.
 - **A browser test.** `npm run test:browser` loads the extension into a
   headless Chrome, checks the takeover of a served XML page, and runs the
-  custom rules on Chrome's own XPath engine. CI runs it as its own job.
+  Schematron engine's XPath on Chrome's own. CI runs it as its own job.
 
 ### Fixed
 - **A known element the parent never takes no longer derails the composite.**

@@ -65,8 +65,6 @@ so two presses of Collapse make a 10,000-product feed scannable</li>
 LanguageCode, CountryCode, …) shown beside every value</li>
 <li>One-click popup listing every entry of a code list, linked to the
 EDItEUR definition page — all 165 lists bundled</li>
-<li>Your own rules: paste a Schematron rule set behind the toolbar's cog and
-it is checked on every document alongside the schema</li>
 <li>Large feeds open fast: products are rendered as you scroll to them</li>
 <li>Search that sees folded rows, keyboard shortcuts, soft wrap, dark mode,
 copy of any node's XML</li>
@@ -78,8 +76,8 @@ plus the ONIX Acknowledgement message</li>
 
 The extension acts only on pages served as XML whose content is ONIX: the
 EDItEUR namespace or an ONIX root element. Every other page — HTML, JSON,
-RSS, generic XML — is left exactly as Firefox shows it. Nothing is stored
-except the rules you paste in, nothing is sent anywhere, and the only
+RSS, generic XML — is left exactly as Firefox shows it. Nothing is stored,
+nothing is sent anywhere, and the only
 network request is a re-fetch of the page you are already viewing, to read
 its source. Local .xml files work too.
 
@@ -105,10 +103,8 @@ https://github.com/rognlien/onix-viewer.
 paste this, which is the published policy in one paragraph:
 
 ```
-ONIX Viewer collects no data and sends nothing anywhere. It stores one
-thing on your own computer, in the browser's extension storage: the custom
-validation rules you paste into its editor, so they follow you from page to
-page. Its only network request is a re-fetch of the page you are already
+ONIX Viewer collects no data, stores nothing and sends nothing anywhere.
+Its only network request is a re-fetch of the page you are already
 viewing, from the same address, to read the XML source. The full policy is
 at https://maendeleo.io/onix-viewer/privacy.html and the source at
 https://github.com/rognlien/onix-viewer.
@@ -148,8 +144,7 @@ namespace or an ONIX root element), it replaces the page with a readable
 tree of the same document, with EDItEUR code-list labels and validation
 findings. On every other page it does nothing.
 
-Permissions: "storage" only, holding the validation rules the user pastes
-in. No host permissions; the content script's <all_urls> match is gated by
+Permissions: none. No host permissions; the content script's <all_urls> match is gated by
 the response Content-Type and a sniff of the source. No background page. No
 remote code. One network request in the whole bundle: a same-origin
 re-fetch of the page's own URL, to read the XML source.

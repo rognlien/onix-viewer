@@ -37,13 +37,14 @@ describe("Documentation", () => {
   // and the front page links it. What it claims is what SECURITY.md claims:
   // one permission, one request. A page that drifted from that would be
   // the wrong kind of wrong to ship to a reviewer.
-  test("site/ carries a privacy policy, linked from the page, that names the one permission", () => {
+  test("site/ carries a privacy policy, linked from the page, that says nothing is stored", () => {
     const policy = fs.readFileSync(path.join(ROOT, "site", "privacy.html"), "utf8");
     const page = fs.readFileSync(path.join(ROOT, "site", "index.html"), "utf8");
     assert(page.includes('href="privacy.html"'), "the front page links the policy");
-    assert(/validation rules you paste/.test(policy), "the policy names the one thing stored");
+    assert(/stores nothing/.test(policy), "the policy says nothing is stored");
+    assert(!/rules you paste/.test(policy), "and no longer describes the held-back rules editor");
     assert(/exactly one kind of network request/.test(policy), "and the one request");
-    assert(!/no permissions/.test(page), "the front page no longer claims no permissions");
+    assert(/declares no permissions/.test(page), "the front page says there are no permissions");
   });
 
   test("site/'s screenshots and icon are the committed ones, byte for byte", () => {

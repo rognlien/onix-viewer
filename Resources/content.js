@@ -82,6 +82,10 @@
   // The one storage key, declared ahead of the entry point below, which runs
   // before any later const is initialised.
   const RULES_KEY = "rules";
+  // The custom-rules editor is held back (viewer.js FEATURES has the switch
+  // for the page's world); while it is, nothing is read from or written to
+  // storage, and the manifest asks for no permission.
+  const CUSTOM_RULES = false;
 
   Promise.all([loadSource(), loadRules()])
     .then(([xmlSource, rules]) => {
@@ -276,7 +280,7 @@
   // empty store, is simply no rules.
   function loadRules() {
     let loaded = Promise.resolve("");
-    const storage = browserAPI().storage;
+    const storage = CUSTOM_RULES ? browserAPI().storage : null;
     if (storage && storage.local) {
       loaded = Promise.resolve(storage.local.get({ [RULES_KEY]: "" }))
         .then((items) => (typeof items[RULES_KEY] === "string" ? items[RULES_KEY] : ""))
@@ -290,6 +294,7 @@
   // Once the write has landed, "oxv-rules-kept" goes back the same way, so
   // the editor can say so — and so a test knows when to reload.
   function keepRules() {
+    if (!CUSTOM_RULES) return;
     window.addEventListener("message", (event) => {
       if (event.source !== window || !event.data || event.data.type !== "oxv-rules") return;
       const storage = browserAPI().storage;

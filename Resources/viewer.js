@@ -57,6 +57,19 @@
   // Findings inside a deferred Product, pinned when it renders.
   const pendingFindings = new Map();
 
+  // ---- held-back features ---------------------------------------------------
+
+  // Two features are built and tested but off in the shipped build until
+  // they are ready: the custom-rules editor behind the toolbar's cog, and the
+  // manual release selector. With both off the release to validate against
+  // is chosen from the document alone, the cog is not in the toolbar, and
+  // the manifest asks for no permission at all. Their tests turn them on
+  // through window.OnixViewerFeatures before the viewer loads; content.js
+  // carries its own copy of the customRules switch, since it runs in the
+  // other world.
+  const FEATURES = Object.assign({ customRules: false, releaseSelector: false }, window.OnixViewerFeatures);
+  window.OnixViewerFeatures = FEATURES;
+
   // ---- icons ----------------------------------------------------------------
 
   // Inline SVG rather than characters. ⚠ has an emoji presentation on several
@@ -816,7 +829,8 @@
       if (button && !button.querySelector("svg")) button.prepend(icon(name));
     }
     const rulesButton = document.querySelector('#oxv-toolbar [data-action="rules"]');
-    if (rulesButton && !rulesButton.firstChild) rulesButton.appendChild(icon("settings"));
+    if (rulesButton && !FEATURES.customRules) rulesButton.remove();
+    else if (rulesButton && !rulesButton.firstChild) rulesButton.appendChild(icon("settings"));
 
     document.getElementById("oxv-toolbar").addEventListener("click", (ev) => {
       const btn = ev.target.closest("button[data-action]");
@@ -1185,6 +1199,14 @@
       addReleaseOption(select, declared || "", releaseLabel(declared));
       select.disabled = true;
       select.title = "Acknowledgement messages have their own schema, which isn't bundled; code lists are still checked";
+      return;
+    }
+    if (!FEATURES.releaseSelector) {
+      // The plain pill: the release the document declares, and no choice.
+      addReleaseOption(select, declared || "", releaseLabel(declared));
+      select.disabled = true;
+      select.parentElement.classList.add("px-static");
+      select.title = declared ? `Validated against ONIX ${declared}` : "No release declared; only the code lists are checked";
       return;
     }
     const releases = bundledReleases();
@@ -1728,6 +1750,7 @@
   }
 
   function showRules() {
+    if (!FEATURES.customRules) return;
     const overlay = ensureRulesModal();
     rulesText().value = customRules;
     showRulesStatus(rulesInstalled);
@@ -2489,6 +2512,7 @@
   // when the reader has kept a rule set. Installed before the pass, so it
   // judges them too.
   function installCustomRules() {
+    if (!FEATURES.customRules) return;
     const holder = document.getElementById("__oxv-rules__");
     installRules(holder ? holder.textContent : "");
   }

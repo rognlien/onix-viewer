@@ -75,7 +75,7 @@ describe("Dialect toggle", () => {
     const shown = select.options[select.selectedIndex].textContent;
     assert(shown === "ONIX 3.0, Issue 74", `got: ${shown}`);
     assert(!shown.includes("EDItEUR"), "the vendor name is not needed here");
-    assert(select.title.startsWith("Validate against this ONIX release"), `got: ${select.title}`);
+    assert(/^Validated? against/.test(select.title), `got: ${select.title}`);
   });
 
   test("the document pill is one unit: icon, what it is, its blocks, its size", () => {

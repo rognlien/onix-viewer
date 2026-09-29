@@ -30,7 +30,7 @@ onix-viewer/
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
-│   ├── manifest.json               MV3, one permission (storage, for the rules), ZERO host_permissions;
+│   ├── manifest.json               MV3, ZERO permissions (storage returns with the rules editor), ZERO host_permissions;
 │   │                               version_name is the -dev form, stripped by the packager
 │   ├── shell.js                    the HTML shell, one template for content.js and the tests
 │   ├── content.js                  detects raw XML, takes the page over
@@ -1276,6 +1276,20 @@ numbers and the tax sum.
 
 ### The rules editor, and the one permission
 
+**Held back.** The editor, the cog and the storage round trip are built and
+tested but off in the shipped build: `FEATURES.customRules` in `viewer.js`
+and `CUSTOM_RULES` in `content.js` are both `false`, the cog is removed from
+the toolbar, a rules block on the page is ignored, no storage call runs, and
+the manifest's `permissions` is `[]`. The release selector below the toolbar
+notes is held back the same way (`FEATURES.releaseSelector`): the pill
+states the document's release and offers no choice. Their tests turn the
+switches on through `window.OnixViewerFeatures` before the viewer loads, and
+`tests/cases/38-held-back-features.test.js` holds the shipped defaults.
+Turning a feature back on is the switch, the permission, and the docs and
+listings that say "no permissions" — all in one commit, "Hold back the
+custom rules and the release selector", to revert. What follows describes
+the feature as built.
+
 The reader pastes a rule set into a modal behind the toolbar's cog
 (`#oxv-rules`, built in `viewer.js` on the findings list's pattern: the
 popup shell, the focus contract, `keepTabInside()` shared between them). A
@@ -1793,7 +1807,7 @@ The `px-` CSS prefix was retained from the rename because changing it would touc
 
 `SECURITY.md` is the canonical doc. Highlights:
 
-- `permissions: ["storage"]` and `host_permissions: []`. `storage` arrived with the custom rules editor and holds one key, `rules`, read and written by `content.js` alone — the viewer in the page's world has no storage. Both were empty from 0.9.8 until then. The extension cannot make cross-origin fetches; any rogue `fetch()` to a third-party origin would be CORS-blocked by the browser.
+- `permissions: []` and `host_permissions: []`. `storage` arrived with the custom rules editor and left with it when the editor was held back (above); while the editor is off no storage call runs, and the suite asserts both. The code that would use it holds one key, `rules`, in `content.js` alone — the viewer in the page's world has no storage. The extension cannot make cross-origin fetches; any rogue `fetch()` to a third-party origin would be CORS-blocked by the browser.
 - Only one network call in the whole bundle: a same-origin re-fetch of the page's own URL (`fetch(document.location.href, { credentials: "same-origin" })`).
 - No background service worker, no `chrome.tabs`, no `webRequest`.
 - `script-src 'self'` (the MV3 default CSP) is enforced. No `eval`, no `new Function`, no remote `<script src>`.
@@ -1813,7 +1827,7 @@ hand. `tests/cases/29-reviewability.test.js` checks:
 | "No remote code" | no `eval`, `new Function` or `document.write` in any shipped script, and no string in the code referencing a remote `.js` |
 | "One network call" | exactly one `fetch(` across the shipped scripts, and its argument must be `document.location.href` |
 | No HTML injection | no `innerHTML`/`outerHTML` assignment at all in the shipped scripts, and `insertAdjacentHTML` is banned |
-| "One permission" | `permissions` is exactly `["storage"]`; `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent; `storage` is used by `content.js` alone, `storage.local` only, and every call goes through the one key |
+| "No permissions" | `permissions` is exactly `[]` and `content.js`'s `CUSTOM_RULES` switch is off; `host_permissions`, `background`, `optional_permissions` and `externally_connectable` are all absent; the dormant storage code is in `content.js` alone, `storage.local` only, and every call goes through the one key |
 | `SECURITY.md` is accurate | its fenced manifest excerpt is parsed as JSON and compared field-by-field with the real manifest |
 | Injection actually works | every resource `content.js` builds a `getURL()` for is both web-accessible and present on disk |
 

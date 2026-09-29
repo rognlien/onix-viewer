@@ -418,6 +418,10 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
   color: var(--fg);
 }
 #oxv-release-group:has(> :disabled)::after { color: var(--fg-muted); }
+/* With the selector held back (viewer.js FEATURES) the box is the plain
+   pill it used to be: no chevron, no room kept for one. */
+#oxv-release-group.px-static::after { display: none; }
+#oxv-release-group.px-static > #oxv-release { padding-right: 10px; }
 #oxv-release-group:has(> #oxv-release:empty) { display: none; }
 #oxv-release option { color: var(--fg); background: var(--bg); }
 
