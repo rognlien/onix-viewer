@@ -3,6 +3,7 @@
 #
 #   tools/publish-site.sh             # sync, commit, push
 #   tools/publish-site.sh --dry-run   # show what would change and stop
+#   tools/publish-site.sh --ported    # the site's own edits are in site/ now: publish over them
 #
 # The page lives in this repo as site/ and is served from the maendeleo-site
 # repo, which the host deploys from on every push to main. Publishing is
@@ -14,7 +15,9 @@
 # checks that the site's copy is some committed state of site/: the commit
 # named in the last publish commit, or failing that any commit in site/'s
 # history. If it is none of them, the site has edits of its own, and the
-# script refuses and lists them.
+# script refuses and lists them. Once those edits have been ported into
+# site/ here, --ported publishes over them; the list is still printed, as
+# the record of what was overwritten.
 
 set -euo pipefail
 
@@ -25,10 +28,12 @@ TARGET_DIR="onix-viewer"
 MARKER="onix-viewer@"
 
 DRY_RUN=0
+PORTED=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
-    *) echo "usage: $0 [--dry-run]" >&2; exit 2 ;;
+    --ported) PORTED=1 ;;
+    *) echo "usage: $0 [--dry-run] [--ported]" >&2; exit 2 ;;
   esac
 done
 
@@ -88,7 +93,10 @@ if [ -d "$TARGET" ]; then
     git cat-file -e "$sha^{commit}" 2>/dev/null || continue
     if [ -z "$(drift "$(site_at "$sha")")" ]; then BASELINE="$sha"; break; fi
   done
-  if [ -z "$BASELINE" ]; then
+  if [ -z "$BASELINE" ] && [ "$PORTED" = 1 ]; then
+    echo "the site repo's $TARGET_DIR/ has edits of its own; --ported says they are in site/ now. Overwriting:"
+    drift site
+  elif [ -z "$BASELINE" ]; then
     echo "the site repo's $TARGET_DIR/ matches no committed state of site/, so it has edits of its own." >&2
     echo "Against site/ at $SOURCE_COMMIT:" >&2
     drift site >&2
