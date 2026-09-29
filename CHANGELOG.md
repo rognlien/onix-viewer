@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.20 — 2026-09-29
 
 ### Added
 - **A new owl.** The icon is redrawn as vector artwork, `icons/icon-original.svg`,
