@@ -38,40 +38,38 @@ ONIX Viewer
 Readable ONIX XML: a collapsible tree, one-line product summaries, EDItEUR code-list labels beside every value, and automatic validation against the ONIX 3.0 and 3.1 schemas. Acts only on ONIX; every other page is left to Firefox.
 ```
 
-**Description** (Markdown-ish; AMO allows `<b>`, `<i>`, `<ul>`, `<li>`, `<a>`):
+**Description** (plain text: AMO shows HTML tags as text, so none):
 
 ```
 ONIX Viewer turns raw ONIX XML into a readable, collapsible tree inside
 Firefox. Instead of a wall of tags you get syntax highlighting, one-line
 product summaries and every EDItEUR code list resolved in place.
 
-<b>Features</b>
+Features
 
-<ul>
-<li>Collapsible, syntax-highlighted XML tree</li>
-<li>Automatic validation against the bundled ONIX 3.0 and 3.1 content
-models: missing or misplaced elements, codes that aren't in their EDItEUR
-list (including the lists a sibling selects, such as accessibility details,
-cover colours and hazard warnings), codes and elements EDItEUR has
-deprecated (naming the replacement), ISBN-13 / GTIN-13 / ISBN-10 check
-digits, and values that break their datatype — each pinned to the row it
-concerns, with a jump-to-row list</li>
-<li>Read and copy the other dialect: one switch shows a short-tag file under
-reference names, or the reverse, and the copy follows what you see</li>
-<li>&lt;Product&gt; blocks fold to a one-line summary (ISBN · form · title),
-so two presses of Collapse make a 10,000-product feed scannable</li>
-<li>Code-list labels (ProductIDType, ProductForm, ContributorRole,
-LanguageCode, CountryCode, …) shown beside every value</li>
-<li>One-click popup listing every entry of a code list, linked to the
-EDItEUR definition page — all 165 lists bundled</li>
-<li>Large feeds open fast: products are rendered as you scroll to them</li>
-<li>Search that sees folded rows, keyboard shortcuts, soft wrap, dark mode,
-copy of any node's XML</li>
-<li>Detects ONIX 2.1, 3.0 and 3.1 in both reference and short-tag dialects,
-plus the ONIX Acknowledgement message</li>
-</ul>
+  • Collapsible, syntax-highlighted XML tree
+  • Automatic validation against the bundled ONIX 3.0 and 3.1 content
+    models: missing or misplaced elements, codes that aren't in their EDItEUR
+    list (including the lists a sibling selects, such as accessibility details,
+    cover colours and hazard warnings), codes and elements EDItEUR has
+    deprecated (naming the replacement), ISBN-13 / GTIN-13 / ISBN-10 check
+    digits, and values that break their datatype — each pinned to the row it
+    concerns, with a jump-to-row list
+  • Read and copy the other dialect: one switch shows a short-tag file under
+    reference names, or the reverse, and the copy follows what you see
+  • Product records fold to a one-line summary (ISBN · form · title),
+    so two presses of Collapse make a 10,000-product feed scannable
+  • Code-list labels (ProductIDType, ProductForm, ContributorRole,
+    LanguageCode, CountryCode, …) shown beside every value
+  • One-click popup listing every entry of a code list, linked to the
+    EDItEUR definition page — all 165 lists bundled
+  • Large feeds open fast: products are rendered as you scroll to them
+  • Search that sees folded rows, keyboard shortcuts, soft wrap, dark mode,
+    copy of any node's XML
+  • Detects ONIX 2.1, 3.0 and 3.1 in both reference and short-tag dialects,
+    plus the ONIX Acknowledgement message
 
-<b>How it works</b>
+How it works
 
 The extension acts only on pages served as XML whose content is ONIX: the
 EDItEUR namespace or an ONIX root element. Every other page — HTML, JSON,
