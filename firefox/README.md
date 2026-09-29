@@ -165,7 +165,7 @@ page reports.
 
 *Since the Safari branch, half of the first strategy below ships for every
 browser: `content.js` detaches the parser's root as soon as it appears (see
-`SAFARI.md`). The shell is still installed as soon as the source is in,
+`safari/README.md`). The shell is still installed as soon as the source is in,
 which on a multi-chunk feed is before `DidBuildModel`, so the printer would
 find the shell as the root. What remains open is only the install timing.*
 
@@ -216,7 +216,7 @@ and what it looks like.
    `FIREFOX_BIN` is there for it.
 3. `release.yml`: build both zips and attach both to the release.
 4. Listing: AMO is a separate developer account and a separate review.
-   `AMO_LISTING.md` is the paste-ready copy; the manifest `description`
+   `firefox/listing.md` is the paste-ready copy; the manifest `description`
    names no browser since 0.9.20. AMO signs every build, including
    self-distributed ones, so a Firefox install outside the store is
    `web-ext sign`, not a zip.

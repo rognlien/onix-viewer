@@ -7,7 +7,7 @@ number when you regenerate the zip via `tools/package-extension.sh`.
 
 ```bash
 tools/package-extension.sh
-# → dist/onix-viewer-<version>.zip, the version being whatever
+# → dist/chrome/onix-viewer-<version>-chrome.zip, the version being whatever
 #   Resources/manifest.json declares
 ```
 
@@ -150,30 +150,30 @@ group in the dashboard under "Distribution" once the org is connected.
 | Asset | Size | Where it comes from |
 |---|---|---|
 | Store icon | 128 × 128 PNG | `Resources/icons/icon-128.png`, baked by `tools/render-icons.sh` |
-| Small promo tile | 440 × 280 | rendered from `promo-tile.svg` |
-| Marquee promo tile | 1400 × 560 | rendered from `marquee.svg` |
-| Screenshot(s) | 1280 × 800 | **`Screenshots/Chrome/`** — committed, upload as-is |
+| Small promo tile | 440 × 280 | rendered from `chrome/promo-tile.svg` |
+| Marquee promo tile | 1400 × 560 | rendered from `chrome/marquee.svg` |
+| Screenshot(s) | 1280 × 800 | **`chrome/screenshots/`** — committed, upload as-is |
 
-**Screenshots live in `Screenshots/Chrome/` and are version-controlled**,
+**Screenshots live in `chrome/screenshots/` and are version-controlled**,
 already at 1280 × 800, so they upload without a resize step. `npm run
 screenshots` re-takes them in a headless Chrome whenever the UI changes;
 commit the result, which is the record of what the listing shows. `Main.png`
 is the tree, `CodeList.png` the code-list popup, `Violations.png` the
-findings list. `Screenshots/Firefox/` is the same set from Firefox, for AMO.
+findings list. `firefox/screenshots/` is the same set from Firefox, for AMO.
 
 The icon and the two promo tiles are **generated**, so they are not committed —
 `dist/` is gitignored in full. `npm run icons` rebuilds them into
-`dist/listing/` along with the shipped icon sizes, which is these three
+`dist/chrome/` along with the shipped icon sizes, which is these three
 commands after the render:
 
 ```bash
-cp Resources/icons/icon-128.png dist/listing/icon-128.png
-rsvg-convert -w 440  -h 280 promo-tile.svg -o dist/listing/promo-tile-440x280.png
-rsvg-convert -w 1400 -h 560 marquee.svg    -o dist/listing/marquee-1400x560.png
+cp Resources/icons/icon-128.png dist/chrome/icon-128.png
+rsvg-convert -w 440  -h 280 chrome/promo-tile.svg -o dist/chrome/promo-tile-440x280.png
+rsvg-convert -w 1400 -h 560 chrome/marquee.svg    -o dist/chrome/marquee-1400x560.png
 ```
 
-Do not keep screenshots in `dist/listing/` as well. There were two there from
-May, and because nothing kept them in sync with `Screenshots/` they quietly
+Do not keep screenshots in `dist/chrome/` as well. There were two there from
+May, and because nothing kept them in sync with the committed set they quietly
 went two UI revisions out of date while the committed pair moved on.
 
 Further shots worth adding, if you want more than two:

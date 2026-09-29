@@ -7,7 +7,7 @@
 // driving the installed Firefox over WebDriver BiDi, and
 // browser.installExtension() in place of Chrome's enableExtensions. Beyond
 // pass/fail it prints what it sees, because two things only a run can
-// settle are described in FIREFOX.md — what Firefox's XML pretty-printer
+// settle are described in firefox/README.md — what Firefox's XML pretty-printer
 // does to a root swapped mid-parse, and whether version_name survives
 // runtime.getManifest() — and the next change to content.js depends on the
 // answers.
@@ -15,7 +15,7 @@
 // On macOS 27 the terminal this runs from needs Full Disk Access, or Firefox
 // exits with "Could not find profile folder." before puppeteer hears from
 // it: the OS protects ~/Library/Application Support/Firefox, and a Firefox
-// spawned from a shell has only the shell's access. FIREFOX.md has the rest.
+// spawned from a shell has only the shell's access. firefox/README.md has the rest.
 
 const fs = require("fs");
 const http = require("http");
@@ -227,7 +227,7 @@ async function takeover(browser, served) {
   });
 }
 
-// The case FIREFOX.md is about: a feed that arrives in many chunks, so the
+// The case firefox/README.md is about: a feed that arrives in many chunks, so the
 // swap happens while the XML parser is still running and the pretty-printer
 // finds our <html> at DidBuildModel. Nothing is asserted about timing — the
 // numbers are printed so the next change can be judged.

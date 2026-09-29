@@ -1,10 +1,10 @@
 # App Store listing — paste-ready copy
 
 The Mac App Store record for the Safari extension, in the shape App Store
-Connect asks for it. `CWS_LISTING.md` is the Chrome equivalent and the
-source of the wording, `AMO_LISTING.md` the Firefox one; keep the three
+Connect asks for it. `chrome/listing.md` is the Chrome equivalent and the
+source of the wording, `firefox/listing.md` the Firefox one; keep the three
 saying the same thing. The build itself
-is `SAFARI.md` → *Distribution*.
+is `safari/README.md` → *Distribution*.
 
 ## App information
 
@@ -118,7 +118,7 @@ The Mac App Store wants screenshots of the **app** at a Mac size — 1280 ×
 800 is one it accepts, also 1440 × 900, 2560 × 1600 and 2880 × 1800 — and
 takes up to ten. Use:
 
-1. `Screenshots/Safari/Main.png`, `CodeList.png`, `Violations.png` — the
+1. `safari/screenshots/Main.png`, `CodeList.png`, `Violations.png` — the
    extension at work, taken by `npm run screenshots:safari`. Safari cannot
    be driven headless (puppeteer has no Safari, and safaridriver's
    automation windows are isolated like private browsing, where the
@@ -174,5 +174,5 @@ tools/package-extension.sh --target=safari reproduces.
 
 Safari does not run extensions on `blob:` URLs, which is how some web apps
 open a fetched file in a new tab. Such a file shows as raw XML in Safari;
-in Chrome and Firefox it is taken over. `SAFARI.md` has the details and
+in Chrome and Firefox it is taken over. `safari/README.md` has the details and
 what an app can do instead.

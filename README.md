@@ -72,7 +72,7 @@ an edit, press the reload arrow on the card and refresh the page.
 
 In Firefox, load the same folder from `about:debugging#/runtime/this-firefox`
 with **Load Temporary Add-on…** and pick `Resources/manifest.json`. The
-Firefox build is in progress; `FIREFOX.md` has the state of it.
+Firefox build is in progress; `firefox/README.md` has the state of it.
 
 In Safari 26 or later, turn on **Show features for web developers** under
 Settings → Advanced, then under Settings → Developer allow unsigned
@@ -82,7 +82,7 @@ dev app instead: `npm run build:dev`, open
 `dist/dev/safari/ONIX Viewer Dev/ONIX Viewer Dev.xcodeproj` in Xcode and
 Run. That installs an "ONIX Viewer Dev" app beside any store copy, with
 its own bundle identifier, and Safari lists its extension under that name,
-saying `-dev` in About. `SAFARI.md` has the rest of the Safari story.
+saying `-dev` in About. `safari/README.md` has the rest of the Safari story.
 
 `npm run build:dev` builds all three browsers' packages into `dist/dev/`
 without bumping the version: the store builds with the `-dev` version name
@@ -156,7 +156,7 @@ git push origin main v0.9.19   # the tag push builds the zip and creates a GitHu
 ```
 
 Then upload that zip in the Chrome Web Store dashboard under **Package** and
-submit for review. `CWS_LISTING.md` has the listing copy and reviewer notes.
+submit for review. `chrome/listing.md` has the listing copy and reviewer notes.
 
 The store listing is https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife;
 the item ID is derived from the signing key and does not change between
@@ -189,7 +189,7 @@ npm ci
 node tools/generate-codelists.js
 node tools/generate-content-model.js --version=3.1
 node tools/generate-content-model.js --version=3.0
-tools/package-extension.sh --target=firefox   # dist/onix-viewer-<version>-firefox.zip
+tools/package-extension.sh --target=firefox   # dist/firefox/onix-viewer-<version>-firefox.zip
 ```
 
 ## Known limitations
@@ -219,5 +219,5 @@ MIT. See [LICENSE](LICENSE).
 
 - [CHANGELOG.md](CHANGELOG.md), release notes.
 - [SECURITY.md](SECURITY.md), threat model and verification.
-- [CWS_LISTING.md](CWS_LISTING.md), store listing copy.
+- [chrome/listing.md](chrome/listing.md), store listing copy.
 - [CLAUDE.md](CLAUDE.md), design notes and rationale.

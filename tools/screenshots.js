@@ -1,8 +1,8 @@
 // tools/screenshots.js — the store screenshots, taken by a headless browser.
 //
-//   npm run screenshots:chrome     # Chrome  → Screenshots/Chrome/
-//   npm run screenshots:firefox    # Firefox → Screenshots/Firefox/
-//   npm run screenshots:safari     # Safari  → Screenshots/Safari/
+//   npm run screenshots:chrome     # Chrome  → chrome/screenshots/
+//   npm run screenshots:firefox    # Firefox → firefox/screenshots/
+//   npm run screenshots:safari     # Safari  → safari/screenshots/
 //   FIREFOX_BIN=/path/to/firefox node tools/screenshots.js firefox
 //
 // Three 1280×800 captures of the viewer over Onix/onix-3.1-refnames-defects.xml,
@@ -14,12 +14,12 @@
 // captured is what a reader sees. Nothing of the browser itself is in frame,
 // which is why the Chrome and Firefox sets differ only in text rendering.
 //
-// The site copies in site/ are held to Screenshots/Chrome/ by a test, so
+// The site copies in site/ are held to chrome/screenshots/ by a test, so
 // after re-taking the Chrome set copy the three files there too.
 //
 // On macOS 27 the Firefox side needs the terminal it runs from to have Full
 // Disk Access, or Firefox exits with "Could not find profile folder." —
-// see FIREFOX.md.
+// see firefox/README.md.
 //
 // Safari is the odd one out: puppeteer cannot drive it, and safaridriver's
 // automation windows are isolated like private browsing, where the extension
@@ -62,7 +62,7 @@ if (!["chrome", "firefox", "safari"].includes(BROWSER)) {
   console.error("usage: node tools/screenshots.js [chrome|firefox|safari]");
   process.exit(2);
 }
-const OUT = path.join(ROOT, "Screenshots", BROWSER[0].toUpperCase() + BROWSER.slice(1));
+const OUT = path.join(ROOT, BROWSER, "screenshots");
 
 // ---- the sample, served as application/xml ---------------------------------
 

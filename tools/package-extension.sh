@@ -26,12 +26,12 @@
 #
 # Both stores expect the manifest at the zip ROOT (not nested in a folder),
 # so we zip from inside a copy of Resources/. The output goes to
-# dist/onix-viewer-<version>.zip for Chrome and
-# dist/onix-viewer-<version>-firefox.zip for Firefox. Safari takes no zip:
+# dist/chrome/onix-viewer-<version>-chrome.zip for Chrome and
+# dist/firefox/onix-viewer-<version>-firefox.zip for Firefox. Safari takes no zip:
 # the copy is kept as dist/onix-viewer-<version>-safari/ (Safari's
 # Settings → Developer → "Add Temporary Extension…" loads that folder) and
 # Apple's converter wraps it in the Xcode project at dist/safari/, which is
-# what gets built, signed and submitted — see SAFARI.md.
+# what gets built, signed and submitted — see safari/README.md.
 #
 # The copy exists for the manifest edits. The committed manifest carries
 # "version_name": "X.Y.Z-dev", which is what chrome://extensions and the
