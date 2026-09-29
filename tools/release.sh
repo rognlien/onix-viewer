@@ -52,7 +52,7 @@ node -e "
         process.exit(1);
       }
     }
-    if (u === s) {
+    if (!/\"version\":\s*\"[^\"]+\"/.test(s)) {
       console.error('Could not find version field in ' + f);
       process.exit(1);
     }
@@ -60,8 +60,13 @@ node -e "
   }
 "
 
+# The checkout may already carry the version — 0.9.20 did, after the first
+# tag of that name was taken back — in which case there is nothing to commit
+# and the tag goes on HEAD.
 git add Resources/manifest.json package.json
-git commit -m "Release $TAG"
+if ! git diff --cached --quiet; then
+  git commit -m "Release $TAG"
+fi
 git tag "$TAG"
 
 echo
