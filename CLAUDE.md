@@ -22,11 +22,16 @@ onix-viewer/
 ├── README.md                       user-facing install/usage docs
 ├── SECURITY.md                     threat model & verification guide
 ├── CHANGELOG.md                    version history
-├── CWS_LISTING.md                  paste-ready CWS dashboard copy
-├── AMO_LISTING.md                  the same for addons.mozilla.org, plus the reviewer notes
-├── SAFARI_LISTING.md               the same for App Store Connect, plus the privacy answers
-├── FIREFOX.md                      the Firefox port: facts, changes, and the open question
-├── SAFARI.md                       the Safari port: the same, plus the manual run it needs
+├── chrome/                         everything stable and Chrome's: listing.md (paste-ready
+│   │                               CWS dashboard copy), the promo-tile and marquee SVGs,
+│   └── screenshots/                and the three store screenshots (Main, CodeList,
+│                                   Violations; the set the site copies)
+├── firefox/                        the same for Firefox: README.md (the port: facts,
+│   └── screenshots/                changes, the open question), listing.md for AMO with
+│                                   the reviewer notes, and the screenshots
+├── safari/                         the same for Safari: README.md (the port, plus the
+│   └── screenshots/                manual run it needs), listing.md for App Store Connect
+│                                   with the privacy answers, and the screenshots
 ├── package.json                    jsdom + eslint + puppeteer-core dev deps; `npm test`, `npm run lint`
 ├── eslint.config.js                ESLint flat config: browser globals for Resources/, node for tools/ and tests/
 ├── Resources/                      the actual web extension (load in chrome://extensions)
@@ -54,12 +59,14 @@ onix-viewer/
 │                                   at any other size (the 24) is never read
 ├── tools/
 │   ├── prune-manifest.js           the manifest each store gets; the packager runs it, the suite tests it
-│   ├── package-extension.sh        builds dist/onix-viewer-<version>.zip for CWS upload,
-│   │                               the -firefox.zip for AMO with --target=firefox, or the
-│   │                               folder plus Xcode project in dist/safari/ with --target=safari;
-│   │                               --dev builds the same into dist/dev/ with -dev kept and no
-│   │                               version bump (npm run build:dev), the Safari one as an
-│   │                               "ONIX Viewer Dev" app with a bundle id of its own
+│   ├── package-extension.sh        builds one store's upload folder, dist/<browser>/: the zip
+│   │                               (or, for Safari, the pruned folder plus Xcode project) with
+│   │                               the listing text, screenshots, icon and tiles beside it, and
+│   │                               for Firefox the source archive; npm run build does all three.
+│   │                               --dev builds the packages alone into dist/dev/<browser>/ with
+│   │                               -dev kept and no version bump (npm run build:dev), the Safari
+│   │                               one as an "ONIX Viewer Dev" app with a bundle id of its own
+│   ├── render-tiles.sh             the two promo tiles from chrome/*.svg into dist/chrome/
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
@@ -84,27 +91,24 @@ onix-viewer/
 │   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (281 tests, ~9s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
-│   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see FIREFOX.md
+│   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see firefox/README.md
 │   ├── expected/                   the findings on record for every ONIX fixture and sample
 │   └── fixtures/                   XML samples per test category
-├── Screenshots/                    store screenshots, committed at 1280×800, one set per browser,
-│   │                               taken by tools/screenshots.js (npm run screenshots:{chrome,firefox,safari})
-│   ├── Chrome/                     Main.png the tree, CodeList.png the code-list popup,
-│   │                               Violations.png the findings — the set the site copies
-│   ├── Firefox/                    the same three from Firefox, for the AMO listing
-│   └── Safari/                     the same three from Safari, for the App Store
 ├── site/                           the extension's web page: index.html, privacy.html (the
 │                                   policy the stores link to), plus byte copies of
 │                                   the three screenshots and the 128px icon. Published by
 │                                   tools/publish-site.sh into ~/git/maendeleo-site/onix-viewer/;
 │                                   nothing here serves it. A test holds the copies to their
 │                                   sources
-├── dist/                           build output — gitignored in full
-│   ├── package/                    the staging copy the zip is built from (version_name removed)
-│   └── listing/                    upload staging for the GENERATED assets only:
-│                                   icon-128 (copied from Resources/icons/) plus the
-│                                   promo tile and marquee (rsvg-convert from the
-│                                   SVGs at the repo root). No screenshots here.
+├── dist/                           build output — gitignored in full; one folder per store,
+│   │                               each holding everything its upload needs
+│   ├── chrome/                     onix-viewer-<v>-chrome.zip, chrome-listing.md, screenshots/,
+│   │                               icon-128.png, promo-tile-440x280.png, marquee-1400x560.png
+│   ├── firefox/                    onix-viewer-<v>-firefox.zip, -firefox-source.zip,
+│   │                               firefox-listing.md, screenshots/, icon-128.png
+│   ├── safari/                     onix-viewer-<v>-safari/ (the pruned folder), the Xcode
+│   │                               project in ONIX Viewer/, safari-listing.md, screenshots/
+│   └── dev/<browser>/              the same shapes from --dev builds, -dev kept, no version
 └── .github/workflows/
     ├── test.yml                    push/PR → tests → generated-file drift check
     └── release.yml                 tag-push → tests → zip → GitHub release
@@ -124,13 +128,13 @@ icons/icon-48.png           hand-drawn override     }
         ▼
 Resources/icons/icon-*.png  the nine manifest sizes     shipped
 site/icon-128.png           the web page's copy        published with the page
-dist/listing/*.png          the store's icon and tiles  uploaded, never committed
+dist/chrome/*.png           the store's icon and tiles  uploaded, never committed
 ```
 
 `npm run icons` is the whole of an icon change after the artwork is in
 place: it renders the nine sizes (a hand-drawn file winning over the
 master), copies the 128 to `site/`, re-renders the promo tiles into
-`dist/listing/`, and runs `check:icons`. Screenshots are separate, since
+`dist/chrome/` through `tools/render-tiles.sh`, and runs `check:icons`. Screenshots are separate, since
 the mark is in them: `npm run screenshots:chrome` and its Firefox and Safari
 siblings afterwards.
 
@@ -160,7 +164,7 @@ The pattern is:
 
 1. Content script runs at `document_start`.
 2. Check `document.contentType` against the MIME whitelist (`application/xml`, `text/xml`, `application/onix+xml`).
-2a. **Detach the browser's own root** the moment the parser produces it, when it looks like ONIX (`rootLooksLikeOnix`: the EDItEUR namespace, or an `ONIXMessage`/`ONIXmessage`/`ONIXMessageAcknowledgement` root; a bare `<Product>` only once an ONIX child has been parsed, the sniff's own corroboration rule). The parser goes on filling the detached root, so nothing is lost, but the browser no longer styles or lays out the document we are about to replace, and its XML tree viewer, which rebuilds the whole document when the parse ends, finds nothing to draw. The watch ends with the take: the browser's tree viewer may still put an `<html>` of its own into the emptied document when the parse ends, and the shell replaces that as it would any root. Removing it from the observer instead crashed Safari — WebKit appends the viewer's stylesheet from C++ right after its script has built that `<html>`, and the observer callback ran at the microtask checkpoint in between (see `SAFARI.md`). Measured in headless Chrome, a tenth off the time to the first verdict on a cold load (1.52 s → 1.31 s for 300 products, 4.84 s → 4.38 s for 1,000); in Safari it is what stops WebKit's tree viewer spending seconds on a large feed first. An RSS root ends the watch instead, so non-ONIX XML keeps the browser's viewer without a flicker.
+2a. **Detach the browser's own root** the moment the parser produces it, when it looks like ONIX (`rootLooksLikeOnix`: the EDItEUR namespace, or an `ONIXMessage`/`ONIXmessage`/`ONIXMessageAcknowledgement` root; a bare `<Product>` only once an ONIX child has been parsed, the sniff's own corroboration rule). The parser goes on filling the detached root, so nothing is lost, but the browser no longer styles or lays out the document we are about to replace, and its XML tree viewer, which rebuilds the whole document when the parse ends, finds nothing to draw. The watch ends with the take: the browser's tree viewer may still put an `<html>` of its own into the emptied document when the parse ends, and the shell replaces that as it would any root. Removing it from the observer instead crashed Safari — WebKit appends the viewer's stylesheet from C++ right after its script has built that `<html>`, and the observer callback ran at the microtask checkpoint in between (see `safari/README.md`). Measured in headless Chrome, a tenth off the time to the first verdict on a cold load (1.52 s → 1.31 s for 300 products, 4.84 s → 4.38 s for 1,000); in Safari it is what stops WebKit's tree viewer spending seconds on a large feed first. An RSS root ends the watch instead, so non-ONIX XML keeps the browser's viewer without a flicker.
 3. Re-fetch the source URL with `fetch(document.location.href, { credentials: "same-origin" })`. Reading `document.body.innerText` from the rendered viewer is unreliable.
 3a. **ONIX sniff** the first 2 KB of the source for the EDItEUR namespace URI or an `<ONIXMessage>` root. If it's XML but not ONIX, abort — the user gets the browser's native XML view.
 4. Build a fresh HTML shell via `DOMParser` — the markup comes from `shell.js`, a second content script loaded ahead of `content.js` so the two share one isolated-world global — then append it to the emptied document (or `document.replaceChild` it over whatever root is there, for a document whose root was not detached). The shell waits for the parser to have produced its root at all: appended earlier, it would sit *beside* the parser's root, since the parser appends without the one-root check. The test harness builds its jsdom window from the same template, which is the point of it being a module: a renamed id or a new toolbar button fails in the suite, where a hand-written copy used to drift.
@@ -169,7 +173,7 @@ The pattern is:
 
 When the re-fetch fails (file:// URLs are origin "null" and CORS-blocked; one-shot signed URLs reject the second request; bearer-auth endpoints lose their headers), **or succeeds with something other than the document** — a non-XML content type, or a body that does not look like ONIX although the parser's root did, which is what a share link behind a session returns for a second request without its context: a 200 and the app's HTML shell — we fall back to serialising the parser's own tree with `XMLSerializer` — the detached root, which the parser fills to the end regardless, else Chrome's viewer wrapper or `documentElement` for a root that was not detached — and never before `DOMContentLoaded`, since a tree still being built serialises to a truncated document. This means file:// works without any background script, at the cost of waiting for the parse to end before the takeover. The browser test forces this path by refusing the second request for a document and asserts the same tree comes out.
 
-**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`; Firefox 128+). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`. **Safari 27 does not honour the key**, so a blob page there shows Safari's own rendering and nothing can be done about it from the extension — see `SAFARI.md`.
+**blob: URLs** are supported via `manifest.json`'s `content_scripts.match_origin_as_fallback: true` (Chrome 119+, which is why the manifest declares `minimum_chrome_version: "119"`; Firefox 128+). Chrome resolves a blob URL's origin to the page that created it and matches that against `<all_urls>`. **Safari 27 does not honour the key**, so a blob page there shows Safari's own rendering and nothing can be done about it from the extension — see `safari/README.md`.
 
 Things that still won't work:
 - **Streaming huge XML**: we hold the full source in memory. A 17 MB feed
@@ -1851,7 +1855,7 @@ permission, and *is* asked about: the viewer runs in the page's world, so the
 page has to be allowed to load the nine scripts, the stylesheet and the icon
 that `content.js` appends. It exposes only static files that are public in this
 repository, and grants a page none of the extension's privileges — of which
-there are none. `SECURITY.md` and `CWS_LISTING.md` both spell that out.
+there are none. `SECURITY.md` and `chrome/listing.md` both spell that out.
 
 ## Dev workflow
 
@@ -1917,7 +1921,7 @@ Every push and pull request runs `.github/workflows/test.yml` — the same suite
 
   This exists because a stale icon did ship: `icons/icon-32.png` gained an alpha channel, which makes a hand-drawn size win over a downscale, but `render-icons.sh` was not re-run — so `Resources/icons/icon-32.png` stayed the downscale through a commit. The check also prints which sizes are still rendered from the master, so the hand-drawn set can be completed one size at a time.
 
-The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the zip is built, and a GitHub release is created with `onix-viewer-0.9.X.zip` attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
+The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the Chrome and Firefox packages and the source archive are built, and a GitHub release is created with all three attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
 
 Two more things belong to a release and are easy to forget:
 
@@ -1975,7 +1979,7 @@ When adding behavior, prefer adding a fixture + assertion rather than a manual b
 - **Generic XML rendering** (syntax highlighting, fold behavior, search, keyboard nav): live in `viewer.js` and `viewer.css`. Always add a corresponding fixture + test.
 - **ONIX detection / codelist resolution / Product summaries**: live in `onix.js`. The viewer calls into the ONIX module via the `window.OnixViewerOnix` API — keep that contract narrow so non-ONIX docs don't pay for ONIX features.
 - **Codelist data**: regenerate via `node tools/generate-codelists.js`. Never hand-edit `Resources/onix-codelists.js`.
-- **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `CWS_LISTING.md` and the promo / marquee SVGs.
+- **Manifest changes**: update `Resources/manifest.json`. If the user-facing description changes, also update `chrome/listing.md` and the promo / marquee SVGs.
 - **Icon changes**: put the new artwork in `icons/` — `icon-original.svg` (the vector master; `icon-original.png` beside it at 2048×2048 for the promo tiles) and the hand-drawn sizes — then `npm run icons` rebakes every manifest size (the seven store sizes plus the toolbar's 28 and 56), copies the 128 to `site/`, re-renders the tiles and runs the check. **Hand-drawn sizes win**: the script uses a custom `icons/icon-<size>.png` verbatim when one exists, since a downscale of a detailed mark loses definition at 16 and 32 px — so new artwork needs the hand-drawn sizes redrawn too, or they keep the old mark exactly where it is seen most. The one requirement is an alpha channel — an opaque custom shows as a pale tile wherever Chrome puts the icon on a dark ground, so one without alpha is refused with a warning and the master is rendered instead. The toolbar mark is not a separate file: it loads `Resources/icons/icon-28.png`, the app icon at the box's own size, with `icon-56.png` for 2x displays, so there is nothing to keep in step; both are hand-drawn in the style of the 32 and 48, since the master's facets do not survive that size. The promo SVGs embed the PNG master, which is why `npm run icons` re-renders them.
-- **Store screenshots**: `npm run screenshots:chrome` re-takes the Chrome set into `Screenshots/Chrome/`, `npm run screenshots:firefox` the Firefox set into `Screenshots/Firefox/` and `npm run screenshots:safari` the Safari set into `Screenshots/Safari/`, each at 1280×800 in the light scheme over `Onix/onix-3.1-refnames-defects.xml`: the tree, the code-list popup from the `<NotificationType>` row, and the findings list. Chrome and Firefox are headless; Safari cannot be, so that set is taken from the Safari you use, by AppleScript and `screencapture` — the extension on and allowed on 127.0.0.1 in the front window's profile, "Allow JavaScript from Apple Events" on in Safari's Developer settings, Screen Recording granted to the terminal, and the pointer kept off the window. On a Retina display those three come out at 2560×1600, which the App Store takes. Commit the result. Those directories are the record of what the listings show — do not stage screenshots in `dist/listing/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/listing/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `CWS_LISTING.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source (the Chrome set), so re-taking the screenshots means copying them there too.
+- **Store screenshots**: `npm run screenshots:chrome` re-takes the Chrome set into `chrome/screenshots/`, `npm run screenshots:firefox` the Firefox set into `firefox/screenshots/` and `npm run screenshots:safari` the Safari set into `safari/screenshots/`, each at 1280×800 in the light scheme over `Onix/onix-3.1-refnames-defects.xml`: the tree, the code-list popup from the `<NotificationType>` row, and the findings list. Chrome and Firefox are headless; Safari cannot be, so that set is taken from the Safari you use, by AppleScript and `screencapture` — the extension on and allowed on 127.0.0.1 in the front window's profile, "Allow JavaScript from Apple Events" on in Safari's Developer settings, Screen Recording granted to the terminal, and the pointer kept off the window. On a Retina display those three come out at 2560×1600, which the App Store takes. Commit the result. Those directories are the record of what the listings show — do not stage screenshots in `dist/chrome/` as well. Two lived there once, and with nothing keeping the copies in sync they fell two UI revisions behind while the committed pair moved on. `dist/chrome/` is for the generated assets only (icon, promo tile, marquee); the render commands are in `chrome/listing.md`. `site/` carries its own copies of the three screenshots and the 128px icon, because the page is copied elsewhere to publish and has to be self-contained; `tests/cases/30-documentation.test.js` fails when a copy stops matching its source (the Chrome set), so re-taking the screenshots means copying them there too.
 - **Tests**: never skip the failing-case fixtures. The malformed-XML test guards against a regression where a parse error would blank the page.

@@ -2,7 +2,7 @@
 # tools/render-icons.sh — Render the extension's icon PNGs at every size the
 # manifest declares: the seven a store may ask for, plus 28 and 56, the
 # toolbar mark's box at 1x and 2x. Then copy the 128 to site/, re-render the
-# two promo tiles into dist/listing/, and run the icon check. `npm run icons`.
+# two promo tiles into dist/chrome/, and run the icon check. `npm run icons`.
 #
 # Source-of-truth is icons/icon-original.svg, the vector master; a size with
 # no hand-drawn file is rendered from it. icons/icon-original.png (2048×2048
@@ -110,11 +110,10 @@ fi
 cp "$OUT_DIR/icon-128.png" site/icon-128.png
 echo "  site/icon-128.png  <- icon-128.png"
 
-mkdir -p dist/listing
-cp "$OUT_DIR/icon-128.png" dist/listing/icon-128.png
-rsvg-convert -w 440  -h 280 promo-tile.svg -o dist/listing/promo-tile-440x280.png
-rsvg-convert -w 1400 -h 560 marquee.svg    -o dist/listing/marquee-1400x560.png
-echo "  dist/listing/      <- icon-128, promo-tile-440x280, marquee-1400x560"
+mkdir -p dist/chrome
+cp "$OUT_DIR/icon-128.png" dist/chrome/icon-128.png
+echo "  dist/chrome/icon-128.png  <- icon-128.png"
+tools/render-tiles.sh dist/chrome
 
 echo
 node tools/check-icons.js

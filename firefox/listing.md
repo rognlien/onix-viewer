@@ -1,20 +1,19 @@
 # AMO listing — paste-ready copy
 
 The addons.mozilla.org record for the Firefox build, in the shape the
-Developer Hub asks for it. `CWS_LISTING.md` is the Chrome equivalent and the
-source of the wording, `SAFARI_LISTING.md` the App Store's; keep the three
-saying the same thing. The build and the source archive are in `FIREFOX.md`
+Developer Hub asks for it. `chrome/listing.md` is the Chrome equivalent and the
+source of the wording, `safari/listing.md` the App Store's; keep the three
+saying the same thing. The build and the source archive are in `firefox/README.md`
 and the README.
 
 ## Build and upload
 
 ```bash
 tools/package-extension.sh --target=firefox
-# → dist/onix-viewer-<version>-firefox.zip, the manifest pruned for Firefox
-
-git ls-files -co --exclude-standard | grep -v -E '^(\.idea|\.claude)/' \
-  | zip -q -@ dist/onix-viewer-<version>-source.zip
-# → the source archive AMO asks for, since three shipped files are generated
+# → dist/firefox/: onix-viewer-<version>-firefox.zip, the manifest pruned for
+#   Firefox; onix-viewer-<version>-firefox-source.zip, the source archive AMO
+#   asks for, since three shipped files are generated; and beside them this
+#   file, the screenshots and the 128px icon, for the upload forms
 ```
 
 Upload the first at https://addons.mozilla.org/developers/ → the add-on →
@@ -117,7 +116,7 @@ https://github.com/rognlien/onix-viewer.
 **Icon**: `Resources/icons/icon-128.png` (AMO wants 128 × 128, and shows it
 at 64).
 
-**Screenshots**: `Screenshots/Firefox/Main.png`, `CodeList.png`,
+**Screenshots**: `firefox/screenshots/Main.png`, `CodeList.png`,
 `Violations.png`, taken by `npm run screenshots:firefox` at 1280 × 800 — the
 same three views as the Chrome set, from Firefox. Captions, one per file:
 

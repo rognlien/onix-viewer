@@ -40,8 +40,10 @@ jobs:
           fi
           echo "VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
 
-      - name: Build zip
-        run: bash tools/package-extension.sh
+      - name: Build the Chrome and Firefox packages, and the source archive
+        run: |
+          bash tools/package-extension.sh --target=chrome
+          bash tools/package-extension.sh --target=firefox
 
       - name: Create GitHub release
         env:
@@ -50,4 +52,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            "dist/onix-viewer-${VERSION}.zip"
+            "dist/chrome/onix-viewer-${VERSION}-chrome.zip" \
+            "dist/firefox/onix-viewer-${VERSION}-firefox.zip" \
+            "dist/firefox/onix-viewer-${VERSION}-firefox-source.zip"

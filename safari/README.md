@@ -1,7 +1,7 @@
 # The Safari port
 
 What is known, what this branch changes, and what has to be seen in a real
-Safari before any of it ships. Written the way `FIREFOX.md` is: every claim
+Safari before any of it ships. Written the way `firefox/README.md` is: every claim
 below has the source that established it, or says it needs a run.
 
 ## The short version
@@ -53,10 +53,10 @@ manual run has to look for. `content.js` is unchanged.
 
 ```bash
 tools/package-extension.sh --target=safari
-#   dist/onix-viewer-<v>-safari/          the pruned folder, for Add Temporary Extension…
+#   dist/safari/onix-viewer-<v>-safari/          the pruned folder, for Add Temporary Extension…
 #   dist/safari/ONIX Viewer/ONIX Viewer.xcodeproj   the converter's project, to build and sign
 tools/package-extension.sh --dev --target=safari   # or npm run build:dev, for all three
-#   dist/dev/onix-viewer-safari/          the same folder with version_name kept
+#   dist/dev/safari/onix-viewer-safari/          the same folder with version_name kept
 #   dist/dev/safari/ONIX Viewer Dev/ONIX Viewer Dev.xcodeproj
 #       Run it from Xcode: an "ONIX Viewer Dev" app, bundle id
 #       io.maendeleo.ONIX-Viewer.dev, beside the store's app rather than in
@@ -208,7 +208,7 @@ python3 -m http.server 8000   # from the repo root; serves .xml as application/x
 
 Then in Safari: Settings → Advanced → *Show features for web developers*;
 Settings → Developer → *Allow unsigned extensions*, then *Add Temporary
-Extension…* → `dist/onix-viewer-0.9.19-safari`; Settings → Extensions →
+Extension…* → `dist/safari/onix-viewer-<v>-safari`; Settings → Extensions →
 turn ONIX Viewer on **in the profile you will browse from** (a temporary
 extension is enabled in the profile it was added from and nowhere else);
 open `http://127.0.0.1:8000/Onix/onix-3.1-refnames-defects.xml`, click the
@@ -275,7 +275,7 @@ number). Nothing can ship before that. Then:
      `data_collection_permissions` has no standing there), a category, and
      screenshots of the *app window* as well as the extension at one of the
      Mac sizes (1280×800 is one; `npm run screenshots:safari` takes the
-     extension's three from the Safari you use, see `SAFARI_LISTING.md`).
+     extension's three from the Safari you use, see `safari/listing.md`).
      Free apps still go through review.
    - **Outside the store**: *Direct Distribution* (Developer ID). Xcode
      signs with the Developer ID certificate and submits the app for
@@ -326,4 +326,4 @@ tag.
   Same link, all three browsers, nothing to change in the extension.
 - **No native messaging.** The generated Swift handler stays as generated
   and is never called; there is nothing the extension needs from the app.
-- **No `world: "MAIN"`, no polyfill** — for the reasons in `FIREFOX.md`.
+- **No `world: "MAIN"`, no polyfill** — for the reasons in `firefox/README.md`.

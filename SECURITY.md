@@ -37,7 +37,7 @@ This document explains how ONIX Viewer handles page content, what permissions it
 Plus `name`, `version`, `description`, `minimum_chrome_version` (119, the
 first release with `match_origin_as_fallback`), `browser_specific_settings`
 (the Firefox add-on id, its minimum version, and a declaration that the
-extension collects no data — see `FIREFOX.md`) and the `icons` map, which
+extension collects no data — see `firefox/README.md`) and the `icons` map, which
 carry no privilege. That is the whole manifest — there is nothing omitted from the
 excerpt above.
 

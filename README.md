@@ -72,7 +72,7 @@ an edit, press the reload arrow on the card and refresh the page.
 
 In Firefox, load the same folder from `about:debugging#/runtime/this-firefox`
 with **Load Temporary Add-on…** and pick `Resources/manifest.json`. The
-Firefox build is in progress; `FIREFOX.md` has the state of it.
+Firefox build is in progress; `firefox/README.md` has the state of it.
 
 In Safari 26 or later, turn on **Show features for web developers** under
 Settings → Advanced, then under Settings → Developer allow unsigned
@@ -82,7 +82,7 @@ dev app instead: `npm run build:dev`, open
 `dist/dev/safari/ONIX Viewer Dev/ONIX Viewer Dev.xcodeproj` in Xcode and
 Run. That installs an "ONIX Viewer Dev" app beside any store copy, with
 its own bundle identifier, and Safari lists its extension under that name,
-saying `-dev` in About. `SAFARI.md` has the rest of the Safari story.
+saying `-dev` in About. `safari/README.md` has the rest of the Safari story.
 
 `npm run build:dev` builds all three browsers' packages into `dist/dev/`
 without bumping the version: the store builds with the `-dev` version name
@@ -152,11 +152,16 @@ schemas from EDItEUR's per-issue XSD bundles, the strict one from the
 ```bash
 # 1. give CHANGELOG.md's Unreleased section a version and date, commit
 tools/release.sh 0.9.19        # bumps the manifest and package.json, commits, tags
-git push origin main v0.9.19   # the tag push builds the zip and creates a GitHub release
+git push origin main v0.9.19   # the tag push builds the packages and creates a GitHub release
+npm run build                  # the same locally: dist/chrome/, dist/firefox/, dist/safari/
 ```
 
-Then upload that zip in the Chrome Web Store dashboard under **Package** and
-submit for review. `CWS_LISTING.md` has the listing copy and reviewer notes.
+Each folder under `dist/` then holds everything one store's upload needs:
+the package, the listing text, the screenshots, and the icon and promo
+tiles where the store takes them. Upload the Chrome zip in the Chrome Web
+Store dashboard under **Package** and submit for review; `chrome/listing.md`
+has the listing copy and reviewer notes, and `firefox/listing.md` and
+`safari/listing.md` the same for AMO and App Store Connect.
 
 The store listing is https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife;
 the item ID is derived from the signing key and does not change between
@@ -171,26 +176,23 @@ repo, and `--dry-run` shows what would change.
 AMO asks for the source whenever the upload contains generated files, and
 three of ours are: `Resources/onix-codelists.js` and the two content models,
 written by the generators in `tools/` from the committed inputs in
-`tools/data/`. The source archive is the working tree minus editor and tool
-config, and the build needs Node 20 or later, `zip`, and the dev
-dependencies (the generators parse the schemas with jsdom):
-
-```bash
-git ls-files -co --exclude-standard | grep -v -E '^(\.idea|\.claude)/' \
-  | zip -q -@ dist/onix-viewer-0.9.19-source.zip
-```
-
-To reproduce the upload from it, run the generators and the packager; the
-generators are byte-stable, so `git status` stays clean, and the zip matches
-`Resources/` file for file except for the manifest edits the packager makes:
+`tools/data/`. The Firefox package build writes the archive beside the zip,
+`dist/firefox/onix-viewer-<version>-firefox-source.zip`: the working tree
+minus editor and tool config. To reproduce the upload from it, with Node 20
+or later, `zip`, and the dev dependencies (the generators parse the schemas
+with jsdom):
 
 ```bash
 npm ci
 node tools/generate-codelists.js
 node tools/generate-content-model.js --version=3.1
 node tools/generate-content-model.js --version=3.0
-tools/package-extension.sh --target=firefox   # dist/onix-viewer-<version>-firefox.zip
+tools/package-extension.sh --target=firefox   # dist/firefox/onix-viewer-<version>-firefox.zip
 ```
+
+The generators are byte-stable, so `git status` stays clean, and the zip
+matches `Resources/` file for file except for the manifest edits the
+packager makes.
 
 ## Known limitations
 
@@ -219,5 +221,5 @@ MIT. See [LICENSE](LICENSE).
 
 - [CHANGELOG.md](CHANGELOG.md), release notes.
 - [SECURITY.md](SECURITY.md), threat model and verification.
-- [CWS_LISTING.md](CWS_LISTING.md), store listing copy.
+- [chrome/listing.md](chrome/listing.md), store listing copy.
 - [CLAUDE.md](CLAUDE.md), design notes and rationale.
