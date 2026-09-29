@@ -59,12 +59,14 @@ onix-viewer/
 │                                   at any other size (the 24) is never read
 ├── tools/
 │   ├── prune-manifest.js           the manifest each store gets; the packager runs it, the suite tests it
-│   ├── package-extension.sh        builds dist/chrome/onix-viewer-<version>-chrome.zip for CWS upload,
-│   │                               the -firefox.zip for AMO with --target=firefox, or the
-│   │                               folder plus Xcode project in dist/safari/ with --target=safari;
-│   │                               --dev builds the same into dist/dev/ with -dev kept and no
-│   │                               version bump (npm run build:dev), the Safari one as an
-│   │                               "ONIX Viewer Dev" app with a bundle id of its own
+│   ├── package-extension.sh        builds one store's upload folder, dist/<browser>/: the zip
+│   │                               (or, for Safari, the pruned folder plus Xcode project) with
+│   │                               the listing text, screenshots, icon and tiles beside it, and
+│   │                               for Firefox the source archive; npm run build does all three.
+│   │                               --dev builds the packages alone into dist/dev/<browser>/ with
+│   │                               -dev kept and no version bump (npm run build:dev), the Safari
+│   │                               one as an "ONIX Viewer Dev" app with a bundle id of its own
+│   ├── render-tiles.sh             the two promo tiles from chrome/*.svg into dist/chrome/
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
@@ -132,7 +134,7 @@ dist/chrome/*.png           the store's icon and tiles  uploaded, never committe
 `npm run icons` is the whole of an icon change after the artwork is in
 place: it renders the nine sizes (a hand-drawn file winning over the
 master), copies the 128 to `site/`, re-renders the promo tiles into
-`dist/chrome/`, and runs `check:icons`. Screenshots are separate, since
+`dist/chrome/` through `tools/render-tiles.sh`, and runs `check:icons`. Screenshots are separate, since
 the mark is in them: `npm run screenshots:chrome` and its Firefox and Safari
 siblings afterwards.
 
@@ -1919,7 +1921,7 @@ Every push and pull request runs `.github/workflows/test.yml` — the same suite
 
   This exists because a stale icon did ship: `icons/icon-32.png` gained an alpha channel, which makes a hand-drawn size win over a downscale, but `render-icons.sh` was not re-run — so `Resources/icons/icon-32.png` stayed the downscale through a commit. The check also prints which sizes are still rendered from the master, so the hand-drawn set can be completed one size at a time.
 
-The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the zip is built, and a GitHub release is created with `onix-viewer-0.9.X.zip` attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
+The tag push triggers `.github/workflows/release.yml` — tests run, version-vs-tag is verified, the Chrome and Firefox packages and the source archive are built, and a GitHub release is created with all three attached. Then upload the zip to the CWS dashboard manually (the OAuth dance for an automated CWS upload is not worth it for this small extension).
 
 Two more things belong to a release and are easy to forget:
 

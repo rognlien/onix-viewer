@@ -47,6 +47,26 @@ describe("Documentation", () => {
     assert(/declares no permissions/.test(page), "the front page says there are no permissions");
   });
 
+  // One directory per browser holds what is stable and that browser's: the
+  // listing copy the store forms are filled from and the three screenshots
+  // they take; Firefox and Safari also keep their port notes there. The
+  // packager copies the first two into dist/<browser>/ beside the package.
+  test("each browser directory holds its listing and three screenshots", () => {
+    for (const browser of ["chrome", "firefox", "safari"]) {
+      assert(fs.existsSync(path.join(ROOT, browser, "listing.md")), `${browser}/listing.md`);
+      for (const shot of ["Main", "CodeList", "Violations"]) {
+        assert(fs.existsSync(path.join(ROOT, browser, "screenshots", `${shot}.png`)), `${browser}/screenshots/${shot}.png`);
+      }
+    }
+    for (const browser of ["firefox", "safari"]) {
+      assert(fs.existsSync(path.join(ROOT, browser, "README.md")), `${browser}/README.md, the port notes`);
+    }
+    for (const tile of ["promo-tile.svg", "marquee.svg"]) {
+      const svg = fs.readFileSync(path.join(ROOT, "chrome", tile), "utf8");
+      assert(svg.includes('href="../icons/icon-original.png"'), `${tile} embeds the master by its path from chrome/`);
+    }
+  });
+
   test("site/'s screenshots and icon are the committed ones, byte for byte", () => {
     const pairs = {
       "site/Main.png": "chrome/screenshots/Main.png",

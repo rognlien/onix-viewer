@@ -9,10 +9,10 @@
 # A --dev build is the store build with the manifest's version_name kept, so
 # About and the extensions page say "X.Y.Z-dev" as an unpacked load does,
 # and it never passes for the store's; the version itself is not bumped.
-# It lands in dist/dev/ under names with no version in them, since it is
-# overwritten and never uploaded: onix-viewer-chrome.zip,
-# onix-viewer-firefox.zip, onix-viewer-safari/ and the Xcode project in
-# dist/dev/safari/. Chrome and Firefox are better served by loading
+# It lands in dist/dev/<browser>/ under names with no version in them, since
+# it is overwritten and never uploaded: onix-viewer-chrome.zip,
+# onix-viewer-firefox.zip, onix-viewer-safari/ and the Xcode project beside
+# it. No listing material comes with it. Chrome and Firefox are better served by loading
 # Resources/ unpacked; the one that matters is Safari's, where running the
 # project from Xcode installs an "ONIX Viewer Dev" app whose extension
 # stays in Safari across quits, unlike a temporary extension. It has a
@@ -20,18 +20,28 @@
 # beside the App Store app rather than replacing it. `npm run build:dev`
 # builds all three.
 #
-# A store build sweeps dist/ of other versions' artefacts first: the
+# A store build sweeps its folder of other versions' artefacts first: the
 # store's copy of every version is on the GitHub release, and stale zips
 # beside the current one have been uploaded by mistake before.
 #
 # Both stores expect the manifest at the zip ROOT (not nested in a folder),
-# so we zip from inside a copy of Resources/. The output goes to
-# dist/chrome/onix-viewer-<version>-chrome.zip for Chrome and
-# dist/firefox/onix-viewer-<version>-firefox.zip for Firefox. Safari takes no zip:
-# the copy is kept as dist/onix-viewer-<version>-safari/ (Safari's
-# Settings → Developer → "Add Temporary Extension…" loads that folder) and
-# Apple's converter wraps it in the Xcode project at dist/safari/, which is
-# what gets built, signed and submitted — see safari/README.md.
+# so we zip from inside a copy of Resources/. Each store gets a folder of
+# its own under dist/ holding everything its upload needs:
+#
+#   dist/chrome/    onix-viewer-<v>-chrome.zip, chrome-listing.md, screenshots/,
+#                   icon-128.png, the promo tile and the marquee
+#   dist/firefox/   onix-viewer-<v>-firefox.zip, onix-viewer-<v>-firefox-source.zip
+#                   (AMO asks for the source, three shipped files being generated),
+#                   firefox-listing.md, screenshots/, icon-128.png
+#   dist/safari/    onix-viewer-<v>-safari/ (the pruned folder, for Safari's
+#                   Settings → Developer → "Add Temporary Extension…"), the Xcode
+#                   project Apple's converter wraps it in (ONIX Viewer/, which is
+#                   what gets built, signed and submitted — see safari/README.md),
+#                   safari-listing.md, screenshots/
+#
+# The listing copy and the screenshots are copies of the committed ones in
+# <browser>/, so the folder is complete on its own and nothing in it is the
+# original.
 #
 # The copy exists for the manifest edits. The committed manifest carries
 # "version_name": "X.Y.Z-dev", which is what chrome://extensions and the
@@ -57,15 +67,14 @@ done
 
 VERSION=$(node -p "require('./Resources/manifest.json').version")
 if [ "$DEV" = 1 ]; then
-  OUT_DIR="dist/dev"
+  OUT_DIR="dist/dev/$TARGET"
   STEM="onix-viewer-$TARGET"
   PRUNE_FLAGS="--dev"
   APP_NAME="ONIX Viewer Dev"
   BUNDLE_ID="io.maendeleo.ONIX-Viewer.dev"
 else
-  OUT_DIR="dist"
-  STEM="onix-viewer-${VERSION}"
-  [ "$TARGET" = "chrome" ] || STEM="$STEM-$TARGET"
+  OUT_DIR="dist/$TARGET"
+  STEM="onix-viewer-${VERSION}-$TARGET"
   PRUNE_FLAGS=""
   APP_NAME="ONIX Viewer"
   BUNDLE_ID="io.maendeleo.ONIX-Viewer"
@@ -79,7 +88,7 @@ if [ "$DEV" = 0 ]; then
   for stale in "$OUT_DIR"/onix-viewer-*; do
     [ -e "$stale" ] || continue
     case "$(basename "$stale")" in
-      "onix-viewer-${VERSION}.zip"|"onix-viewer-${VERSION}-"*) ;;
+      "$STEM"*) ;;
       *) rm -rf "$stale"; echo "  removed stale $stale" ;;
     esac
   done
@@ -102,6 +111,17 @@ check_version_name() {
   fi
 }
 
+# The listing material beside the package: the store's copy of the listing
+# text and the screenshots, and for the two that take one, the 128px icon.
+# Not for a dev build, which is never uploaded.
+assemble_listing() {
+  rsync -a --delete --exclude .DS_Store "$TARGET/screenshots/" "$OUT_DIR/screenshots/"
+  cp "$TARGET/listing.md" "$OUT_DIR/$TARGET-listing.md"
+  [ "$TARGET" = "safari" ] || cp Resources/icons/icon-128.png "$OUT_DIR/icon-128.png"
+  [ "$TARGET" != "chrome" ] || tools/render-tiles.sh "$OUT_DIR"
+  echo "  $OUT_DIR/  <- $TARGET-listing.md, screenshots/$([ "$TARGET" = safari ] || echo ', icon-128.png')"
+}
+
 # Everything shipped, minus .DS_Store and editor cruft.
 cp -R Resources/. "$STAGE"
 find "$STAGE" -name .DS_Store -delete
@@ -116,8 +136,8 @@ if [ "$TARGET" = "safari" ]; then
   # --copy-resources makes the project self-contained (it otherwise
   # references the files by absolute path, which is no good to commit or
   # to move). The generated project is build output, like the zips.
-  PROJECT="$OUT_DIR/safari"
-  rm -rf "$PROJECT"
+  PROJECT="$OUT_DIR"
+  rm -rf "$PROJECT/$APP_NAME"
   xcrun safari-web-extension-converter "$STAGE" \
     --project-location "$PROJECT" \
     --app-name "$APP_NAME" \
@@ -160,6 +180,7 @@ if [ "$TARGET" = "safari" ]; then
   done
   check_version_name "$(cat "$STAGE/manifest.json")" "$STAGE/manifest.json"
   echo
+  [ "$DEV" = 1 ] || assemble_listing
   echo "Wrote $STAGE (load it with Safari → Settings → Developer → Add Temporary Extension…)"
   if [ "$DEV" = 1 ]; then
     echo "Wrote $PROJECT/$APP_NAME/$APP_NAME.xcodeproj (open in Xcode and Run: installs the dev app, and its extension in Safari)"
@@ -181,6 +202,18 @@ fi
 check_version_name "$(unzip -p "$OUT" manifest.json)" "$OUT"
 
 echo
+if [ "$DEV" = 0 ]; then
+  assemble_listing
+  if [ "$TARGET" = "firefox" ]; then
+    # AMO asks for the source whenever the upload holds generated files, and
+    # three shipped files are. The archive is the working tree minus editor
+    # and tool config; the README says how to rebuild the zip from it.
+    SOURCE="$OUT_DIR/$STEM-source.zip"
+    rm -f "$SOURCE"
+    git ls-files -co --exclude-standard | grep -v -E '^(\.idea|\.claude)/' | zip -q -@ "$SOURCE"
+    echo "Wrote $SOURCE"
+  fi
+fi
 echo "Wrote $OUT"
 ls -lh "$OUT" | awk '{print "  size: " $5}'
 echo "  contents:"

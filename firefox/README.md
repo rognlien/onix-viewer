@@ -79,8 +79,8 @@ Two choices in there:
 ### The packager takes a target
 
 ```bash
-tools/package-extension.sh                  # dist/onix-viewer-<v>.zip          Chrome Web Store
-tools/package-extension.sh --target=firefox # dist/onix-viewer-<v>-firefox.zip  addons.mozilla.org
+tools/package-extension.sh                  # dist/chrome/onix-viewer-<v>-chrome.zip    Chrome Web Store
+tools/package-extension.sh --target=firefox # dist/firefox/onix-viewer-<v>-firefox.zip  addons.mozilla.org
 ```
 
 Both drop `version_name`. The Chrome build also drops

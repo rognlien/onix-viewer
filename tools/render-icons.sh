@@ -112,9 +112,8 @@ echo "  site/icon-128.png  <- icon-128.png"
 
 mkdir -p dist/chrome
 cp "$OUT_DIR/icon-128.png" dist/chrome/icon-128.png
-rsvg-convert -w 440  -h 280 chrome/promo-tile.svg -o dist/chrome/promo-tile-440x280.png
-rsvg-convert -w 1400 -h 560 chrome/marquee.svg    -o dist/chrome/marquee-1400x560.png
-echo "  dist/chrome/      <- icon-128, promo-tile-440x280, marquee-1400x560"
+echo "  dist/chrome/icon-128.png  <- icon-128.png"
+tools/render-tiles.sh dist/chrome
 
 echo
 node tools/check-icons.js

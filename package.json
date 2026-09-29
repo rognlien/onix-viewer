@@ -12,6 +12,7 @@
     "test:firefox": "node tests/browser/firefox.js",
     "check:icons": "node tools/check-icons.js",
     "icons": "tools/render-icons.sh",
+    "build": "tools/package-extension.sh --target=chrome && tools/package-extension.sh --target=firefox && tools/package-extension.sh --target=safari",
     "build:dev": "tools/package-extension.sh --dev --target=chrome && tools/package-extension.sh --dev --target=firefox && tools/package-extension.sh --dev --target=safari",
     "clean": "rm -rf dist",
     "screenshots:chrome": "node tools/screenshots.js chrome",

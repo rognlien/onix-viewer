@@ -162,17 +162,13 @@ is the tree, `CodeList.png` the code-list popup, `Violations.png` the
 findings list. `firefox/screenshots/` is the same set from Firefox, for AMO.
 
 The icon and the two promo tiles are **generated**, so they are not committed —
-`dist/` is gitignored in full. `npm run icons` rebuilds them into
-`dist/chrome/` along with the shipped icon sizes, which is these three
-commands after the render:
+`dist/` is gitignored in full. The Chrome package build
+(`tools/package-extension.sh --target=chrome`) puts them in `dist/chrome/`
+beside the zip, with a copy of this file and the screenshots, and `npm run
+icons` re-renders the tiles there when the artwork changes; the tiles
+themselves are `tools/render-tiles.sh`.
 
-```bash
-cp Resources/icons/icon-128.png dist/chrome/icon-128.png
-rsvg-convert -w 440  -h 280 chrome/promo-tile.svg -o dist/chrome/promo-tile-440x280.png
-rsvg-convert -w 1400 -h 560 chrome/marquee.svg    -o dist/chrome/marquee-1400x560.png
-```
-
-Do not keep screenshots in `dist/chrome/` as well. There were two there from
+The screenshots in `dist/chrome/` are copies the build makes; the originals are `chrome/screenshots/`. There were once two kept by hand in the upload folder from
 May, and because nothing kept them in sync with the committed set they quietly
 went two UI revisions out of date while the committed pair moved on.
 

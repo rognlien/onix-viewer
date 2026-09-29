@@ -10,11 +10,10 @@ and the README.
 
 ```bash
 tools/package-extension.sh --target=firefox
-# → dist/firefox/onix-viewer-<version>-firefox.zip, the manifest pruned for Firefox
-
-git ls-files -co --exclude-standard | grep -v -E '^(\.idea|\.claude)/' \
-  | zip -q -@ dist/onix-viewer-<version>-source.zip
-# → the source archive AMO asks for, since three shipped files are generated
+# → dist/firefox/: onix-viewer-<version>-firefox.zip, the manifest pruned for
+#   Firefox; onix-viewer-<version>-firefox-source.zip, the source archive AMO
+#   asks for, since three shipped files are generated; and beside them this
+#   file, the screenshots and the 128px icon, for the upload forms
 ```
 
 Upload the first at https://addons.mozilla.org/developers/ → the add-on →
