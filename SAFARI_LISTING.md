@@ -127,8 +127,10 @@ takes up to ten. Use:
    automation windows are isolated like private browsing, where the
    extension is off), so the script uses the Safari you have open: it
    opens a tab on the served sample in the front window, sizes the window
-   until the viewport is exactly 1280 × 800, captures that rectangle with
-   `screencapture`, opens the two popups by script, and closes the tab.
+   until the viewport is exactly 1280 × 800, captures the window with
+   `screencapture` and crops the viewport out of it (a window is captured
+   wherever it sits, where a screen rectangle that hangs off a 900-row
+   display is refused), opens the two popups by script, and closes the tab.
    Before the first run, once each: the extension on and allowed on
    127.0.0.1 in that window's profile; Safari → Settings → Developer →
    *Allow JavaScript from Apple Events*; and Screen Recording for the

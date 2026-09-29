@@ -26,9 +26,14 @@
 // is not on. So the Safari set is taken from the Safari you use — the
 // extension enabled and allowed on 127.0.0.1 in the profile of the front
 // window — by AppleScript: a tab is opened on the served sample, the window
-// sized until the page's viewport is exactly 1280×800, and that rectangle of
-// the screen captured with screencapture. The captures are 2560×1600 on a
-// Retina display, which the App Store accepts as it does 1280×800. It needs
+// sized until the page's viewport is exactly 1280×800, the window captured
+// by its id with screencapture, and the viewport cropped out of the bottom
+// of that image. A window capture rather than a screen rectangle because
+// the window may hang off the bottom of a 900-row display — 800 rows of
+// page plus Safari's own chrome — and screencapture refuses a rectangle
+// that leaves the screen, while a window is captured wherever it sits. The
+// captures are 2560×1600 on a Retina display, which the App Store accepts
+// as it does 1280×800. It needs
 // two switches, each once: Safari → Settings → Developer → "Allow JavaScript
 // from Apple Events", which is how the script reads the page and opens the
 // popups, and Screen Recording for the terminal in System Settings →
@@ -192,10 +197,10 @@ function safariBounds() {
 }
 
 // Sizes the front window until the page's viewport is WIDTH × HEIGHT, and
-// returns that rectangle in screen points. The window's chrome is measured
-// rather than assumed: the tab bar comes and goes.
+// returns the window's id and size in points. The window's chrome is
+// measured rather than assumed: the tab bar comes and goes.
 function safariViewport() {
-  let [left, top] = [40, 60];
+  let [left, top] = [40, 40];
   let [width, height] = [WIDTH, HEIGHT + 100];
   for (let attempt = 0; attempt < 3; attempt += 1) {
     osascript(`tell application "Safari" to set bounds of front window to {${left}, ${top}, ${left + width}, ${top + height}}`);
@@ -207,12 +212,21 @@ function safariViewport() {
     width = outer[2] - outer[0];
     height = outer[3] - outer[1];
     if (inner[0] === WIDTH && inner[1] === HEIGHT) {
-      return { x: left, y: outer[3] - HEIGHT, width: WIDTH, height: HEIGHT };
+      const id = Number(osascript('tell application "Safari" to get id of front window'));
+      return { id, width, height };
     }
     width += WIDTH - inner[0];
     height += HEIGHT - inner[1];
   }
   throw new Error("Safari: could not size the window to a 1280×800 viewport");
+}
+
+function pngSize(file) {
+  const header = Buffer.alloc(24);
+  const fd = fs.openSync(file, "r");
+  fs.readSync(fd, header, 0, 24, 0);
+  fs.closeSync(fd);
+  return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
 }
 
 function systemDarkMode(value) {
@@ -234,10 +248,21 @@ async function safariOpen(url) {
   await safariWait("document.fonts.status === 'loaded'", "fonts");
 }
 
-function safariCapture(rect, name) {
+// The window without its shadow, then the viewport: the bottom HEIGHT points
+// of it, at whatever scale the display captured (the image's width over the
+// window's width in points; 2 on a Retina display).
+function safariCapture(win, name) {
   const file = path.join(OUT, `${name}.png`);
-  execFileSync("screencapture", ["-x", "-R", `${rect.x},${rect.y},${rect.width},${rect.height}`, file]);
-  console.log(`  wrote ${path.relative(ROOT, file)}`);
+  const whole = path.join(OUT, `.${name}-window.png`);
+  execFileSync("screencapture", ["-x", "-o", "-l", String(win.id), whole]);
+  const scale = pngSize(whole).width / win.width;
+  execFileSync("sips", [
+    "-c", String(Math.round(HEIGHT * scale)), String(Math.round(WIDTH * scale)),
+    "--cropOffset", String(Math.round((win.height - HEIGHT) * scale)), "0",
+    whole, "--out", file,
+  ], { stdio: "ignore" });
+  fs.unlinkSync(whole);
+  console.log(`  wrote ${path.relative(ROOT, file)} (${scale}x)`);
 }
 
 async function safariShots(url) {
@@ -245,21 +270,21 @@ async function safariShots(url) {
   if (wasDark) systemDarkMode(false);
   try {
     await safariOpen(url);
-    const rect = safariViewport();
+    const win = safariViewport();
     console.log(`safari: ${safariEval("document.getElementById('oxv-meta').textContent.trim()")}, ` +
       `${safariEval("document.getElementById('oxv-validation').textContent.trim()")}`);
     await new Promise((resolve) => setTimeout(resolve, 500));
-    safariCapture(rect, "Main");
+    safariCapture(win, "Main");
     safariEval(`[...document.querySelectorAll('#oxv-root .px-row')]
       .find((r) => r.querySelector('.px-tag-name')?.textContent === 'NotificationType')
       .querySelector('.px-codelist-link').click()`);
     await safariWait("!!document.querySelector('.px-popup-overlay:not([hidden]) #px-popup-title')", "the code-list popup");
-    safariCapture(rect, "CodeList");
+    safariCapture(win, "CodeList");
     safariEval("OnixViewerPopup.close()");
     await safariWait("!document.querySelector('.px-popup-overlay:not([hidden])')", "the popup to close");
     safariEval("document.getElementById('oxv-validation').click()");
     await safariWait("!document.getElementById('oxv-findings').hidden", "the findings list");
-    safariCapture(rect, "Violations");
+    safariCapture(win, "Violations");
   } finally {
     osascript('tell application "Safari" to close current tab of front window');
     if (wasDark) systemDarkMode(true);
