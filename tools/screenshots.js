@@ -254,7 +254,18 @@ async function safariOpen(url) {
 function safariCapture(win, name) {
   const file = path.join(OUT, `${name}.png`);
   const whole = path.join(OUT, `.${name}-window.png`);
-  execFileSync("screencapture", ["-x", "-o", "-l", String(win.id), whole]);
+  try {
+    execFileSync("screencapture", ["-x", "-o", "-l", String(win.id), whole], { stdio: "pipe" });
+  } catch (error) {
+    // "could not create image from window" is what macOS 15 and later say
+    // when the process has no Screen Recording permission: the window
+    // server returns nothing at all, not a picture without other apps'
+    // windows. The permission is read at launch, so the terminal has to be
+    // reopened after granting it.
+    throw new Error("screencapture could not read the Safari window. Grant Screen Recording to the app " +
+      "you run npm from (System Settings → Privacy & Security → Screen & System Audio Recording), " +
+      `quit and reopen it, and run again. (${String(error.stderr || error.message).trim()})`);
+  }
   const scale = pngSize(whole).width / win.width;
   execFileSync("sips", [
     "-c", String(Math.round(HEIGHT * scale)), String(Math.round(WIDTH * scale)),
