@@ -50,6 +50,8 @@ describe("Store manifests", () => {
     const gecko = pruned.browser_specific_settings.gecko;
     assert(gecko.id === manifest.browser_specific_settings.gecko.id, "the add-on id");
     assert(gecko.data_collection_permissions, "the data-collection declaration AMO requires");
+    assert(pruned.browser_specific_settings.gecko_android.strict_min_version === "142.0",
+      "Firefox for Android 142, where data_collection_permissions arrived");
   });
 
   test("Safari's has its own minimum version and a description within Apple's 112 characters", () => {
