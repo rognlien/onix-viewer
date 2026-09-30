@@ -30,7 +30,7 @@ behind it, or Gecko's source, not from memory.
 | Fact | Source |
 |---|---|
 | Firefox has supported `browser_specific_settings.gecko.id` as **mandatory for Manifest V3** — `web-ext lint` reports `ADDON_ID_REQUIRED` as an error on the unmodified manifest, so Firefox will not even load it temporarily. | `web-ext lint` on `Resources/` |
-| `data_collection_permissions` is **mandatory for new AMO submissions since 3 November 2025**. `{ "required": ["none"] }` is the correct value for an extension that collects nothing. Firefox 140 introduced the key. | MDN `browser_specific_settings`; `web-ext lint` |
+| `data_collection_permissions` is **mandatory for new AMO submissions since 3 November 2025**. `{ "required": ["none"] }` is the correct value for an extension that collects nothing. Firefox 140 introduced the key, Firefox for Android 142. | MDN `browser_specific_settings`; `web-ext lint` |
 | Content-script host access is **granted at install from Firefox 127**. Before that, MV3 host permissions — `content_scripts.matches` included — were optional and the user had to grant each site from the toolbar popover, which would have left the extension inert until clicked. | extensionworkshop.com MV3 migration guide |
 | `match_origin_as_fallback` (the blob: URL support) is in **Firefox 128**. `world` arrived at the same time. | MDN compat data, `content_scripts.json` |
 | `version_name` is **not supported** in Firefox; `minimum_chrome_version` is a Chrome key. Firefox loads a manifest with unknown keys and warns. | MDN compat data, `version_name.json` |
@@ -53,6 +53,9 @@ behind it, or Gecko's source, not from memory.
     "id": "onix-viewer@maendeleo.io",
     "strict_min_version": "140.0",
     "data_collection_permissions": { "required": ["none"] }
+  },
+  "gecko_android": {
+    "strict_min_version": "142.0"
   }
 }
 ```
@@ -65,13 +68,17 @@ layout is built around (see *Two icon directories, and why* in `CLAUDE.md`).
 Each browser prints a warning about the other's keys on its extensions page;
 the store builds carry neither, below.
 
-Two choices in there:
+Three choices in there:
 
 - **`strict_min_version` is 140, not 128.** The extension needs nothing
   past 128 (`match_origin_as_fallback`; `content-visibility` is 125). But
   `data_collection_permissions` is a 140 key, and `web-ext lint` warns when
   the minimum predates a key the manifest uses. 140 is the ESR of the day
   and silences the warning at no cost.
+- **Firefox for Android's minimum is 142**, in `gecko_android`. The key
+  reached Android two releases after desktop, and without a minimum of its
+  own Android inherits `gecko`'s 140, which AMO flags on upload: "Manifest
+  key not supported by the specified minimum Firefox for Android version".
 - **The id is an email-form string** on the site's domain, which is what
   MDN recommends over a GUID. It is what AMO will bind the listing to on
   first upload and must never change afterwards.
