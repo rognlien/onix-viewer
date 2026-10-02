@@ -23,6 +23,9 @@ const FIXTURES = path.join(__dirname, "fixtures");
 const SAMPLES = path.join(ROOT, "Onix");
 
 const codelistsJs = fs.readFileSync(path.join(RES, "onix-codelists.js"), "utf8");
+// content.js sends Thema only to a document naming a Thema scheme; without
+// one it resolves nothing, so the suite loads it for every document.
+const themaJs = fs.readFileSync(path.join(RES, "onix-thema.js"), "utf8");
 const contentModelFor = {
   "3.1": fs.readFileSync(path.join(RES, "onix-content-model-3.1.js"), "utf8"),
   "3.0": fs.readFileSync(path.join(RES, "onix-content-model-3.0.js"), "utf8"),
@@ -134,6 +137,7 @@ function renderSource(xml, label, beforeScripts, models) {
   if (beforeScripts) beforeScripts(window);
 
   window.eval(codelistsJs);
+  window.eval(themaJs);
   // Production ships only the model matching the document's release (see
   // content.js's contentModelURLs); most tests load both, which is the
   // superset, but a test can pin the exact set the content script would send.

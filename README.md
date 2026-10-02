@@ -33,6 +33,9 @@ searchable tree, and adds:
   reference names or a reference file under short tags. Copying follows the
   view: at the file's own dialect the copy is the source byte for byte,
   translated it is the converted ONIX with the matching namespace.
+- **Thema.** A `<SubjectCode>` under a Thema scheme (93 to 99) shows its
+  English heading, `FYT → Fiction in translation`, and a code the bundled
+  Thema 1.6 lacks is reported as a warning.
 - **Download.** Saves the document as shown, so a translated view downloads
   the converted file, named `feed-short-tags.xml` or
   `feed-reference-names.xml`.

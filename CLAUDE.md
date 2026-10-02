@@ -43,6 +43,8 @@ onix-viewer/
 │   ├── viewer.css                  theme tokens (light + dark via prefers-color-scheme)
 │   ├── onix.js                     ONIX detector, codelist resolver, summaries
 │   ├── onix-codelists.js           ALL EDItEUR ONIX 3.1 code lists + short-tag map (auto-generated, ~231 KB)
+│   ├── onix-thema.js               every Thema 1.6 code with its English heading (auto-generated, ~335 KB;
+│   │                               injected only into documents that use a Thema scheme)
 │   ├── onix-content-model-3.1.js   ONIX 3.1.3 content model for validation (auto-generated, ~66 KB)
 │   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~62 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
@@ -70,6 +72,7 @@ onix-viewer/
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources
 │   ├── generate-codelists.js       generates Resources/onix-codelists.js
+│   ├── generate-thema.js           generates Resources/onix-thema.js
 │   ├── generate-content-model.js   generates Resources/onix-content-model.js
 │   ├── release.sh                  bumps version, commits, tags
 │   ├── publish-site.sh             syncs site/ into the maendeleo-site repo, commits, pushes
@@ -78,6 +81,7 @@ onix-viewer/
 │   ├── oracle-xmllint.js           the content models against libxml2 and EDItEUR's own XSDs (npm run test:oracle)
 │   └── data/
 │       ├── onix-codelists.json     EDItEUR Issue 74 codelists (input)
+│       ├── thema-codes.json        EDItEUR Thema 1.6 codes, English (input)
 │       ├── ONIX_BookProduct_3.1_reference.xsd  (input, bindings + 3.1 content model)
 │       ├── ONIX_BookProduct_3.0_reference.xsd  (input, 3.0 content model)
 │       ├── ONIX_BookProduct_3.0_short.xsd      (input, 3.0 short tags)
@@ -1758,6 +1762,48 @@ The generator also writes `window.OnixViewerShortTags` (the short-tag map) and `
 
 **To bump issues**: replace `tools/data/onix-codelists.json` with EDItEUR's next release from `https://www.editeur.org/files/ONIX%20for%20books%20-%20code%20lists/`, re-run the generator, and the new issue number propagates everywhere (toolbar, comments, metadata).
 
+## Thema subject codes
+
+A `<SubjectCode>` under `<SubjectSchemeIdentifier>` 93 to 99 is a Thema
+code, and gets the same treatment as a second-order code list: a heading
+badge, a **`Thema 1.6`** chip that opens the scheme in the code-list popup
+(Cmd-click goes to the code's page in EDItEUR's Thema browser), and a
+finding when the code is not there. Thema is one list in seven ONIX schemes —
+the subject categories, which start with a letter, are 93, and the qualifier
+families 1 to 6 are 94 to 99 — so `tools/generate-thema.js` splits it by
+the code's first character, and a qualifier given as a subject category is
+reported rather than resolved.
+
+It plugs in where the second-order lists do: `boundList()` in `onix.js`
+falls back to `themaScheme()`, the key is `thema:93` and so on, and
+`codelistMeta()` and `codelistEntries()` understand that form, so the
+badge, the popup and the `codelist` rule need no Thema code of their own.
+The meta carries `source` (`ONIX List 98` or `Thema 1.6`) for the badge's
+tooltip and `thema` (`{ scheme, version }`) for the rule and the popup.
+
+Three decisions:
+
+- **Only a document that uses it is sent it.** The file is 335 KB (104 KB
+  gzipped), more than the ONIX code lists, so `content.js`'s `themaURLs()`
+  injects it only when the source names a Thema scheme — reference or short
+  tag, prefixed or not. The browser test checks both sides; the jsdom suite
+  loads it for every document, where it is inert without a Thema scheme.
+- **An unknown code is a warning**, `codelist.thema`, not an error. Thema
+  grows between versions, so a code the bundled version lacks may simply
+  be newer. `<SubjectSchemeVersion>` is not read:
+  the newest version is a superset of the older ones, as with ONIX.
+- **The data is packed.** Each scheme is one string of `code<TAB>heading`
+  lines, split into a Map at load. Written as Map literals the punctuation
+  and indentation of 9,187 entries were a third of the file.
+
+Headings are English. EDItEUR publishes the same codes in 28 languages; a
+second language would be a second generated file chosen the same way.
+
+To bump the version, replace `tools/data/thema-codes.json` with the English
+JSON from `https://www.editeur.org/151/Thema/` and run
+`node tools/generate-thema.js`; CI diffs the output like the other
+generated files.
+
 ## The structure pane, removed
 
 There used to be a second view — a right pane rendering Products as
@@ -1798,6 +1844,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerCodeListMeta` — element-name → `{ listNumber, title }` for EDItEUR list links
 - `window.OnixViewerShortTags` — generated short-tag → reference-name pairs (lower-cased keys); `onix.js` builds `SHORT_TO_REFERENCE` from it
 - `window.OnixViewerCodeListSchema` — `{ version, issue, releaseDate }` for the toolbar pill
+- `window.OnixViewerThema` — `{ version, lastUpdated, schemes }`, a `Map<code, heading>` per Thema scheme `"93"`…`"99"`; present only when `content.js` sent `onix-thema.js`
 - `window.OnixViewerPopup` — code-list modal (`show(codelistKey, currentValue?, context?)`, `close()`); the key is an element name or `list:N` for a list no element binds
 - `window.OnixViewerContentModels` — compiled content models keyed by ONIX release (`"3.0"`, `"3.1"`)
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
@@ -1864,7 +1911,7 @@ refactor:
 
 `web_accessible_resources` is the one broad-looking entry that isn't a
 permission, and *is* asked about: the viewer runs in the page's world, so the
-page has to be allowed to load the nine scripts, the stylesheet and the icon
+page has to be allowed to load the ten scripts, the stylesheet and the icon
 that `content.js` appends. It exposes only static files that are public in this
 repository, and grants a page none of the extension's privileges — of which
 there are none. `SECURITY.md` and `chrome/listing.md` both spell that out.

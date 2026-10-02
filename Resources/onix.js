@@ -232,6 +232,24 @@
     return `list:${listNumber}`;
   }
 
+  // Thema is one code list in seven ONIX subject schemes, 93 to 99, and not
+  // an ONIX list at all: it is bundled apart, in onix-thema.js, which
+  // content.js sends only to a document that uses it. A <SubjectCode> under
+  // one of those schemes resolves through it, keyed `thema:93` and so on.
+  const THEMA_KEY = /^thema:(\d+)$/;
+  const THEMA_URL = "https://ns.editeur.org/thema/en";
+
+  function themaScheme(element) {
+    let result = null;
+    const thema = window.OnixViewerThema;
+    if (thema && referenceName(element) === "SubjectCode") {
+      const typeElement = siblingNamed(element, "SubjectSchemeIdentifier");
+      const typeCode = typeElement ? (typeElement.textContent || "").trim() : "";
+      if (thema.schemes[typeCode]) result = { typeElement, typeCode, leading: false };
+    }
+    return result;
+  }
+
   // Direct-child element names that mark an un-namespaced <Product> root as
   // genuine ONIX. <Product> alone is too generic to trust (plenty of non-ONIX
   // vocabularies use it), so a standalone Product is only treated as ONIX when
@@ -463,7 +481,10 @@
         listName: meta.listName,
         listNumber: meta.listNumber,
         title: meta.title,
-        url: meta.url,
+        source: meta.source,
+        thema: meta.thema,
+        url: meta.thema && codelistEntries(meta.key).has(value)
+          ? `${meta.url}/${encodeURIComponent(value)}` : meta.url,
         selector,
         context: selector ? `${element.localName || element.nodeName} when ${selector.name} is ${selector.code}` : null,
       };
@@ -513,7 +534,9 @@
       bound = { key: name, dependent: null };
     } else {
       const dependent = dependentCodelist(element);
+      const thema = dependent ? null : themaScheme(element);
       if (dependent) bound = { key: listKey(dependent.listNumber), dependent };
+      else if (thema) bound = { key: `thema:${thema.typeCode}`, dependent: thema };
     }
     return bound;
   }
@@ -535,14 +558,40 @@
   function codelistMeta(name) {
     let result = null;
     const byNumber = LIST_KEY.exec(String(name || ""));
+    const thema = THEMA_KEY.exec(String(name || ""));
     const meta = byNumber ? metaForListNumber(Number(byNumber[1])) : (window.OnixViewerCodeListMeta || {})[name];
-    if (meta) {
+    if (thema) {
+      result = themaMeta(name, thema[1]);
+    } else if (meta) {
       result = {
         key: name,
         listName: `List ${meta.listNumber}`,
         listNumber: meta.listNumber,
         title: meta.title || null,
+        source: `ONIX List ${meta.listNumber}`,
+        thema: null,
         url: `https://ns.editeur.org/onix/en/${meta.listNumber}`,
+      };
+    }
+    return result;
+  }
+
+  // The scheme's own name comes from List 27, where 93 is "Thema subject
+  // category" and 94 "Thema place qualifier".
+  function themaMeta(key, scheme) {
+    let result = null;
+    const thema = window.OnixViewerThema;
+    if (thema && thema.schemes[scheme]) {
+      const schemes = (window.OnixViewerCodeLists || {}).SubjectSchemeIdentifier;
+      const listName = `Thema ${thema.version}`;
+      result = {
+        key,
+        listName,
+        listNumber: null,
+        title: (schemes && schemes.get(scheme)) || listName,
+        source: listName,
+        thema: { scheme, version: thema.version },
+        url: THEMA_URL,
       };
     }
     return result;
@@ -566,9 +615,14 @@
    */
   function codelistEntries(name) {
     const byNumber = LIST_KEY.exec(String(name || ""));
+    const thema = THEMA_KEY.exec(String(name || ""));
     const lists = window.OnixViewerCodeLists || {};
     const numbered = window.OnixViewerCodeListsByNumber || {};
-    return (byNumber ? numbered[Number(byNumber[1])] : lists[name]) || null;
+    const themaSchemes = window.OnixViewerThema ? window.OnixViewerThema.schemes : {};
+    let entries = lists[name];
+    if (byNumber) entries = numbered[Number(byNumber[1])];
+    else if (thema) entries = themaSchemes[thema[1]];
+    return entries || null;
   }
 
   /**

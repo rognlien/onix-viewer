@@ -25,7 +25,7 @@ This document explains how ONIX Viewer handles page content, what permissions it
     "js": ["shell.js", "content.js"]
   }],
   "web_accessible_resources": [{
-    "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js",
+    "resources": ["viewer.css","viewer.js","onix.js","onix-codelists.js","onix-thema.js",
                   "onix-content-model-3.1.js","onix-content-model-3.0.js",
                   "onix-validate.js","onix-schematron.js","onix-popup.js",
                   "icons/icon-28.png","icons/icon-56.png"],

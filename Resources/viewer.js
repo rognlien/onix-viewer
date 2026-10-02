@@ -451,7 +451,7 @@
     badge.className = "px-codelist";
     badge.textContent = `\u2192 ${resolved.label}`;
     badge.title = resolved.context
-      ? `${resolved.context}: code resolved via ONIX ${resolved.listName}`
+      ? `${resolved.context}: code resolved via ${resolved.source}`
       : `${el.localName || el.nodeName}: code resolved via ONIX code list`;
     row.appendChild(badge);
     if (resolved.url) row.appendChild(buildListLink(resolved));

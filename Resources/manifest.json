@@ -47,6 +47,7 @@
         "viewer.js",
         "onix.js",
         "onix-codelists.js",
+        "onix-thema.js",
         "onix-content-model-3.1.js",
         "onix-content-model-3.0.js",
         "onix-validate.js",

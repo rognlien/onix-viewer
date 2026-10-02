@@ -233,6 +233,15 @@
     return MODEL_VERSIONS.map(modelURL);
   }
 
+  // Thema is a third of a megabyte of headings, so only a document that
+  // names one of its seven subject schemes, 93 to 99, is sent it. The tag
+  // may be the reference name or the short tag, prefixed or not.
+  const THEMA_SCHEME = /<(?:[\w.-]+:)?(?:SubjectSchemeIdentifier|b067)(?:\s[^>]*)?>\s*9[3-9]\s*</;
+
+  function themaURLs(xml) {
+    return THEMA_SCHEME.test(xml || "") ? [browserAPI().runtime.getURL("onix-thema.js")] : [];
+  }
+
   function modelURL(version) {
     return browserAPI().runtime.getURL(`onix-content-model-${version}.js`);
   }
@@ -394,6 +403,7 @@
     const logoURL2x = browserAPI().runtime.getURL("icons/icon-56.png");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
     const modelURLs = contentModelURLs(xmlSource);
+    const thema = themaURLs(xmlSource);
     const onixURL = browserAPI().runtime.getURL("onix.js");
     const validateURL = browserAPI().runtime.getURL("onix-validate.js");
     const schematronURL = browserAPI().runtime.getURL("onix-schematron.js");
@@ -445,7 +455,7 @@
     // Inject viewer scripts in order. async=false preserves insertion order,
     // which matters: the data files must define their globals before onix.js
     // and viewer.js read them.
-    [codelistsURL, ...modelURLs, onixURL, validateURL, schematronURL,
+    [codelistsURL, ...thema, ...modelURLs, onixURL, validateURL, schematronURL,
      popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);

@@ -148,13 +148,15 @@ the response Content-Type and a sniff of the source. No background page. No
 remote code. One network request in the whole bundle: a same-origin
 re-fetch of the page's own URL, to read the XML source.
 
-Generated files: Resources/onix-codelists.js, onix-content-model-3.0.js and
-onix-content-model-3.1.js are written by the generators in tools/ from the
-committed inputs in tools/data/ (EDItEUR's code-list JSON and XSDs). The
+Generated files: Resources/onix-codelists.js, onix-thema.js,
+onix-content-model-3.0.js and onix-content-model-3.1.js are written by the
+generators in tools/ from the committed inputs in tools/data/ (EDItEUR's
+code-list JSON, Thema JSON and XSDs). The
 source archive is the whole repository; to rebuild, with Node 20 or later:
 
   npm ci
   node tools/generate-codelists.js
+  node tools/generate-thema.js
   node tools/generate-content-model.js --version=3.1
   node tools/generate-content-model.js --version=3.0
   tools/package-extension.sh --target=firefox

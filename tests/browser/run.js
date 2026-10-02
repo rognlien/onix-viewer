@@ -227,6 +227,21 @@ async function takeover(browser, served) {
     await page.close();
   });
 
+  await test("Thema is sent to a document naming a Thema scheme, and to no other", async () => {
+    const themaPage = await open(browser, served.url("onix-3.1-refnames.xml"));
+    const withThema = await themaPage.evaluate(() => ({
+      loaded: Boolean(window.OnixViewerThema),
+      badges: [...document.querySelectorAll("#oxv-root .px-codelist")].map((b) => b.textContent),
+    }));
+    await themaPage.close();
+    assert(withThema.loaded, "the sample's Thema subjects should bring onix-thema.js");
+    assert(withThema.badges.some((b) => b.includes("Fiction in translation")), "FYT should resolve");
+    const plainPage = await open(browser, served.url("onix-3.1-valid.xml"));
+    const loaded = await plainPage.evaluate(() => Boolean(window.OnixViewerThema));
+    await plainPage.close();
+    assert(!loaded, "a document without Thema should not load it");
+  });
+
   await test("the About window shows the manifest version, marked -dev for an unpacked load", async () => {
     // The store stamps update_url into the manifest it serves; this load has
     // none, so content.js appends -dev. A store copy would show the bare

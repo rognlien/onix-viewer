@@ -124,7 +124,7 @@
       note.className = "px-popup-note";
       note.textContent =
         `Code "${currentValue}" isn't defined in this list. ` +
-        `It may be from a newer ONIX issue, or an error in the document.`;
+        `It may be from a newer ${meta.thema ? "Thema version" : "ONIX issue"}, or an error in the document.`;
       body.appendChild(note);
     }
 

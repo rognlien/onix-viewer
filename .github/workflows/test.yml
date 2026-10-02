@@ -28,16 +28,18 @@ jobs:
       # inside a page are the class of slip no fixture exercises.
       - run: npm run lint
 
-      # Resources/onix-codelists.js and the two content models are generated
+      # Resources/onix-codelists.js, onix-thema.js and the two content models are generated
       # from the XSDs and JSON in tools/data/. Editing an input without
       # re-running the generator leaves the extension shipping stale data that
       # nothing else would catch, so regenerate and require no diff.
       - name: Generated files are in sync with tools/data
         run: |
           node tools/generate-codelists.js
+          node tools/generate-thema.js
           node tools/generate-content-model.js --version=3.1
           node tools/generate-content-model.js --version=3.0
           GENERATED="Resources/onix-codelists.js \
+            Resources/onix-thema.js \
             Resources/onix-content-model-3.1.js \
             Resources/onix-content-model-3.0.js"
           if ! git diff --exit-code --stat -- $GENERATED; then

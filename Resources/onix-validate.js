@@ -49,6 +49,7 @@
     "datatype.range": "\"{value}\" is out of range for {type}",
     "codelist.unknown": "\"{value}\" is not in List {list} ({title})",
     "codelist.dependent": "\"{value}\" is not in List {list} ({title}), which applies when <{type}> is {typeCode}",
+    "codelist.thema": "\"{value}\" is not a code in Thema {version} ({title}), which applies when <{type}> is {typeCode}",
     "codelist.deprecated": "\"{value}\" ({label}) was deprecated in List {list} at issue {issue}",
     // {since} and {advice} carry their own leading connective, because EDItEUR
     // supplies neither for every element: a 3.0 note names the replacement but
@@ -67,6 +68,7 @@
   // is conservative until it says otherwise.
   const SEVERITIES = Object.assign(Object.create(null), {
     "codelist.deprecated": "warning",
+    "codelist.thema": "warning",
     // Still valid ONIX — the schema accepts it, EDItEUR asks you to stop.
     "element.deprecated": "warning",
     "attribute.deprecated": "warning",
@@ -580,6 +582,12 @@
         api.report("codelist.deprecated", node, {
           value: found.value, list: found.listNumber, issue: problem.issue, label: problem.label,
         });
+      } else if (found.thema) {
+        // A warning, not an error: Thema grows between versions, and a code
+        // newer than the bundled one is not wrong for being unknown here.
+        api.report("codelist.thema", node, Object.assign(data, {
+          version: found.thema.version, type: found.selector.name, typeCode: found.selector.code,
+        }));
       } else if (found.selector) {
         // Say why that list applies: the reader's file may not make it obvious
         // that <ProductFormFeatureValue> is a colour here and a file format

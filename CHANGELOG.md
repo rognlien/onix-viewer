@@ -6,6 +6,11 @@ the main branch.
 ## Unreleased
 
 ### Added
+- **Thema subject codes.** A `<SubjectCode>` under one of the seven Thema
+  schemes, 93 to 99, shows its English heading from Thema 1.6
+  (`FYT → Fiction in translation`), with a chip that opens the scheme's
+  codes, and a code Thema does not have is a warning. The Thema data is
+  sent only to documents that use it.
 - **Download.** A toolbar button beside Copy XML saves the document as it
   is shown: the file itself at its own dialect, the converted ONIX while the
   view is translated, named for the dialect (`feed-short-tags.xml`,
