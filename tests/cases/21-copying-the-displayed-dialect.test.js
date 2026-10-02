@@ -86,6 +86,58 @@ describe("Copying the displayed dialect", () => {
     assert(converted.includes("<ONIXmessage "), "the root should use the short spelling");
   });
 
+  // Download builds a Blob, hands it to an anchor with a download attribute
+  // and clicks it. jsdom has no object URLs and navigates nowhere, so this
+  // stands in for all three and records what the browser would have saved.
+  function downloadAll(window) {
+    const saved = { text: null, type: null, name: null, href: null };
+    window.Blob = function (parts, options) {
+      saved.text = parts.join("");
+      saved.type = options.type;
+    };
+    window.URL.createObjectURL = () => "blob:https://example.com/oxv-test";
+    window.URL.revokeObjectURL = () => {};
+    window.HTMLAnchorElement.prototype.click = function () {
+      saved.name = this.download;
+      saved.href = this.getAttribute("href");
+    };
+    window.document.querySelector('[data-action="download-xml"]').click();
+    return saved;
+  }
+
+  test("untranslated, Download saves the source under the file's own name", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    const source = fs2.readFileSync(path.join(FIXTURES, "onix-3.0-short-codelists.xml"), "utf8");
+    const saved = downloadAll(w);
+    assert(saved.text === source, "an untouched view must download the file unchanged");
+    assert(saved.type === "application/xml", `got type ${saved.type}`);
+    assert(saved.name === "onix-3.0-short-codelists.xml", `got name ${saved.name}`);
+    assert(saved.href === "blob:https://example.com/oxv-test", "the link should point at the blob");
+    assert(!w.document.querySelector("a[download]"), "the temporary link should be removed");
+  });
+
+  test("translated, Download saves the converted document, named for its dialect", () => {
+    const w = render("onix-3.0-short-codelists.xml");
+    flip(w);
+    const copied = copyAll(w).text;
+    const saved = downloadAll(w);
+    assert(saved.text === copied, "the download should be what Copy XML hands over");
+    assert(saved.name === "onix-3.0-short-codelists-reference-names.xml", `got name ${saved.name}`);
+  });
+
+  test("a reference file translated to short tags is named for short tags", () => {
+    const w = render("onix-3.0-reference.xml");
+    flip(w);
+    assert(downloadAll(w).name === "onix-3.0-reference-short-tags.xml", "suffix should follow the dialect");
+  });
+
+  test("Download carries an icon and a label that narrow windows can hide", () => {
+    const w = render("onix-3.0-reference.xml");
+    const button = w.document.querySelector('[data-action="download-xml"]');
+    assert(button.querySelector("svg.px-icon"), "the button should carry an icon");
+    assert(button.querySelector(".px-label").textContent === "Download", "and a label beside it");
+  });
+
   test("returning to the source dialect hands back the untouched source", () => {
     const w = render("onix-3.0-short-codelists.xml");
     const source = fs2.readFileSync(path.join(FIXTURES, "onix-3.0-short-codelists.xml"), "utf8");

@@ -441,13 +441,17 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
 @media (max-width: 1000px) {
   #oxv-release-group { display: none; }
 }
-/* Narrower still, the four buttons that carry an icon keep only the icon.
+/* Narrower still, the five buttons that carry an icon keep only the icon.
    Their titles name them for hover and for assistive technology, and the
    dialect switch — whose label is the whole point — keeps its words. With
-   the labels the controls alone take 670px; without, about 450, which is
-   what lets the verdict and the cog fit beside them down to 720px. */
-@media (max-width: 900px) {
+   the labels the controls alone take about 770px, and the verdict met the
+   release selector at 1040px (measured); without, about 480. An open search
+   field costs 320px of the same row, so it sends the labels away sooner. */
+@media (max-width: 1060px) {
   #oxv-toolbar .px-left button:not(.px-icon-btn) > svg + .px-label { display: none; }
+}
+@media (max-width: 1220px) {
+  body.px-search-open #oxv-toolbar .px-left button:not(.px-icon-btn) > svg + .px-label { display: none; }
 }
 @media (max-width: 760px) {
   #oxv-meta { display: none; }

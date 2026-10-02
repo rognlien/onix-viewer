@@ -133,6 +133,11 @@
       ["rect", { x: "3.3", y: "5.3", width: "7.9", height: "8.4", rx: "1.2", "stroke-width": "1.5" }],
       ["path", { d: "M5.8 5.3V3.5a1.2 1.2 0 011.2-1.2h5.7a1.2 1.2 0 011.2 1.2v6.6a1.2 1.2 0 01-1.2 1.2h-1.5", "stroke-width": "1.5" }],
     ],
+    // An arrow down onto a tray.
+    download: [
+      ["path", { d: "M8 2.4v7.4M4.9 6.9L8 10l3.1-3.1", "stroke-width": "1.7" }],
+      ["path", { d: "M2.8 10.6v2a1.2 1.2 0 001.2 1.2h8a1.2 1.2 0 001.2-1.2v-2", "stroke-width": "1.7" }],
+    ],
     // An open arc: three quarters of the circle, spun by CSS.
     spinner: [["circle", {
       cx: "8", cy: "8", r: "5.6", "stroke-width": "2",
@@ -822,7 +827,8 @@
     // builds that shell as a string, and these come from the same table the
     // severity chips and the spinner use, so they stay one set.
     for (const [action, name] of [["expand", "expand"], ["collapse", "collapse"],
-                                  ["toggle-wrap", "wrap"], ["copy-xml", "copy"]]) {
+                                  ["toggle-wrap", "wrap"], ["copy-xml", "copy"],
+                                  ["download-xml", "download"]]) {
       const button = document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
       if (button && !button.querySelector("svg")) button.prepend(icon(name));
     }
@@ -854,6 +860,9 @@
         }
         case "copy-xml":
           copyRawXml(btn);
+          break;
+        case "download-xml":
+          downloadXml(btn);
           break;
         case "rules":
           showRules();
@@ -2031,6 +2040,51 @@
       xml = (declaration ? declaration[0] : "") + body;
     }
     return xml;
+  }
+
+  // ---- download XML ---------------------------------------------------------
+
+  // What Copy XML puts on the clipboard, saved as a file. Nothing is served,
+  // so there is no response to carry a Content-Disposition header; an anchor
+  // with a download attribute over a blob URL does the same job. The URL is
+  // revoked a little later, since revoking it in the same tick can cancel
+  // the download in Firefox.
+  function downloadXml(btn) {
+    const text = displayedXml();
+    if (text) {
+      const url = URL.createObjectURL(new Blob([text], { type: "application/xml" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadName();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } else {
+      flashButton(btn, "Empty");
+    }
+  }
+
+  // The file's own name, marked with the dialect when the view translates
+  // it: feed.xml becomes feed-short-tags.xml. A blob: URL or a path ending
+  // in "/" has no name to offer, so those are called onix.xml.
+  function downloadName() {
+    const last = location.protocol === "blob:" ? "" : location.pathname.split("/").pop();
+    const base = safeDecode(last).replace(/\.xml$/i, "") || "onix";
+    const suffix = translating()
+      ? (displayDialect === "short" ? "-short-tags" : "-reference-names")
+      : "";
+    return `${base}${suffix}.xml`;
+  }
+
+  function safeDecode(text) {
+    let decoded = text;
+    try {
+      decoded = decodeURIComponent(text);
+    } catch {
+      // A stray "%" in the path: keep it as written.
+    }
+    return decoded;
   }
 
   function translating() {

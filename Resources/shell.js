@@ -51,6 +51,7 @@
       <button type="button" data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
     <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard"><span class="px-label">Copy XML</span></button>
+    <button type="button" data-action="download-xml" title="Download the XML as shown"><span class="px-label">Download</span></button>
     <span class="px-search-group">
       <!-- Collapsed to its icon until used: the field earns its width only
            while you are searching. viewer.js fills in the icon. -->

@@ -33,6 +33,9 @@ searchable tree, and adds:
   reference names or a reference file under short tags. Copying follows the
   view: at the file's own dialect the copy is the source byte for byte,
   translated it is the converted ONIX with the matching namespace.
+- **Download.** Saves the document as shown, so a translated view downloads
+  the converted file, named `feed-short-tags.xml` or
+  `feed-reference-names.xml`.
 - **Validation.** Runs automatically against the bundled ONIX 3.0 or 3.1
   content model: missing, misplaced or unknown elements, codes outside their
   list — including the second-order lists a sibling selects, such as

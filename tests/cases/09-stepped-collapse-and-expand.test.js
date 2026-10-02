@@ -168,7 +168,7 @@ describe("Stepped collapse and expand", () => {
 
   test("the labelled toolbar buttons carry icons", () => {
     const w = render("onix-3.0-reference.xml");
-    for (const action of ["expand", "collapse", "toggle-wrap", "copy-xml"]) {
+    for (const action of ["expand", "collapse", "toggle-wrap", "copy-xml", "download-xml"]) {
       const button = w.document.querySelector(`[data-action="${action}"]`);
       const glyph = button.querySelector("svg");
       assert(glyph, `${action} should carry an icon`);

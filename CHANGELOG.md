@@ -5,6 +5,14 @@ the main branch.
 
 ## Unreleased
 
+### Added
+- **Download.** A toolbar button beside Copy XML saves the document as it
+  is shown: the file itself at its own dialect, the converted ONIX while the
+  view is translated, named for the dialect (`feed-short-tags.xml`,
+  `feed-reference-names.xml`). It needs no permission. The icon buttons drop
+  their labels sooner, below 1060px, or 1220px with the search open, to make
+  room for it.
+
 ### Held back
 Built and tested, and in the code behind a switch that is off in 0.9.20
 (`FEATURES.customRules` in `viewer.js`, `CUSTOM_RULES` in `content.js`): the

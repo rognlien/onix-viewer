@@ -313,7 +313,7 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 `.px-center` and `.px-right`:
 
 ```
-[ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   🔍 ]
+[ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   ⤓ Download   🔍 ]
         [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB]  [✓ Valid]
                                                 … [ONIX 3.1, Issue 74 ▾] [⚙]
 ```
@@ -462,18 +462,20 @@ things are needed to make that happen:
   so a click on the verdict landed on the pill and opened nothing. Headless
   Chrome's default 800px window is where the browser test found it; the
   test now runs at 1280px.
-- A breakpoint at `max-width: 900px` hiding the **labels** of the four
-  buttons that carry an icon (Expand, Collapse, Soft wrap, Copy XML), which
-  are wrapped in `.px-label` for the purpose; their `title`s still name
-  them. Without it the verdict was clipped at the right edge from about
-  880px down with the search open, since the controls alone were wider
-  than the row could spare. The dialect switch keeps its words: its label
-  is what it says.
+- A breakpoint at `max-width: 1060px` hiding the **labels** of the five
+  buttons that carry an icon (Expand, Collapse, Soft wrap, Copy XML,
+  Download), which are wrapped in `.px-label` for the purpose; their
+  `title`s still name them. It sat at 900px until Download arrived; with
+  the extra label the verdict ran into the release selector at 1040px.
+  While the search is open the same labels go at `max-width: 1220px`,
+  since the field costs 320px of the row. The dialect switch keeps its
+  words: its label is what it says.
 
 Measured in Chrome from 1400px down (`tests/browser` has no case for it;
 the script was ad hoc): with both sample dialects, the longest verdict and
-the search open or closed, nothing overlaps or clips down to 720px, below
-which the controls themselves no longer fit the row.
+the search closed, nothing overlaps or clips down to 700px. With the search
+open the verdict is clipped below 820px, where the field's `40vw` still
+takes more than the row can spare.
 
 The document pill is one bordered unit built by `fillMetaPill()`: a file icon,
 then `·`-separated segments — what the document is, which blocks it carries,
@@ -624,7 +626,17 @@ no detected dialect, where there is nothing to translate between.
 
 Both copy paths hand over what's on screen, so the viewer is WYSIWYG: while
 translated, **Copy XML** yields the converted document and **Copy node XML**
-the converted subtree. At the source dialect, `displayedXml()` returns
+the converted subtree. **Download** saves what Copy XML would copy.
+
+Download is the closest an extension with no server gets to a
+`Content-Disposition: attachment` response: `downloadXml()` puts the text in a
+`Blob`, and a temporary `<a download>` over its object URL makes the browser
+save it rather than navigate. No permission and no `fetch` is involved, and
+the `downloads` API, which would need one, is not used. The name is the
+URL's last path segment, with `-short-tags` or `-reference-names` before
+`.xml` while the view is translated; a `blob:` page or a path ending in `/`
+gives `onix.xml`. The object URL is revoked a second later, since revoking
+it in the same tick can cancel the download in Firefox. At the source dialect, `displayedXml()` returns
 `SOURCE` byte for byte — the copy is the file itself, unchanged.
 
 Conversion is `translateNode(node, targetDialect)` in `onix.js`, a detached
@@ -1519,7 +1531,7 @@ network once and `xmllint`, which macOS and the Ubuntu runners have.
 declared at the top of the IIFE because the toolbar setup uses it before the
 sections further down have been reached —
 `error`, `warning`, `ok`, `spinner`, `search`, `file`, `close`, `expand`,
-`collapse`, `wrap`, `copy` — on a shared `0 0 16 16` grid, stroked in `currentColor`
+`collapse`, `wrap`, `copy`, `download` — on a shared `0 0 16 16` grid, stroked in `currentColor`
 and sized to 12px by `.px-icon`, so one chip's colour carries its icon.
 Toolbar buttons scale theirs to 14px: at 12px, beside a 12px label at a
 button's scale, an icon reads as an afterthought.
@@ -1560,8 +1572,8 @@ collects several drops the text for a count. The tooltip carries every
 message in full either way. Pills are `aria-hidden` on the icon with the
 wording on the pill's `aria-label`.
 
-Every labelled toolbar button now carries one — Expand, Collapse, Soft wrap and
-Copy XML — with a test asserting all four do. The dialect switch deliberately
+Every labelled toolbar button now carries one — Expand, Collapse, Soft wrap,
+Copy XML and Download — with a test asserting all five do. The dialect switch deliberately
 does not: its label names the *translation* and changes with the document, so
 the words are the load-bearing part and an icon beside them would compete.
 
