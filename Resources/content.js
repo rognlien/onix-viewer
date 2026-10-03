@@ -277,11 +277,12 @@
   // native view, while the parser held the real thing. Anything else falls
   // back to the parser's tree, like a failed request does.
   function loadSource() {
-    return fetch(document.location.href, {
-      cache: "force-cache",
-      credentials: "same-origin",
-      redirect: "follow",
-    })
+    return declaredTooLarge()
+      .then((tooLarge) => {
+        if (tooLarge) throw new TooLarge();
+        return parseEnded();
+      })
+      .then(() => request())
       .then((r) => {
         if (!r.ok) throw new Error(`refetch returned ${r.status}`);
         const type = (r.headers.get("content-type") || "").toLowerCase();
@@ -302,10 +303,7 @@
   // response.text(), counting the bytes as they arrive and giving up past
   // MAX_SOURCE_BYTES. Content-Length alone would not do: a compressed
   // response states the compressed size, which is a tenth of the XML's.
-  // A declared length over the limit is enough, though, since the XML is
-  // never smaller than its compressed form.
   async function readLimited(response) {
-    if (Number(response.headers.get("content-length")) > MAX_SOURCE_BYTES) throw new TooLarge();
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     const parts = [];
@@ -345,6 +343,43 @@
     const root = document.importNode(page.documentElement, true);
     if (document.documentElement) document.replaceChild(root, document.documentElement);
     else document.appendChild(root);
+  }
+
+  // The one request the extension makes: the page's own URL again.
+  function request(signal) {
+    return fetch(document.location.href, {
+      cache: "force-cache",
+      credentials: "same-origin",
+      redirect: "follow",
+      signal,
+    });
+  }
+
+  // While the page loads, only the headers are read, and a declared length
+  // over the limit stops the load there; reading on would leave the page
+  // loading for good (see parseEnded). A response with no length, or a
+  // compressed one, is measured by readLimited once the page has loaded.
+  function declaredTooLarge() {
+    const abort = new AbortController();
+    return request(abort.signal)
+      .then((response) => {
+        abort.abort();
+        return Number(response.headers.get("content-length")) > MAX_SOURCE_BYTES;
+      })
+      .catch(() => false);
+  }
+
+  // The re-fetch waits for the page's own load to end. Started alongside it,
+  // a force-cache request for a response too large for Chrome's HTTP cache
+  // (176 MB in a fresh profile; 141 MB was cached) left the page loading for
+  // good — ERR_CACHE_WRITE_FAILURE, and DOMContentLoaded never came — while
+  // the tab went on working. Afterwards the request reads the cached
+  // response, or downloads it again when it was too large to cache.
+  function parseEnded() {
+    return new Promise((resolve) => {
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", resolve, { once: true });
+      else resolve();
+    });
   }
 
   // The reader's own validation rules, kept in extension storage — the one

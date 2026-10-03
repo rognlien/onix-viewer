@@ -22,6 +22,10 @@ the main branch.
 - **A file over 500 MB no longer crashes the tab.** It gets a notice saying
   it is too large to open, within seconds; a 618 MB feed used to take the
   tab down after 19 minutes.
+- **A large file's page now finishes loading.** Above the size Chrome
+  caches (about 150 MB), the viewer's second request for the file left the
+  page loading for good, the tab busy in the background; the request now
+  waits for the page to load.
 
 ### Held back
 Built and tested, and in the code behind a switch that is off in 0.9.20
