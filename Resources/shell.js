@@ -88,6 +88,22 @@
 </html>`;
   }
 
+  // The page shown in the viewer's place when it will not open a document:
+  // a heading and a sentence, styled like the parse-error panel.
+  function notice({ title, cssURL, heading, text }) {
+    return `<!doctype html>
+<html lang="en" data-oxv="1">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<link rel="stylesheet" href="${cssURL}">
+</head>
+<body>
+<div class="px-error" role="alert"><h2>${escapeHtml(heading)}</h2><p>${escapeHtml(text)}</p></div>
+</body>
+</html>`;
+  }
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, "&amp;")
@@ -96,5 +112,5 @@
       .replace(/"/g, "&quot;");
   }
 
-  globalThis.OnixViewerShell = { html };
+  globalThis.OnixViewerShell = { html, notice };
 })();

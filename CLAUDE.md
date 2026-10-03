@@ -184,6 +184,18 @@ Things that still won't work:
   is a 3.5-million-element DOM and about 90 MB of heap, and only rendering
   rows on demand would change that. What *has* been done about large feeds
   is below.
+- **Sources over 500 MB** (`MAX_SOURCE_BYTES` in `content.js`). Measured
+  in Chrome: a 441 MB feed opened, in 215 s with 648 MB of heap, and a
+  618 MB one crashed the tab after 19 minutes; a JavaScript string also
+  ends at about 536 million characters. Past the limit `content.js` stops
+  the page load (`window.stop()`, so the browser's own parse stops too)
+  and puts a notice in the viewer's place, from `OnixViewerShell.notice()`.
+  The re-fetch counts bytes as they arrive (`readLimited()`), since a
+  compressed response's `Content-Length` is the compressed size; a declared
+  length over the limit is acted on at once. The DOM fallback, which has no
+  length, measures what it serialised, and a `RangeError` from the
+  serialiser means the same thing. The browser test serves a response that
+  declares 600 MB and holds the connection open.
 
 ### Where a large feed spends its time
 

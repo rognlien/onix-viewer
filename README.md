@@ -202,9 +202,11 @@ packager makes.
 
 ## Known limitations
 
-- **Very large documents.** Rendering is synchronous and the whole source is
-  held in memory, so a file over about 10 MB freezes the tab while it renders.
-  Validation is sliced and does not block.
+- **Very large documents.** The whole source is held in memory. Products are
+  rendered as they scroll into view and validation runs in slices, so a
+  10,000-product feed (176 MB) shows its tree in about 6 seconds and its
+  verdict in about 17. A file over 500 MB is not opened: it gets a notice
+  saying so, since past that size the tab runs out of memory.
 - **blob: URLs** work, but **iframes** are not handled: only the top-level
   document is taken over.
 

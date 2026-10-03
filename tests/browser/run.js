@@ -35,18 +35,26 @@ const SAMPLES = path.join(ROOT, "Onix");
 // product repeated 300 times, a feed that arrives in many chunks.
 function serve() {
   const served = new Set();
+  const held = new Set();
   const large = largeFeed(300);
   const server = http.createServer((request, response) => {
     const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
     const once = name.startsWith("once-");
     const login = name.startsWith("login-");
-    const file = fileFor(once ? name.slice(5) : login ? name.slice(6) : name);
+    const huge = name.startsWith("huge-");
+    const file = fileFor(once ? name.slice(5) : login ? name.slice(6) : huge ? name.slice(5) : name);
     if (once && served.has(request.url)) {
       response.writeHead(500);
       response.end();
     } else if (login && served.has(request.url)) {
       response.writeHead(200, { "Content-Type": "text/html" });
       response.end("<!doctype html><title>Sign in</title><p>Please sign in.</p>");
+    } else if (huge && file) {
+      // Declares 600 MB, sends the fixture and holds the connection open, as
+      // a slow giant would; the guard has to act on the header alone.
+      response.writeHead(200, { "Content-Type": "application/xml", "Content-Length": 600 * 1000 * 1000 });
+      response.write(fs.readFileSync(file));
+      held.add(response);
     } else if (name === "large.xml" || file) {
       served.add(request.url);
       response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
@@ -59,6 +67,7 @@ function serve() {
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve({
       server,
+      release: () => { for (const response of held) response.destroy(); },
       url: (name) => `http://127.0.0.1:${server.address().port}/${name}`,
     }));
   });
@@ -187,6 +196,7 @@ async function main() {
     else console.log("\nThe rules editor is held back; the storage round trip is skipped");
   } finally {
     await browser.close();
+    served.release();
     served.server.close();
   }
   console.log(`\n${results.passed} passed, ${results.failed} failed`);
@@ -225,6 +235,21 @@ async function takeover(browser, served) {
     assert(state.rows > 30, `the tree is rendered; got ${state.rows} rows`);
     assert(state.badge !== "", "a code-list label is resolved in the page");
     await page.close();
+  });
+
+  await test("a source over 500 MB gets a notice instead of the viewer", async () => {
+    const page = await browser.newPage();
+    await page.goto(served.url("huge-onix-3.1-valid.xml"), { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForSelector(".px-error h2", { timeout: 10000 });
+    const state = await page.evaluate(() => ({
+      heading: document.querySelector(".px-error h2").textContent,
+      text: document.querySelector(".px-error p").textContent,
+      viewer: Boolean(document.getElementById("oxv-root")),
+    }));
+    await page.close();
+    assert(state.heading === "Too large for ONIX Viewer", `heading: ${state.heading}`);
+    assert(state.text.includes("500 MB"), `text: ${state.text}`);
+    assert(!state.viewer, "the viewer should not be built");
   });
 
   await test("Thema is sent to a document naming a Thema scheme, and to no other", async () => {

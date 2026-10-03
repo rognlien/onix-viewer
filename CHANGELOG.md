@@ -18,6 +18,11 @@ the main branch.
   their labels sooner, below 1060px, or 1220px with the search open, to make
   room for it.
 
+### Fixed
+- **A file over 500 MB no longer crashes the tab.** It gets a notice saying
+  it is too large to open, within seconds; a 618 MB feed used to take the
+  tab down after 19 minutes.
+
 ### Held back
 Built and tested, and in the code behind a switch that is off in 0.9.20
 (`FEATURES.customRules` in `viewer.js`, `CUSTOM_RULES` in `content.js`): the

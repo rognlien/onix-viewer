@@ -87,6 +87,19 @@
   // storage, and the manifest asks for no permission.
   const CUSTOM_RULES = false;
 
+  // The largest source the viewer opens. It holds the source as one string
+  // beside the parsed tree, and in Chrome a 441 MB feed opened where a 618 MB
+  // one crashed the tab; a JavaScript string also ends at about 536 million
+  // characters. Past this the page gets a notice instead of a crash.
+  const MAX_SOURCE_BYTES = 500 * 1000 * 1000;
+
+  class TooLarge extends Error {
+    constructor() {
+      super(`the source is larger than ${MAX_SOURCE_BYTES} bytes`);
+      this.name = "TooLarge";
+    }
+  }
+
   Promise.all([loadSource(), loadRules()])
     .then(([xmlSource, rules]) => {
       // We're called for any XML page that matches the content-type whitelist,
@@ -101,8 +114,12 @@
       takeOver(xmlSource, rules);
     })
     .catch((err) => {
-      dwarn("[OnixViewer] Could not load source, leaving native view:", err);
-      restoreNativeDocument();
+      if (err instanceof TooLarge) {
+        showTooLarge();
+      } else {
+        dwarn("[OnixViewer] Could not load source, leaving native view:", err);
+        restoreNativeDocument();
+      }
     });
 
   // A root is ONIX by its namespace, or by name where there is none: the
@@ -269,16 +286,65 @@
         if (!r.ok) throw new Error(`refetch returned ${r.status}`);
         const type = (r.headers.get("content-type") || "").toLowerCase();
         if (!type.includes("xml")) throw new Error(`refetch returned ${type || "no content type"}`);
-        return r.text();
+        return readLimited(r);
       })
       .then((text) => {
         if (nativeRoot && !looksLikeOnix(text)) throw new Error("refetch returned a different document");
         return text;
       })
       .catch((err) => {
+        if (err instanceof TooLarge) throw err;
         dlog("[OnixViewer] re-fetch failed, reading from DOM:", err.message);
         return readSourceFromDom();
       });
+  }
+
+  // response.text(), counting the bytes as they arrive and giving up past
+  // MAX_SOURCE_BYTES. Content-Length alone would not do: a compressed
+  // response states the compressed size, which is a tenth of the XML's.
+  // A declared length over the limit is enough, though, since the XML is
+  // never smaller than its compressed form.
+  async function readLimited(response) {
+    if (Number(response.headers.get("content-length")) > MAX_SOURCE_BYTES) throw new TooLarge();
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const parts = [];
+    let bytes = 0;
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      bytes += chunk.value.byteLength;
+      if (bytes > MAX_SOURCE_BYTES) {
+        reader.cancel();
+        throw new TooLarge();
+      }
+      parts.push(decoder.decode(chunk.value, { stream: true }));
+      chunk = await reader.read();
+    }
+    parts.push(decoder.decode());
+    return parts.join("");
+  }
+
+  // Stops the browser's own parse, which would otherwise go on building a
+  // tree of the whole file in the background, and puts a notice where the
+  // viewer would have been.
+  function showTooLarge() {
+    if (!nativeRoot && !document.documentElement) {
+      whenRootExists(showTooLarge);
+      return;
+    }
+    stopDetaching();
+    window.stop();
+    const megabytes = Math.round(MAX_SOURCE_BYTES / 1000 / 1000);
+    const page = new DOMParser().parseFromString(OnixViewerShell.notice({
+      title: deriveTitle(document.location.href),
+      cssURL: browserAPI().runtime.getURL("viewer.css"),
+      heading: "Too large for ONIX Viewer",
+      text: `This file is larger than ${megabytes} MB, the most ONIX Viewer opens. ` +
+        "Beyond that the browser runs out of memory for the tree, so the file is not shown.",
+    }), "text/html");
+    const root = document.importNode(page.documentElement, true);
+    if (document.documentElement) document.replaceChild(root, document.documentElement);
+    else document.appendChild(root);
   }
 
   // The reader's own validation rules, kept in extension storage — the one
@@ -330,7 +396,10 @@
           try {
             const s = serializer.serializeToString(nativeRoot);
             if (s && s.trim()) return s;
-          } catch { /* fall through to the other sources */ }
+          } catch (err) {
+            // A tree too large to serialise is a file too large to open.
+            if (err instanceof RangeError) throw new TooLarge();
+          }
         }
         const wrap = document.getElementById("webkit-xml-viewer-source-xml");
         if (wrap && wrap.childNodes.length) {
@@ -355,7 +424,13 @@
         // briefly before giving up.
         let tries = 0;
         const tick = () => {
-          const s = grab();
+          let s = null;
+          try {
+            s = grab();
+          } catch (err) {
+            return reject(err);
+          }
+          if (s && s.length > MAX_SOURCE_BYTES) return reject(new TooLarge());
           if (s) return resolve(s);
           if (++tries > 20) return reject(new Error("could not read source from DOM"));
           setTimeout(tick, 50);
