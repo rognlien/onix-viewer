@@ -325,21 +325,21 @@
       }
 
       case Node.PROCESSING_INSTRUCTION_NODE:
-        appendRow(parent, depth, false, (row) => {
+        elementRows.set(node, appendRow(parent, depth, false, (row) => {
           const span = document.createElement("span");
           span.className = "px-pi";
           span.textContent = `<?${node.target} ${node.data}?>`;
           row.appendChild(span);
-        });
+        }));
         break;
 
       case Node.COMMENT_NODE:
-        appendRow(parent, depth, false, (row) => {
+        elementRows.set(node, appendRow(parent, depth, false, (row) => {
           const span = document.createElement("span");
           span.className = "px-comment";
           span.textContent = `<!-- ${node.nodeValue} -->`;
           row.appendChild(span);
-        });
+        }));
         break;
 
       case Node.ELEMENT_NODE:
@@ -573,6 +573,11 @@
       pendingFindings.delete(pending.el);
       for (const finding of queued) pinFinding(finding);
     }
+    const waiting = hitsByProduct.get(pending.el);
+    if (waiting) {
+      hitsByProduct.delete(pending.el);
+      for (const hit of waiting) highlight(hit);
+    }
   }
 
   // The deferred Product a source node sits inside, or null.
@@ -587,10 +592,6 @@
   function ensureRendered(node) {
     const product = pendingProductOf(node);
     if (product) renderPending(pendingByElement.get(product));
-  }
-
-  function renderAllPending() {
-    for (const container of [...pendingContainers.keys()]) renderPending(container);
   }
 
   function writeOpenTag(row, el, selfClose) {
@@ -749,6 +750,9 @@
       displayDialect = target;
       try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); }
       catch { /* storage may be blocked; the choice then lasts the page */ }
+      // A name hit depends on the dialect on screen, so the hits are found
+      // again — without moving the reader.
+      if (search.value.trim()) runSearch(false);
     }
 
     markPressedDialect();
@@ -1126,7 +1130,7 @@
     clearFindings();
     const session = window.OnixViewerValidation.start(doc, onixCtx, { version: validationRelease });
     activeSession = session;
-    session.step(12);
+    session.step(FIRST_SLICE_MS);
     if (session.done) {
       finishValidation(session);
       return;
@@ -1151,25 +1155,28 @@
   // until someone looks at the tab. A channel message is an ordinary task:
   // neither clamped nor suspended, and yielding between slices still lets
   // input, scrolling and rendering through.
+  // Validation and search both slice through here, so the slices queue: one
+  // message per callback, run in the order they were asked for. A single
+  // slot would let one job's next slice overwrite the other's.
   const SLICE_MS = 8;
+  const FIRST_SLICE_MS = 12;
   const pumpChannel = window.MessageChannel ? new window.MessageChannel() : null;
-  let pendingSlice = null;
+  const pendingSlices = [];
 
   if (pumpChannel) {
     pumpChannel.port1.onmessage = () => {
-      const slice = pendingSlice;
-      pendingSlice = null;
+      const slice = pendingSlices.shift();
       if (slice) slice();
     };
   }
 
   function afterYield(callback) {
     if (pumpChannel) {
-      pendingSlice = callback;
+      pendingSlices.push(callback);
       pumpChannel.port2.postMessage(0);
-      return;
+    } else {
+      setTimeout(callback, 0);
     }
-    setTimeout(callback, 0);
   }
 
   function finishValidation(session) {
@@ -2368,15 +2375,26 @@
 
   // ---- search ---------------------------------------------------------------
 
-  let matches = [];
-  let matchIndex = -1;
+  // A hit is a place in the parsed document, not a span on screen: an
+  // element's name as displayed, one of its attributes (name, value or
+  // code-list label), a text value, an element's code-list label, or a
+  // comment or processing instruction. Searching the document needs nothing
+  // rendered, so a deferred Product is built only when the reader goes to a
+  // hit inside it. The old search read the rendered tree and so built every
+  // Product first, which on a large feed hung the browser.
+  let hits = [];
+  let hitIndex = -1;
+  let currentHit = null;
+  let highlighted = [];
   let searchTimer = null;
+  let searchSession = null;
+  // Hits inside deferred Products, highlighted when the Product renders.
+  const hitsByProduct = new Map();
 
   // The field is collapsed to its icon until wanted, so it costs a button's
   // width in the toolbar instead of 420px. Browser find is not a substitute:
-  // it cannot see folded rows, and a reader who has pressed Collapse on a
-  // large feed has folded most of it — this search walks every text node
-  // and unfolds the ancestors of each match.
+  // it cannot see folded rows, nor a deferred Product, which has no rows
+  // until it nears the viewport — so on a large feed it sees a screenful.
   function setupSearch() {
     const button = document.querySelector('#oxv-toolbar [data-action="search"]');
     if (button && !button.firstChild) button.appendChild(icon("search"));
@@ -2388,8 +2406,8 @@
     search.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
-        if (ev.shiftKey) gotoMatch(matchIndex - 1);
-        else gotoMatch(matchIndex + 1);
+        if (ev.shiftKey) gotoMatch(hitIndex - 1);
+        else gotoMatch(hitIndex + 1);
       } else if (ev.key === "Escape") {
         closeSearch();
       }
@@ -2449,68 +2467,196 @@
     if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
-  function runSearch() {
+  // The walk runs in slices, like validation: a 176 MB feed takes seconds to
+  // search, and the tab stays responsive meanwhile. A new query, or closing
+  // the field, supersedes a search still running; it stops at its next slice.
+  // `jump` is false when the hits are refreshed under the reader — the
+  // dialect switch renames what a name hit matches — rather than asked for.
+  function runSearch(jump = true) {
     clearMatches();
-    const q = search.value.trim();
-    if (!q) {
-      status.textContent = "";
-      return;
-    }
-    const needle = q.toLowerCase();
+    const query = search.value.trim().toLowerCase();
+    searchSession = query ? { query, jump, walk: hitWalk(query) } : null;
+    status.textContent = query ? "Searching…" : "";
+    if (searchSession) stepSearch(searchSession, FIRST_SLICE_MS);
+  }
 
-    // The search reads the rendered tree — tag names, values, chips — so
-    // every deferred Product is rendered first. That is the whole feed once,
-    // which is what the viewer built on load before Products were deferred;
-    // a search over the source instead would have to count what the chips
-    // add, and is a change for another day.
-    renderAllPending();
+  function stepSearch(session, budget) {
+    if (session !== searchSession) return;
+    if (session.walk.step(budget)) finishSearch(session);
+    else afterYield(() => stepSearch(session, SLICE_MS));
+  }
 
-    // Walk text nodes. Mark the containing span — full substring highlighting
-    // would require splitting text nodes, which is doable but adds complexity
-    // for marginal gain in a tree where each node is short.
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-    let n;
-    while ((n = walker.nextNode())) {
-      const txt = n.nodeValue;
-      if (txt && txt.toLowerCase().includes(needle)) {
-        const host = n.parentElement;
-        if (host && !host.classList.contains("px-match")) {
-          host.classList.add("px-match");
-          matches.push(host);
-        }
+  function finishSearch(session) {
+    hits = session.walk.found;
+    for (const hit of hits) {
+      const product = pendingProductOf(hit.node);
+      if (product) {
+        if (!hitsByProduct.has(product)) hitsByProduct.set(product, []);
+        hitsByProduct.get(product).push(hit);
+      } else {
+        highlight(hit);
       }
     }
-    status.textContent = matches.length ? `1/${matches.length}` : "no matches";
-    if (matches.length) gotoMatch(0);
+    if (!hits.length) status.textContent = "no matches";
+    else if (session.jump) gotoMatch(0);
+    else status.textContent = `${hits.length} matches`;
   }
 
-  // Clear from the match list, never by re-querying the tree: matches[] already
-  // holds exactly the highlighted elements, and a document-wide
-  // querySelectorAll costs more than the search itself on a large feed — 75 to
-  // 210 ms per keystroke on a 17,000-row document, against 42 to 110 ms for the
-  // walk. The dialect switch renames tags in place rather than re-rendering, so
-  // these element references stay live.
-  function clearMatches() {
-    for (const m of matches) m.classList.remove("px-match", "px-match-current");
-    matches = [];
-    matchIndex = -1;
+  // Walks the parsed document in order, the way the renderer does, and
+  // collects every hit; step(budget) walks until the budget is spent and
+  // says whether it got to the end. A text-only element's text and label
+  // are taken with it, as its row shows them; anything else descends.
+  function hitWalk(query) {
+    const found = [];
+    const labelled = codesLabelled(query);
+    const nameHits = new Map();
+    const nameMatches = (name) => {
+      if (!nameHits.has(name)) nameHits.set(name, displayedTagName(name).toLowerCase().includes(query));
+      return nameHits.get(name);
+    };
+    const stack = [doc];
+    const visit = (node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (nameMatches(node.nodeName)) found.push({ node, kind: "name" });
+        for (const attr of node.attributes) {
+          if (attributeMatches(attr, query, labelled)) found.push({ node, kind: "attr", name: attr.name });
+        }
+        if (isTextOnly(node)) {
+          for (const child of node.childNodes) {
+            if (child.nodeValue.toLowerCase().includes(query)) found.push({ node: child, kind: "text" });
+          }
+          if (labelMatches(node, query, labelled)) found.push({ node, kind: "label" });
+        } else {
+          for (let k = node.childNodes.length - 1; k >= 0; k--) stack.push(node.childNodes[k]);
+        }
+      } else if (node.nodeType === Node.DOCUMENT_NODE) {
+        for (let k = node.childNodes.length - 1; k >= 0; k--) stack.push(node.childNodes[k]);
+      } else if (nodeText(node).toLowerCase().includes(query)) {
+        const note = node.nodeType === Node.COMMENT_NODE || node.nodeType === Node.PROCESSING_INSTRUCTION_NODE;
+        found.push({ node, kind: note ? "note" : "text" });
+      }
+    };
+    const step = (budget) => {
+      const deadline = performance.now() + budget;
+      let count = 0;
+      while (stack.length && (++count % 512 || performance.now() < deadline)) visit(stack.pop());
+      return stack.length === 0;
+    };
+    return { found, step };
   }
 
-  function gotoMatch(i) {
-    if (!matches.length) return;
-    if (i < 0) i = matches.length - 1;
-    if (i >= matches.length) i = 0;
-    if (matchIndex >= 0 && matches[matchIndex]) {
-      matches[matchIndex].classList.remove("px-match-current");
+  // What renderElement draws on one row: text and CDATA, nothing else.
+  // Without building an array per element: that was two fifths of a search.
+  function isTextOnly(el) {
+    let text = false;
+    let other = false;
+    for (let child = el.firstChild; child && !other; child = child.nextSibling) {
+      if (child.nodeType === Node.CDATA_SECTION_NODE) text = true;
+      else if (child.nodeType !== Node.TEXT_NODE) other = true;
+      else if (/\S/.test(child.nodeValue)) text = true;
     }
-    matchIndex = i;
-    const target = matches[matchIndex];
-    target.classList.add("px-match-current");
+    return text && !other;
+  }
 
-    // Unfold any ancestor that's folded so the match is visible.
-    unfoldAncestors(target);
-    jumpTo(target);
-    status.textContent = `${matchIndex + 1}/${matches.length}`;
+  function nodeText(node) {
+    let text = "";
+    if (node.nodeType === Node.PROCESSING_INSTRUCTION_NODE) text = `${node.target} ${node.data}`;
+    else if (node.nodeType !== Node.DOCUMENT_TYPE_NODE) text = node.nodeValue || "";
+    return text;
+  }
+
+  // Every code whose label holds the query, in any list. A value is looked
+  // up only when it is one of these, so the walk resolves a handful of
+  // labels rather than every coded value in the feed.
+  function codesLabelled(query) {
+    const codes = new Set();
+    const lists = Object.values(window.OnixViewerCodeListsByNumber || {})
+      .concat(Object.values(window.OnixViewerThema ? window.OnixViewerThema.schemes : {}));
+    for (const list of lists) {
+      for (const [code, label] of list) {
+        if (label.toLowerCase().includes(query)) codes.add(code);
+      }
+    }
+    return codes;
+  }
+
+  function labelMatches(el, query, labelled) {
+    const value = el.textContent.trim();
+    let matches = false;
+    if (onixCtx.isOnix && (labelled.has(value) || labelled.has(value.split(/\s+/)[0]))) {
+      const resolved = window.OnixViewerOnix.resolveCodelist(el, onixCtx);
+      matches = Boolean(resolved && resolved.label.toLowerCase().includes(query));
+    }
+    return matches;
+  }
+
+  function attributeMatches(attr, query, labelled) {
+    let matches = attr.name.toLowerCase().includes(query) || attr.value.toLowerCase().includes(query);
+    if (!matches && onixCtx.isOnix && labelled.has(attr.value)) {
+      const resolved = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
+      matches = Boolean(resolved && resolved.label.toLowerCase().includes(query));
+    }
+    return matches;
+  }
+
+  // The span on screen a hit stands for, once its row exists: a text value
+  // sits in its element's row unless it has one of its own.
+  function spanFor(hit) {
+    const row = elementRows.get(hit.node) || (hit.kind === "text" ? elementRows.get(hit.node.parentNode) : null);
+    let span = null;
+    if (row && hit.kind === "name") {
+      span = row.querySelector(".px-tag-name");
+    } else if (row && hit.kind === "attr") {
+      span = [...row.querySelectorAll(".px-attr")]
+        .find((attr) => attr.querySelector(".px-attr-name").textContent === hit.name) || null;
+    } else if (row && hit.kind === "text") {
+      const texts = [...row.querySelectorAll(".px-text")];
+      span = texts.find((text) => text.textContent === hit.node.nodeValue.trim()) || texts[0] || null;
+    } else if (row && hit.kind === "label") {
+      span = row.querySelector(".px-codelist");
+    } else if (row) {
+      span = row.querySelector(".px-comment, .px-pi");
+    }
+    return span;
+  }
+
+  function highlight(hit) {
+    const span = spanFor(hit);
+    if (span && !span.classList.contains("px-match")) {
+      span.classList.add("px-match");
+      highlighted.push(span);
+    }
+  }
+
+  // Clear from the list of highlighted spans, never by re-querying the tree:
+  // a document-wide querySelectorAll costs more than the search itself on a
+  // large feed. The dialect switch renames tags in place rather than
+  // re-rendering, so these references stay live.
+  function clearMatches() {
+    for (const span of highlighted) span.classList.remove("px-match", "px-match-current");
+    highlighted = [];
+    hits = [];
+    hitIndex = -1;
+    currentHit = null;
+    hitsByProduct.clear();
+  }
+
+  // Renders the hit's Product if it is still deferred — its highlights come
+  // with it — then unfolds the hit's ancestors and scrolls it into view.
+  function gotoMatch(i) {
+    if (!hits.length) return;
+    if (currentHit) currentHit.classList.remove("px-match-current");
+    hitIndex = (i + hits.length) % hits.length;
+    const hit = hits[hitIndex];
+    ensureRendered(hit.node);
+    currentHit = spanFor(hit);
+    if (currentHit) {
+      highlight(hit);
+      currentHit.classList.add("px-match-current");
+      unfoldAncestors(currentHit);
+      jumpTo(currentHit);
+    }
+    status.textContent = `${hitIndex + 1}/${hits.length}`;
   }
 
   // ---- keyboard -------------------------------------------------------------

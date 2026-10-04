@@ -269,11 +269,10 @@ Everything that reaches for a row inside a Product goes through
   toolbar's verdict counts everything regardless, since validation works on
   the parsed document; the findings list lists everything; and an entry's
   click renders its Product before jumping.
-- **Search.** `runSearch()` renders every deferred Product first, because the
-  search reads the rendered tree — tag names, values, and the chips, which a
-  search over the source would have to reproduce. That is the whole feed
-  once, which is what the viewer built on load before this; a source-side
-  search that counts what the chips add is the follow-up if it matters.
+- **Search.** The search walks the parsed document, not the rows, so it
+  renders nothing; going to a hit renders that hit's Product, and a Product
+  rendered later brings the highlights of its hits with it
+  (`hitsByProduct`). See *Search* below.
 - **Folding.** A deferred Product's open row folds like any other, and its
   container is `display: none` while it is folded, so it never intersects
   and renders when unfolded, not before. Collapse's second step therefore
@@ -1722,21 +1721,44 @@ Two things about the toggle that took a bug each to find:
   document — and the field itself is untabbable by then. Focus is left where
   it is when the reader had already moved it elsewhere.
 
-**Why it wasn't simply deleted.** It looks redundant next to the browser's own
-find, but `Ctrl+F` cannot see `display: none` content, and on exactly the
-large feeds where searching matters the reader will have pressed Collapse, so
-browser find reports nothing. `runSearch` walks every text node in the tree,
-and `gotoMatch` unfolds the ancestors of the current match. There's a test for
-that: a contributor's name inside a Product folded by hand is found and its
-Product unfolded. (The test deliberately searches a
+**Why it wasn't simply deleted.** It looks redundant next to the browser's
+own find, but `Ctrl+F` cannot see `display: none` content — a folded row —
+nor a deferred Product, which has no rows until it nears the viewport. On a
+large feed browser find sees about a screenful. `gotoMatch` unfolds the
+ancestors of the current hit; there's a test for that, which searches a
 contributor rather than a title, because a title also appears in the folded
-row's own summary chip, where there would be nothing to unfold.)
+row's own summary chip, where there would be nothing to unfold.
 
-Highlights are cleared by `clearMatches()`, from the `matches` array — never by
-re-querying the tree. That query used to cost more than the search itself on a
-large feed: 74 ms per keystroke on a 17,500-row document for a typical query,
-against 0 ms from the array. The dialect switch renames tags in place rather
-than re-rendering, so the stored element references stay live.
+**It searches the document, not the screen.** The first version walked the
+rendered tree, so it rendered every deferred Product first, and on a large
+feed that hung the browser. A hit is now a place in the parsed document —
+`{ node, kind }`, the kind being an element's name as displayed, an
+attribute (its name, value or code-list label), a text value, an element's
+code-list label, or a comment or PI — found by `hitWalk()` in document
+order. Only when the reader goes to a hit does `ensureRendered()` build its
+Product and `spanFor()` find the span that shows it; hits in Products not
+yet rendered wait in `hitsByProduct` and are highlighted when the Product
+renders. Comment and PI rows are registered in `elementRows` for this.
+
+Three details:
+
+- **Labels without resolving everything.** `codesLabelled()` first collects
+  every code whose label holds the query, in every list and in Thema, so the
+  walk resolves a label only for a value in that set.
+- **Sliced.** The walk runs in 8 ms slices through `afterYield()`, as
+  validation does, with "Searching…" in the counter, and a newer query or
+  closing the field supersedes it (`searchSession`). `afterYield()` keeps a
+  queue: one slot, as it had, let validation and search overwrite each
+  other's next slice. Measured on 10,000 Products (176 MB): about 4 s for any
+  query, 4.9 million hits for "e", the page answering throughout.
+- **Names follow the dialect.** A name hit is matched against the name on
+  screen, so the dialect switch runs the search again, without jumping
+  (`runSearch(false)`).
+
+Highlights are cleared by `clearMatches()`, from the `highlighted` array —
+never by re-querying the tree, which used to cost more than the search
+itself on a large feed. The dialect switch renames tags in place rather
+than re-rendering, so the stored span references stay live.
 
 ## Per-node menu ("Copy node XML")
 

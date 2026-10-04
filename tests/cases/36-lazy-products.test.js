@@ -101,14 +101,66 @@ describe("Lazy products", () => {
     assert(w.document.getElementById("oxv-findings").hidden, "the list closed");
   });
 
-  test("a search renders every Product first, so it sees the whole document", () => {
+  test("a search finds a hit in a deferred Product and renders only that one", () => {
     const { w, flush } = lazyWindow(25);
     const search = w.document.getElementById("oxv-search");
     search.value = "feed-24";
     search.dispatchEvent(new w.Event("input", { bubbles: true }));
     flush(); // the field debounces through setTimeout, which the window queues
-    assert(pending(w).length === 0, "nothing is left deferred");
-    assert(w.document.getElementById("oxv-search-status").textContent === "1/1", "and the match in the last Product is found");
+    assert(w.document.getElementById("oxv-search-status").textContent === "1/1", "the match in the last Product is found");
+    assert(pending(w).length === 24, `only its Product is rendered; ${pending(w).length} still wait`);
+    const current = w.document.querySelector("#oxv-root .px-match-current");
+    assert(current && current.textContent === "feed-24", `the hit is marked, got ${current && current.textContent}`);
+  });
+
+  test("hits in Products not yet rendered are counted, and highlighted when they render", () => {
+    const { w, flush, intersect } = lazyWindow(25);
+    const search = w.document.getElementById("oxv-search");
+    search.value = "feed-";
+    search.dispatchEvent(new w.Event("input", { bubbles: true }));
+    flush();
+    const status = w.document.getElementById("oxv-search-status");
+    assert(status.textContent === "1/25", `every Product's reference counts, got ${status.textContent}`);
+    assert(pending(w).length === 24, "going to the first renders the first Product alone");
+    const before = $$(w, "#oxv-root .px-match").length;
+    intersect(pending(w)[0]);
+    assert($$(w, "#oxv-root .px-match").length === before + 1, "a Product scrolled into view brings its highlight");
+    search.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    assert(status.textContent === "2/25", `Enter moves on, got ${status.textContent}`);
+  });
+
+  test("a newer query supersedes a search still walking", () => {
+    const { w } = lazyWindow(25);
+    let clock = 0;
+    w.performance.now = () => (clock += 50); // every reading is past the slice's budget
+    const later = [];
+    w.setTimeout = (fn, ms) => (ms === 120 ? fn() : later.push(fn));
+    const search = w.document.getElementById("oxv-search");
+    const status = w.document.getElementById("oxv-search-status");
+    const query = (text) => {
+      search.value = text;
+      search.dispatchEvent(new w.Event("input", { bubbles: true }));
+    };
+    query("feed-");
+    later.splice(0, 3).forEach((fn) => fn()); // a few slices of the first search
+    query("feed-24");
+    while (later.length) later.shift()();
+    assert(status.textContent === "1/1", `only the newer query's hits count, got ${status.textContent}`);
+  });
+
+  test("while a search is still walking, the counter says so", () => {
+    const { w } = lazyWindow(25);
+    let clock = 0;
+    w.performance.now = () => (clock += 50);
+    const later = [];
+    w.setTimeout = (fn, ms) => (ms === 120 ? fn() : later.push(fn));
+    const search = w.document.getElementById("oxv-search");
+    search.value = "feed-24";
+    search.dispatchEvent(new w.Event("input", { bubbles: true }));
+    const status = w.document.getElementById("oxv-search-status");
+    assert(status.textContent === "Searching…", `got ${status.textContent}`);
+    while (later.length) later.shift()();
+    assert(status.textContent === "1/1", `and finishes over its slices, got ${status.textContent}`);
   });
 
   test("Collapse's second step folds deferred Products and Expand unfolds them, still deferred", () => {

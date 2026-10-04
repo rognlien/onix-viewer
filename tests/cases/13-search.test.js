@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, $$, rowsNamed,
+  test, describe, assert, render, renderSource, $$, rowsNamed,
 } = require("../harness");
 
 describe("Search", () => {
@@ -117,6 +117,57 @@ describe("Search", () => {
     assert($$(w, "#oxv-root .px-match").length > 0, "the match should be highlighted");
     assert(!products[0].classList.contains("px-folded"),
       "and its Product unfolded so the match is actually visible");
+  });
+
+  function hitsFor(window, text) {
+    searchButton(window).click();
+    type(window, text);
+    return {
+      status: window.document.getElementById("oxv-search-status").textContent,
+      spans: $$(window, "#oxv-root .px-match"),
+    };
+  }
+
+  test("an element name is a hit on its open tag", () => {
+    const w = render("onix-3.0-reference.xml");
+    const { status, spans } = hitsFor(w, "ProductForm");
+    assert(spans.length > 0 && spans.every((s) => s.classList.contains("px-tag-name")), "the tag names are marked");
+    assert(spans.every((s) => !s.textContent.startsWith("</")), "on the open tag only");
+    assert(status === `1/${spans.length}`, `one hit per element, got ${status} for ${spans.length}`);
+  });
+
+  test("an attribute's name or value is a hit on the attribute", () => {
+    const w = render("onix-3.0-reference.xml");
+    const { spans } = hitsFor(w, "release");
+    assert(spans.length === 1 && spans[0].classList.contains("px-attr"), "the release attribute is marked");
+  });
+
+  test("a code-list label is found though the file holds only its code", () => {
+    const w = render("onix-3.0-reference.xml");
+    const { status, spans } = hitsFor(w, "hardback");
+    assert(status === "1/1", `got ${status}`);
+    assert(spans[0].classList.contains("px-codelist"), "the label badge is marked");
+  });
+
+  test("a Thema heading is found too", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const xml = fs.readFileSync(path.join(__dirname, "..", "..", "Onix", "onix-3.1-refnames.xml"), "utf8");
+    const w = renderSource(xml, "thema-search.xml");
+    const { status, spans } = hitsFor(w, "fiction in translation");
+    assert(status === "1/1", `got ${status}`);
+    assert(spans[0].textContent.includes("Fiction in translation"), `got ${spans[0].textContent}`);
+  });
+
+  test("switching dialect finds the names again without moving the reader", () => {
+    const w = render("onix-3.0-reference.xml");
+    hitsFor(w, "ProductForm");
+    w.document.querySelector('[data-action="dialect-toggle"]').click();
+    const status = w.document.getElementById("oxv-search-status").textContent;
+    assert(status === "no matches", `short tags have no ProductForm, got ${status}`);
+    field(w).value = "b012";
+    type(w, "b012");
+    assert($$(w, "#oxv-root .px-match").length > 0, "and the short tag is found instead");
   });
 
   test("Esc clears the query and collapses it again", () => {

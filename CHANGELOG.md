@@ -30,6 +30,12 @@ the main branch.
   same way: `20,868 products` (`20 868` in Norwegian).
 
 ### Fixed
+- **Search no longer hangs on a large feed.** It used to render every
+  Product before searching; it now searches the document itself, renders
+  only the Product of the hit it shows, and runs in slices with the page
+  responsive. A 10,000-product feed takes about four seconds for any query.
+  It finds element names, attributes, values, comments and code-list labels,
+  Thema headings included.
 - **A file over 500 MB no longer crashes the tab.** It gets a notice saying
   it is too large to open, within seconds; a 618 MB feed used to take the
   tab down after 19 minutes.
