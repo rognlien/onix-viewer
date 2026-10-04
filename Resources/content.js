@@ -93,6 +93,10 @@
   // characters. Past this the page gets a notice instead of a crash.
   const MAX_SOURCE_BYTES = 500 * 1000 * 1000;
 
+  // The size of the source as served, counted by readLimited; null when the
+  // source came from the DOM instead. The viewer shows it in the toolbar.
+  let sourceBytes = null;
+
   class TooLarge extends Error {
     constructor() {
       super(`the source is larger than ${MAX_SOURCE_BYTES} bytes`);
@@ -319,6 +323,7 @@
       chunk = await reader.read();
     }
     parts.push(decoder.decode());
+    sourceBytes = bytes;
     return parts.join("");
   }
 
@@ -522,7 +527,7 @@
 
     const shellHtml = OnixViewerShell.html({
       title: deriveTitle(document.location.href), cssURL, logoURL, logoURL2x,
-      version: extensionVersion(), browser: extensionBrowser(),
+      version: extensionVersion(), browser: extensionBrowser(), bytes: sourceBytes,
       modelURLs: modelURLsByVersion(),
     });
 

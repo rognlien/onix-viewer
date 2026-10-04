@@ -267,6 +267,18 @@ async function takeover(browser, served) {
     assert(!loaded, "a document without Thema should not load it");
   });
 
+  await test("the document pill gives the file's size in bytes, as content.js counted them", async () => {
+    const page = await open(browser, served.url("onix-3.1-refnames.xml"));
+    const state = await page.evaluate(() => ({
+      bytes: document.documentElement.getAttribute("data-oxv-bytes"),
+      pill: document.getElementById("oxv-meta").textContent,
+    }));
+    await page.close();
+    const size = fs.statSync(path.join(SAMPLES, "onix-3.1-refnames.xml")).size;
+    assert(state.bytes === String(size), `stamped ${state.bytes}, file is ${size} bytes`);
+    assert(state.pill.endsWith(`${Math.round(size / 1000)} KB`), `pill: "${state.pill}"`);
+  });
+
   await test("the About window shows the manifest version, marked -dev for an unpacked load", async () => {
     // The store stamps update_url into the manifest it serves; this load has
     // none, so content.js appends -dev. A store copy would show the bare

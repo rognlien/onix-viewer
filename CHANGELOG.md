@@ -18,6 +18,13 @@ the main branch.
   their labels sooner, below 1060px, or 1220px with the search open, to make
   room for it.
 
+### Changed
+- **The file size reads as the Finder gives it.** `373.3 MB` where the
+  toolbar said `363360.2 KB`: bytes rather than characters, decimal units,
+  whole kilobytes, one decimal for megabytes and gigabytes, in the
+  browser's own number format. The product count beside it is grouped the
+  same way: `20,868 products` (`20 868` in Norwegian).
+
 ### Fixed
 - **A file over 500 MB no longer crashes the tab.** It gets a notice saying
   it is too large to open, within seconds; a 618 MB feed used to take the

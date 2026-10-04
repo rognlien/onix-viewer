@@ -333,7 +333,7 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 
 ```
 [ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   ⤓ Download   🔍 ]
-        [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB]  [✓ Valid]
+        [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 18 KB]  [✓ Valid]
                                                 … [ONIX 3.1, Issue 74 ▾] [⚙]
 ```
 
@@ -511,6 +511,16 @@ how big it is. Two details:
   into the pill. `#oxv-meta` is a flex row, and flex makes an anonymous item of
   every bare text node, so the `gap` that spaces the icon would have stretched
   every `·` as well.
+
+The size is given as the Finder gives it, so the two agree: bytes, in
+decimal units, whole kilobytes and megabytes or gigabytes to one decimal,
+in the browser's number format (`373,3 MB` in a Norwegian Chrome).
+`content.js` counts the bytes as it reads the file and stamps the total on
+the shell as `data-oxv-bytes`; `formatSize()` and `sourceBytes()` in
+`viewer.js` do the rest, and `countLabel()` groups the product count in
+the same number format. The source's length in characters would
+under-count every non-ASCII letter — 372 MB for a file the Finder calls
+373.3.
 
 For a non-ONIX document the pill claims only the size — there is no version,
 count or dialect to state.
@@ -1871,6 +1881,7 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-release`, `oxv-release-group`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`)
 - `data-oxv-version` — the extension version on the replaced `<html>`, `-dev` when loaded unpacked
 - `data-oxv-browser` — `chrome`, `firefox` or `safari` on the replaced `<html>`, read off the scheme of `runtime.getURL("")` by `content.js`; the About window words itself and picks its install link from it
+- `data-oxv-bytes` — on the replaced `<html>`, the source's size in bytes as `content.js` read it; absent for a source read from the DOM, where the viewer works out its UTF-8 length
 - `data-oxv-models` — on the replaced `<html>`, a JSON map from bundled release to the URL of its content model, stamped by `content.js`; the release selector fetches the model it was not sent from it
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it

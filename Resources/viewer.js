@@ -235,7 +235,6 @@
 
   renderTree(doc, root, 0);
 
-  const sizeKB = (SOURCE.length / 1024).toFixed(1);
 
   if (!onixCtx.isOnix) document.body.classList.add("px-no-onix");
 
@@ -243,7 +242,7 @@
   // file expects to see it, and two presses of Collapse give one line per
   // Product when that is what they want. (Products used to start folded on a
   // multi-product feed, which made every file open on a list of chips.)
-  fillMetaPill(sizeKB, productCount);
+  fillMetaPill(formatSize(sourceBytes()), productCount);
 
   validationRelease = onixCtx.version;
   setupToolbar();
@@ -878,16 +877,51 @@
 
   // "Blocks: 1, 4, 6" in the toolbar — only meaningful for a document with
   // exactly one Product, so it stays empty (and hidden) otherwise.
+  // The size as the Finder gives it: bytes in decimal units, whole
+  // kilobytes, megabytes and gigabytes to one decimal, in the browser's own
+  // number format — 512 bytes, 18 KB, 373.3 MB (373,3 MB in Norwegian).
+  function formatSize(bytes) {
+    const units = [["KB", 1e3, 0], ["MB", 1e6, 1], ["GB", 1e9, 1]];
+    let text = bytes === 1 ? "1 byte" : `${bytes} bytes`;
+    for (const [unit, scale, digits] of units) {
+      const value = Math.round((bytes / scale) * 10 ** digits) / 10 ** digits;
+      if (bytes >= 1000 && value >= 1) {
+        text = `${new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)} ${unit}`;
+      }
+      if (value < 1000) break;
+    }
+    return text;
+  }
+
+  // content.js counts the bytes as it reads the file and stamps the total on
+  // the shell. A source read from the DOM has no count, so its UTF-8 length
+  // is worked out here.
+  function sourceBytes() {
+    const stamped = Number(document.documentElement.getAttribute("data-oxv-bytes"));
+    return stamped > 0 ? stamped : utf8Length(SOURCE);
+  }
+
+  // One byte per ASCII character, two up to U+07FF, three above; a
+  // surrogate pair, four bytes in UTF-8, is two characters at two each.
+  function utf8Length(text) {
+    let bytes = text.length;
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code > 0x7f) bytes += code > 0x7ff && (code < 0xd800 || code > 0xdfff) ? 2 : 1;
+    }
+    return bytes;
+  }
+
   // One pill describing the document: a file icon, then what it is, which
   // blocks it carries, and how big it is, "·"-separated —
   //
-  //   [icon] ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 17.9 KB
+  //   [icon] ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 18 KB
   //
   // The blocks segment used to be a pill of its own; it says something about
   // this document rather than about the viewer, so it reads better as part of
   // the same sentence. It stays a separate element so #oxv-block-list keeps
   // its id, and #oxv-block-list:empty hides it when there are none.
-  function fillMetaPill(sizeKB, productCount) {
+  function fillMetaPill(size, productCount) {
     const blockList = document.getElementById("oxv-block-list");
     const blocks = blockListText();
     if (blockList) {
@@ -899,7 +933,7 @@
     const documentLabel = onixDocumentLabel(productCount);
     if (documentLabel) segments.push(document.createTextNode(documentLabel));
     if (blockList && blocks) segments.push(blockList);
-    segments.push(document.createTextNode(`${sizeKB} KB`));
+    segments.push(document.createTextNode(size));
 
     // The segments go in one inline wrapper rather than straight into the
     // pill: #oxv-meta is a flex row, and flex turns each bare text node into
@@ -928,12 +962,18 @@
     if (onixCtx.messageType === "acknowledgement") {
       // Acknowledgement <Product> blocks are record statuses, not product
       // records — label the count "records" to match.
-      const recordsLabel = productCount === 1 ? "1 record" : `${productCount} records`;
-      return `ONIX Acknowledgement${versionPart} (${recordsLabel})`;
+      return `ONIX Acknowledgement${versionPart} (${countLabel(productCount, "record")})`;
     }
-    const productsLabel = productCount === 1 ? "1 product" : `${productCount} products`;
+    const productsLabel = countLabel(productCount, "product");
     const dialectPart = onixCtx.dialect === "short" ? " short tags" : "";
     return `ONIX${versionPart}${dialectPart} (${productsLabel})`;
+  }
+
+  // "1 product", "20,868 products": the number grouped in the browser's own
+  // format, as the size beside it is (20 868 in Norwegian).
+  function countLabel(count, noun) {
+    const number = new Intl.NumberFormat().format(count);
+    return count === 1 ? `1 ${noun}` : `${number} ${noun}s`;
   }
 
   function blockListText() {

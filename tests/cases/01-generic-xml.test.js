@@ -7,7 +7,7 @@ describe("Generic XML", () => {
     const w = render("generic-note.xml");
     const rows = $$(w, "#oxv-root .px-row");
     assert(rows.length >= 5, `expected ≥5 rows, got ${rows.length}`);
-    assert(meta(w).includes("KB"), "meta should include size");
+    assert(/\d (bytes|KB)$/.test(meta(w)), `meta should end in the size, got "${meta(w)}"`);
     assert(!meta(w).startsWith("ONIX"), "should not be detected as ONIX");
   });
 

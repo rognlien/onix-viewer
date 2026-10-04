@@ -1,5 +1,5 @@
 const {
-  test, describe, assert, render, $$, meta, rowsNamed, badges, summariesOf,
+  test, describe, assert, render, renderSource, $$, meta, rowsNamed, badges, summariesOf,
 } = require("../harness");
 
 describe("Dialect toggle", () => {
@@ -81,7 +81,7 @@ describe("Dialect toggle", () => {
   test("the document pill is one unit: icon, what it is, its blocks, its size", () => {
     const w = render("onix-3.0-single-product-blocks.xml");
     const pill = w.document.getElementById("oxv-meta");
-    assert(pill.textContent === "ONIX 3.0 (1 product) · Blocks: 1, 4, 6 · 1.7 KB",
+    assert(pill.textContent === "ONIX 3.0 (1 product) · Blocks: 1, 4, 6 · 2 KB",
       `got: "${pill.textContent}"`);
     // The blocks are a segment of that pill now, not a pill of their own.
     const blocks = w.document.getElementById("oxv-block-list");
@@ -94,7 +94,7 @@ describe("Dialect toggle", () => {
     // Two products, so there is no single Product whose blocks to name.
     const w = render("onix-3.0-reference.xml");
     const pill = w.document.getElementById("oxv-meta");
-    assert(pill.textContent === "ONIX 3.0 (2 products) · 1.9 KB", `got: "${pill.textContent}"`);
+    assert(pill.textContent === "ONIX 3.0 (2 products) · 2 KB", `got: "${pill.textContent}"`);
     // Still findable, just empty — and :empty keeps it off the screen.
     const blocks = w.document.getElementById("oxv-block-list");
     assert(blocks && pill.contains(blocks), "the element should stay in the pill");
@@ -104,7 +104,38 @@ describe("Dialect toggle", () => {
 
   test("a non-ONIX document's pill claims only the size", () => {
     const w = render("generic-note.xml");
-    assert(/^\d+\.\d+ KB$/.test(meta(w)), `got: "${meta(w)}"`);
+    assert(/^\d+(\.\d)? (bytes|KB)$/.test(meta(w)), `got: "${meta(w)}"`);
+  });
+
+  test("the size reads as the Finder gives it", () => {
+    // A non-ONIX document of n bytes, so the pill is the size alone.
+    const sized = (n, filler = "x") => {
+      const open = "<note>";
+      const close = "</note>";
+      const characters = (n - open.length - close.length) / Buffer.byteLength(filler);
+      return meta(renderSource(open + filler.repeat(characters) + close, "sized.xml"));
+    };
+    const expected = {
+      512: "512 bytes", 999: "999 bytes", 1741: "2 KB", 18300: "18 KB",
+      999600: "1 MB", 1500000: "1.5 MB", 1960000: "2 MB",
+    };
+    for (const [n, text] of Object.entries(expected)) {
+      assert(sized(Number(n)) === text, `${n} bytes: got "${sized(Number(n))}", expected "${text}"`);
+    }
+    assert(sized(18013, "ø") === "18 KB", "a two-byte letter counts as two bytes");
+  });
+
+  test("the product count is grouped like the size", () => {
+    const product = "<Product><RecordReference>r</RecordReference><NotificationType>03</NotificationType></Product>";
+    const xml = `<ONIXMessage xmlns="http://ns.editeur.org/onix/3.1/reference" release="3.1">${product.repeat(1200)}</ONIXMessage>`;
+    const w = renderSource(xml, "grouped.xml");
+    assert(meta(w).startsWith("ONIX 3.1 (1,200 products)"), `got: "${meta(w)}"`);
+  });
+
+  test("the byte count content.js stamps on the shell wins over the source's length", () => {
+    const w = renderSource("<note>x</note>", "stamped.xml",
+      (window) => window.document.documentElement.setAttribute("data-oxv-bytes", "373300000"));
+    assert(meta(w) === "373.3 MB", `got: "${meta(w)}"`);
   });
 
   test("on a narrow toolbar the document pill gives way, never the verdict", () => {

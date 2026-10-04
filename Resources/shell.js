@@ -19,9 +19,9 @@
 (function () {
   "use strict";
 
-  function html({ title, cssURL, logoURL, logoURL2x, version, browser, modelURLs }) {
+  function html({ title, cssURL, logoURL, logoURL2x, version, browser, modelURLs, bytes }) {
     return `<!doctype html>
-<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}" data-oxv-browser="${escapeHtml(browser || "")}" data-oxv-models="${escapeHtml(JSON.stringify(modelURLs || {}))}">
+<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}" data-oxv-browser="${escapeHtml(browser || "")}" data-oxv-models="${escapeHtml(JSON.stringify(modelURLs || {}))}" data-oxv-bytes="${escapeHtml(bytes || "")}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
