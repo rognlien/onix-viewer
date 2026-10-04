@@ -49,6 +49,8 @@ const MEMBERSHIP = /matches\((\w+)(?:\[\d\])?, ?'\^\(([^)]+)\)(.*?)'\)/;
 const SINGLE_CODE = /^\((\w+) ne '([^']+)'\) or |^not\((\w+) eq '([^']+)'\) or /;
 const SEVERAL_CODES = /^not\(matches\((\w+), ?'\^\(([^)]+)\)\$'\)\) or /;
 const ORDERING = /substring-before\(/;
+// The shape of its form/detail affinities; see parseFormAffinities below.
+const AFFINITY = /^not\(exists\(ProductFormDetail\[(?:matches\(\., ?'\^\(([^)]+)\)\$'\)|\. eq '([^']+)')\]\)\) or (?:ProductForm eq '([^']+)'|matches\(ProductForm, ?'\^\(?([^)$]+)\)?\$'\))$/;
 
 
 const JSON_PATH = parseArg("--json=") ||
@@ -89,9 +91,11 @@ function main() {
     }
   }
 
-  const dependent = parseDependentLists(parseXsd(STRICT_XSD_PATH), lists);
+  const strictXsd = parseXsd(STRICT_XSD_PATH);
+  const dependent = parseDependentLists(strictXsd, lists);
+  const affinities = parseFormAffinities(strictXsd, lists);
 
-  const output = render(lists, elementToList, shortToReference, dependent, schemaInfo);
+  const output = render(lists, elementToList, shortToReference, dependent, affinities, schemaInfo);
   fs.writeFileSync(OUT_FILE, output);
 
   const numLists = Object.keys(lists).length;
@@ -106,6 +110,7 @@ function main() {
   const selectors = Object.values(dependent).reduce((n, list) => n + list.length, 0);
   const selected = new Set(Object.values(dependent).flat().flatMap((s) => Object.values(s.lists)));
   console.log(`  ${Object.keys(dependent).length} second-order value elements, ${selectors} selectors, ${selected.size} lists`);
+  console.log(`  ${Object.keys(affinities.forms).length} form details tied to forms, in ${affinities.hosts.join(", ")}`);
 }
 
 // --------------------------------------------------------------------------
@@ -296,10 +301,64 @@ function selectorEntry(table, valueElement, typeElement) {
 }
 
 // --------------------------------------------------------------------------
+// Form/detail affinities, from the strict schema's assertions
+// --------------------------------------------------------------------------
+//
+// Some <ProductFormDetail> codes make sense only with certain forms — B115
+// (Kartonnage) only on a hardback, BB. The strict schema states each group
+// as one assertion on <DescriptiveDetail> and again on <ProductPart>:
+//
+//   not(exists(ProductFormDetail[matches(., '^(B115|B306)$')])) or
+//       ProductForm eq 'BB'
+//
+// with the forms also written as matches(ProductForm, '^(AA|AC|D.)$'), a dot
+// standing for any second letter. The table maps each detail code to its
+// form patterns, and records the elements carrying the assertions, since a
+// rule there applies nowhere else. Any other assertion naming both
+// <ProductFormDetail> and <ProductForm> is an error, so a new shape cannot
+// be dropped in silence. The size checks on B101 and the like test no
+// <ProductForm>, and are left alone.
+
+function parseFormAffinities(doc, lists) {
+  const forms = Object.create(null);
+  const hosts = new Set();
+  for (const assertion of doc.getElementsByTagNameNS(XS, "assert")) {
+    const body = assertion.getAttribute("test").replace(/\s+/g, " ").replace(/\(:.*?:\)/g, "").trim();
+    if (!/^not\(exists\(ProductFormDetail\[.*\bProductForm\b(?!Detail)/.test(body)) continue;
+    const match = AFFINITY.exec(body);
+    if (!match) throw new Error(`cannot read the form/detail affinity: ${body}`);
+    const details = match[1] ? match[1].split("|") : [match[2]];
+    const allowed = match[3] ? [match[3]] : match[4].split("|");
+    for (const detail of details) addAffinity(forms, detail, allowed, lists);
+    hosts.add(hostElement(assertion));
+  }
+  if (!Object.keys(forms).length) throw new Error("no form/detail affinities found in the strict schema");
+  return { hosts: [...hosts].sort(), forms };
+}
+
+function addAffinity(forms, detail, allowed, lists) {
+  if (!lists[175].entries.some(([code]) => code === detail)) {
+    throw new Error(`strict schema ties ProductFormDetail ${detail}, which List 175 does not carry`);
+  }
+  const known = forms[detail];
+  if (known && known.join("|") !== allowed.join("|")) {
+    throw new Error(`strict schema ties ProductFormDetail ${detail} to two sets of forms`);
+  }
+  forms[detail] = allowed;
+}
+
+function hostElement(assertion) {
+  let node = assertion.parentNode;
+  while (node && !(node.localName === "element" && node.getAttribute("name"))) node = node.parentNode;
+  if (!node) throw new Error("a form/detail affinity outside any element declaration");
+  return node.getAttribute("name");
+}
+
+// --------------------------------------------------------------------------
 // Output renderer
 // --------------------------------------------------------------------------
 
-function render(lists, elementToList, shortToReference, dependent, schemaInfo) {
+function render(lists, elementToList, shortToReference, dependent, affinities, schemaInfo) {
   const issueStr = schemaInfo.issue != null ? `issue ${schemaInfo.issue}` : "(unknown issue)";
   const out = [];
   out.push("// onix-codelists.js — AUTO-GENERATED. Do not edit by hand.");
@@ -391,6 +450,18 @@ function render(lists, elementToList, shortToReference, dependent, schemaInfo) {
     });
     out.push(`  window.OnixViewerDependentCodeLists[${jsString(valueElement)}] = [${selectors.join(", ")}];`);
   }
+  out.push("");
+  out.push("  // Form/detail affinities: a <ProductFormDetail> code → the <ProductForm>");
+  out.push("  // patterns it may be used with, a dot standing for any letter, in the");
+  out.push("  // composites named by `hosts`. From the strict schema's assertions.");
+  out.push("  window.OnixViewerFormAffinities = {");
+  out.push(`    hosts: [${affinities.hosts.map(jsString).join(", ")}],`);
+  out.push("    forms: {");
+  for (const detail of Object.keys(affinities.forms).sort()) {
+    out.push(`      ${jsString(detail)}: [${affinities.forms[detail].map(jsString).join(", ")}],`);
+  }
+  out.push("    },");
+  out.push("  };");
   out.push("");
   out.push("  window.OnixViewerCodeListSchema = " + JSON.stringify({
     version: schemaInfo.version,

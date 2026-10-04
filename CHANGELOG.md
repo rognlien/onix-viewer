@@ -11,6 +11,11 @@ the main branch.
   (`FYT → Fiction in translation`), with a chip that opens the scheme's
   codes, and a code Thema does not have is a warning. The Thema data is
   sent only to documents that use it.
+- **Form details are checked against the form.** A `<ProductFormDetail>`
+  that EDItEUR ties to other forms is an error: `"B115" (Kartonnage
+  (Sweden)) can only be used with <ProductForm> BB, not BC`. The 98 codes
+  and their forms come from the sixteen assertions in EDItEUR's strict
+  schema, in `<DescriptiveDetail>` and `<ProductPart>`.
 - **Download.** A toolbar button beside Copy XML saves the document as it
   is shown: the file itself at its own dialect, the converted ONIX while the
   view is translated, named for the dialect (`feed-short-tags.xml`,

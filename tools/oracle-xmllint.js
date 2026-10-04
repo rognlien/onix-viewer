@@ -10,8 +10,9 @@
 // printed for any document where they part.
 //
 // Only findings an XSD 1.0 processor can see count on our side: not the
-// check digits (gtin.*), not the second-order code lists (codelist.dependent,
-// from the strict schema), not the reader's rules (schematron.*), and not
+// check digits (gtin.*), not the second-order code lists (codelist.dependent)
+// or the form/detail affinities (form.detail), both from the strict schema,
+// not the reader's rules (schematron.*), and not
 // warnings (a deprecated code is still in the enumeration).
 //
 // The bundles are downloaded into dist/oracle/ on first use — they carry the
@@ -105,7 +106,8 @@ function lint(xml, release, dialect) {
 function schemaClass(finding) {
   return finding.severity === "error" &&
     !/^(gtin|schematron)\./.test(finding.code) &&
-    finding.code !== "codelist.dependent";
+    finding.code !== "codelist.dependent" &&
+    finding.code !== "form.detail";
 }
 
 function main() {

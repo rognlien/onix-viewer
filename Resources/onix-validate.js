@@ -56,6 +56,7 @@
     // not the revision, a 3.1 one often the reverse. One code with optional
     // detail beats two codes for one defect.
     "element.deprecated": "<{name}> is deprecated{since}{advice}",
+    "form.detail": "\"{value}\" ({label}) can only be used with <{form}> {allowed}, not {formCode} ({formLabel})",
     "gtin.length": "\"{value}\" is not a valid {scheme}: expected {length} digits",
     "gtin.checkdigit": "\"{value}\" has an invalid check digit for {scheme} (expected {expected})",
     "model.missing": "No content model bundled for ONIX {version} (bundled: {available}); structure was not checked",
@@ -1027,7 +1028,50 @@
     return remainder === 10 ? "X" : String(remainder);
   }
 
-  // Both are additive: registerRule({...}) plus their message templates.
+  // A <ProductFormDetail> code that belongs to other forms: A101 (CD
+  // standard audio format) on a hardback, B301 (Loose leaf) on an e-book.
+  // The pairs come from the strict schema, which states them for
+  // <DescriptiveDetail> and <ProductPart> only, so nowhere else is judged.
+  registerRule({
+    name: "form",
+    element(node, api) {
+      const affinities = window.OnixViewerFormAffinities;
+      if (affinities && api.referenceName(node) === "ProductFormDetail" &&
+          affinities.hosts.includes(api.parentName(node))) {
+        checkFormAffinity(node, affinities.forms, api);
+      }
+      return true;
+    },
+  });
+
+  function checkFormAffinity(node, forms, api) {
+    const value = api.textOf(node).trim();
+    const allowed = forms[value];
+    const form = api.siblingValue(node, "ProductForm");
+    if (allowed && form && !allowed.some((pattern) => formMatches(pattern, form))) {
+      api.report("form.detail", node, {
+        value,
+        label: codeLabel(175, value),
+        form: api.displayName("ProductForm"),
+        allowed: allowed.map((pattern) => pattern.replace(".", "*")).join(", "),
+        formCode: form,
+        formLabel: codeLabel(150, form),
+      });
+    }
+  }
+
+  // A pattern is a form code or a letter and a dot, any form in that family.
+  function formMatches(pattern, form) {
+    return form.length === pattern.length &&
+      [...pattern].every((letter, i) => letter === "." || letter === form[i]);
+  }
+
+  function codeLabel(listNumber, code) {
+    const list = window.OnixViewerCodeListsByNumber && window.OnixViewerCodeListsByNumber[listNumber];
+    return (list && list.get(code)) || `List ${listNumber}`;
+  }
+
+  // All are additive: registerRule({...}) plus their message templates.
 
   window.OnixViewerValidation = {
     run,

@@ -92,7 +92,7 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (281 tests, ~9s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (351 tests, ~10s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see firefox/README.md
@@ -820,7 +820,8 @@ thing entirely:
 | Check digits for UPC, ISNI, GLN, SAN, ORCID, ISMN-13; DOI plausibility; an ISBN-10 requiring the matching ISBN-13 | not checked |
 | Proprietary `<*IDType>` requiring `<IDTypeName>` | not checked |
 | Second-order code lists — `<ProductFormFeatureValue>` under type 09 is List 196, `<AudienceCodeValue>` under type 01 is List 28, … | enforced, from a table generated out of strict's own assertions — see *Second-order code lists* below |
-| Subject-scheme patterns (Thema, BIC, BISAC, CLIL) | not checked |
+| `<ProductFormDetail>` codes tied to forms — B115 only with BB, A101–2 only with AA or AC, … | enforced, from a table generated out of strict's own assertions — see *Form/detail affinities* below |
+| Subject-scheme patterns (Thema, BIC, BISAC, CLIL) | Thema codes checked against the bundled version; the others not checked |
 | Tax arithmetic — `<PriceAmount>` = `<TaxableAmount>` + `<TaxAmount>`, `<Tax>` only on tax-inclusive prices | not checked |
 | Contributor `<SequenceNumber>` present for every contributor and consecutive from 1 | not checked |
 | `<SalesRightsType>` 00 forbidden; `<ROWSalesRightsType>` required when applicable | not checked |
@@ -967,9 +968,9 @@ reword it.
    touching validation logic; the codes are the stable contract, not the prose.
 2. **`RULES`** — an ordered registry. The runner walks the document **once**
    and offers every element to every rule (`start` / `element` / `finish`), so
-   a new rule costs no extra traversal. Eight ship today: `structure`,
-   `codelist`, `datatype`, `attribute`, `unique`, `deprecation`, `gtin` and
-   `schematron`, the last being the reader's own rules (below).
+   a new rule costs no extra traversal. Nine ship today: `structure`,
+   `codelist`, `datatype`, `attribute`, `unique`, `deprecation`, `gtin`,
+   `form` and `schematron`, the last being the reader's own rules (below).
 3. **`OnixViewerContentModels`** — keyed by ONIX release. **Both releases
    since 3.0 ship**: `onix-content-model-3.0.js` and
    `onix-content-model-3.1.js`, one generator run each, each assigning into
@@ -1428,6 +1429,35 @@ each to learn:
 
 It is not part of `npm test`, which stays the nine-second loop; run it when
 touching `content.js`, `shell.js`, the manifest or the Schematron engine.
+
+### Form/detail affinities
+
+Some `<ProductFormDetail>` codes belong to certain forms only: B115
+(Kartonnage) to a hardback, A101 (CD standard audio format) to AA or AC,
+B301–3 to BD. The strict schema states sixteen such groups, once on
+`<DescriptiveDetail>` and again on `<ProductPart>`, and
+`tools/generate-codelists.js` compiles them, like the second-order lists,
+into `window.OnixViewerFormAffinities`: `hosts`, the two composites, and
+`forms`, each of 98 detail codes mapped to its form patterns, `D.` standing
+for any D form. The `form` rule reports a detail whose sibling
+`<ProductForm>` matches none as **`form.detail`**, an error:
+`"B115" (Kartonnage (Sweden)) can only be used with <ProductForm> BB, not BC
+(Paperback / softback)`.
+
+Two readings worth recording:
+
+- **Only the two hosts are judged.** `<RelatedProduct>` carries a form and
+  details too, but strict asserts nothing there, and neither do we.
+- **The patterns are permissive where EDItEUR is.** A103 (MP3) is allowed
+  with any D or E form, so an MP3 under `EA` passes, though `AJ`
+  (Downloadable audio file) is what an audiobook download should say. A
+  detail the table does not name, such as E101 (EPUB), is never judged.
+
+The generator reads one assertion shape and throws on any other assertion
+that tests both `<ProductFormDetail>` and `<ProductForm>`, or on a detail
+List 175 does not carry. The size checks on B101 and the like, which test
+`<Measure>`, are left alone. Like the second-order lists, `form.detail` is
+outside what `npm run test:oracle` compares, being invisible to XSD 1.0.
 
 ### Identifier check digits
 
@@ -1969,7 +1999,7 @@ there are none. `SECURITY.md` and `chrome/listing.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 281-test jsdom suite (~9s)
+npm test        # runs the 351-test jsdom suite (~10s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
