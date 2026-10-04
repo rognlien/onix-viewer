@@ -108,25 +108,26 @@
     ],
     // Chevrons pointing apart / together — the fold direction, matching the
     // row chevrons the buttons act on.
-    // Two chevrons the same way up, not pointing at each other: an inward
-    // pair reads as a ✕ at 14px however far apart the apexes are pushed, and ✕
-    // already means "close". Down opens and up folds, matching the row
-    // chevrons (▾ open, ▸ closed); doubling them says "a level at a time".
+    // Chevrons opening away from a rule and closing onto it, as GitHub's
+    // unfold and fold icons expand and hide lines in a diff. A boxed plus
+    // and minus said "add" and "remove" rather than "open" and "fold"; rows
+    // with ▾ and ▸, the tree's own signs, shrank to specks at 16px.
     expand: [
-      ["path", { d: "M4.6 4.2L8 7.2l3.4-3", "stroke-width": "1.7" }],
-      ["path", { d: "M4.6 8.8L8 11.8l3.4-3", "stroke-width": "1.7" }],
+      ["path", { d: "M2 8h12", "stroke-width": "1.6" }],
+      ["path", { d: "M5.4 4.4L8 1.8l2.6 2.6M5.4 11.6L8 14.2l2.6-2.6", "stroke-width": "1.6" }],
     ],
     collapse: [
-      ["path", { d: "M4.6 7.2L8 4.2l3.4 3", "stroke-width": "1.7" }],
-      ["path", { d: "M4.6 11.8L8 8.8l3.4 3", "stroke-width": "1.7" }],
+      ["path", { d: "M2 8h12", "stroke-width": "1.6" }],
+      ["path", { d: "M5.4 2.6L8 5.2l2.6-2.6M5.4 13.4L8 10.8l2.6 2.6", "stroke-width": "1.6" }],
     ],
-    // The return arrow, using the full box: two strokes, both bold. Earlier
-    // attempts drew a text rule plus a wrapping line, which needs an arc and
-    // an arrowhead inside about 10px — more detail than 14px holds, and both
-    // versions read as a bar with a nub.
+    // Wrap text, as the editors draw it: a full line, a line that runs to the
+    // right edge and hooks back beneath itself, and the short line it lands
+    // on. The return arrow alone said "Enter" rather than "wrap".
     wrap: [
-      ["path", { d: "M12.6 3.4v5.1a2.2 2.2 0 01-2.2 2.2H4.6", "stroke-width": "1.7" }],
-      ["path", { d: "M7.3 8L4.5 10.7l2.8 2.7", "stroke-width": "1.7" }],
+      ["path", { d: "M2 3.5h12", "stroke-width": "1.5" }],
+      ["path", { d: "M2 8h9.2a2.3 2.3 0 010 4.6H7.6", "stroke-width": "1.5" }],
+      ["path", { d: "M9.4 10.8l-1.8 1.8 1.8 1.8", "stroke-width": "1.5" }],
+      ["path", { d: "M2 12.6h2.6", "stroke-width": "1.5" }],
     ],
     // Two sheets, one behind the other.
     copy: [
@@ -2057,10 +2058,10 @@
   function copyRawXml(btn) {
     const text = displayedXml();
     if (!text) {
-      flashButton(btn, "Empty");
+      flashButton(btn, "Empty", false);
       return;
     }
-    writeClipboard(text, () => flashButton(btn, "Copied"), () => flashButton(btn, "Failed"));
+    writeClipboard(text, () => flashButton(btn, "Copied", true), () => flashButton(btn, "Failed", false));
   }
 
   // What the reader is actually looking at. Untranslated, that's the source
@@ -2101,7 +2102,7 @@
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } else {
-      flashButton(btn, "Empty");
+      flashButton(btn, "Empty", false);
     }
   }
 
@@ -2155,23 +2156,42 @@
     return ok;
   }
 
-  function flashButton(btn, msg) {
-    const label = labelNode(btn);
-    const original = label.nodeValue;
-    label.nodeValue = msg;
+  // How a copy went, for a moment: in the words of a labelled control, or,
+  // on an icon-only button, by its icon and tooltip — a tick for done, a
+  // cross for anything else.
+  function flashButton(btn, msg, ok) {
+    const restore = btn.classList.contains("px-icon-btn") ? flashIcon(btn, msg, ok) : flashLabel(btn, msg);
     btn.setAttribute("disabled", "");
     setTimeout(() => {
-      label.nodeValue = original;
+      restore();
       btn.removeAttribute("disabled");
     }, 1200);
   }
 
-  // The button's own text, as a node: the toolbar buttons carry an icon ahead
-  // of their label, and writing textContent would take the icon with it.
-  // A button's label is the text inside its .px-label span — the wrapper is
-  // what lets a narrow window hide the words beside an icon (viewer.css) —
-  // or, for a button written without one, a bare text node, which gets
-  // wrapped on first use.
+  function flashIcon(btn, msg, ok) {
+    const glyph = btn.querySelector("svg");
+    const title = btn.title;
+    const flash = icon(ok ? "ok" : "close");
+    glyph.replaceWith(flash);
+    btn.title = msg;
+    return () => {
+      flash.replaceWith(glyph);
+      btn.title = title;
+    };
+  }
+
+  function flashLabel(btn, msg) {
+    const label = labelNode(btn);
+    const original = label.nodeValue;
+    label.nodeValue = msg;
+    return () => {
+      label.nodeValue = original;
+    };
+  }
+
+  // The control's own text, as a node, so writing it leaves anything else in
+  // the control alone: the text inside a .px-label span, or a bare text node,
+  // which gets wrapped on first use.
   function labelNode(btn) {
     let span = btn.querySelector(".px-label");
     if (!span) {
@@ -2287,11 +2307,11 @@
   }
 
   function copyNodeXml(element, item) {
-    const finish = (message) => {
-      flashButton(item, message);
+    const finish = (message, ok) => {
+      flashButton(item, message, ok);
       setTimeout(closeNodeMenu, 900);
     };
-    writeClipboard(nodeXml(element), () => finish("Copied"), () => finish("Failed"));
+    writeClipboard(nodeXml(element), () => finish("Copied", true), () => finish("Failed", false));
   }
 
   // Serialise an element the way it appears in the source: XMLSerializer

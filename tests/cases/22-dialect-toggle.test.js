@@ -172,12 +172,14 @@ describe("Dialect toggle", () => {
         }
       }
     }
-    assert(dropped.some((d) => d.includes("1100px") && d.includes("px-search-open")),
+    assert(dropped.some((d) => d.includes("900px") && d.includes("px-search-open") && d.includes("oxv-meta")),
       `expected the pill dropped when the search field is open on a narrow window; got ${dropped.join("; ")}`);
     assert(dropped.some((d) => d.includes("760px")),
       `expected the pill dropped outright when very narrow; got ${dropped.join("; ")}`);
-    assert(dropped.some((d) => d.includes("1000px") && d.includes("oxv-release")),
-      `expected the release selector dropped below 1000px, where it overlapped the verdict; got ${dropped.join("; ")}`);
+    assert(dropped.some((d) => d.includes("800px") && d.includes("oxv-release")),
+      `expected the release selector dropped below 800px, where it overlapped the verdict; got ${dropped.join("; ")}`);
+    assert(dropped.some((d) => d.includes("1000px") && d.includes("px-search-open") && d.includes("oxv-release")),
+      `expected it dropped below 1000px with the search open; got ${dropped.join("; ")}`);
     assert(!dropped.some((d) => d.includes("oxv-validation")),
       `the verdict is never dropped; got ${dropped.join("; ")}`);
   });

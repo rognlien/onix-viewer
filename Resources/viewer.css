@@ -428,30 +428,20 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
    release and blocks from the tree), the verdict isn't. Two breakpoints
    because an open search field costs 320px of the same row.
 
-   Below 1000px the release selector goes too. The controls take about
-   670px with the longer dialect label, and the verdict, the selector and
-   the cog another 320 with their gaps; without this the selector (then a
-   plain issue pill of the same width) sat on top of the verdict from 950px
-   down (measured: verdict 664..800, issue 691..810 at 850px), and a click
-   on the verdict opened nothing. The issue is in About; the verdict is
-   nowhere else. */
-@media (max-width: 1100px) {
+   Below 800px the release selector goes too, or below 1000px with the
+   search open. The controls are icons now, about 480px with the longer
+   dialect label; without these the selector sat on top of the verdict
+   (measured from 820 to 900px with the search open), and a click on the
+   verdict opened nothing. The issue is in About; the verdict is nowhere
+   else. */
+@media (max-width: 900px) {
   body.px-search-open #oxv-meta { display: none; }
 }
-@media (max-width: 1000px) {
+@media (max-width: 800px) {
   #oxv-release-group { display: none; }
 }
-/* Narrower still, the five buttons that carry an icon keep only the icon.
-   Their titles name them for hover and for assistive technology, and the
-   dialect switch — whose label is the whole point — keeps its words. With
-   the labels the controls alone take about 770px, and the verdict met the
-   release selector at 1040px (measured); without, about 480. An open search
-   field costs 320px of the same row, so it sends the labels away sooner. */
-@media (max-width: 1060px) {
-  #oxv-toolbar .px-left button:not(.px-icon-btn) > svg + .px-label { display: none; }
-}
-@media (max-width: 1220px) {
-  body.px-search-open #oxv-toolbar .px-left button:not(.px-icon-btn) > svg + .px-label { display: none; }
+@media (max-width: 1000px) {
+  body.px-search-open #oxv-release-group { display: none; }
 }
 @media (max-width: 760px) {
   #oxv-meta { display: none; }

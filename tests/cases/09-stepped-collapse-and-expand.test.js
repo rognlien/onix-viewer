@@ -166,30 +166,32 @@ describe("Stepped collapse and expand", () => {
     assert(button.textContent.trim() === "ONIX Viewer", "the name takes its place");
   });
 
-  test("the labelled toolbar buttons carry icons", () => {
+  test("the toolbar's icon buttons carry an icon, a tooltip and a name, and no label", () => {
     const w = render("onix-3.0-reference.xml");
     for (const action of ["expand", "collapse", "toggle-wrap", "copy-xml", "download-xml"]) {
-      const button = w.document.querySelector(`[data-action="${action}"]`);
+      const button = w.document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
       const glyph = button.querySelector("svg");
       assert(glyph, `${action} should carry an icon`);
       assert(glyph.getAttribute("viewBox") === "0 0 16 16", "from the shared icon set");
-      assert(glyph.classList.contains("px-icon"), "and be sized by the shared class");
+      assert(button.classList.contains("px-icon-btn"), `${action} should be an icon button`);
+      assert(button.title && button.getAttribute("aria-label"), `${action} needs a tooltip and a name`);
+      assert(button.textContent.trim() === "", `${action} should show no words: "${button.textContent}"`);
     }
   });
 
-  test("Copy XML keeps its icon through the Copied flash", () => {
-    // flashButton used to write the button's textContent, which took the
-    // prepended icon with it: after the first copy the button was text only.
-    // The harness is synchronous, so take the execCommand path, which flashes
-    // in the same tick; the verdict it flashes is beside the point.
+  test("Copy XML shows a tick and says Copied for a moment", () => {
+    // The harness is synchronous, so take the execCommand path, which
+    // reports in the same tick.
     const w = render("onix-3.0-reference.xml");
     Object.defineProperty(w.navigator, "clipboard", { configurable: true, value: undefined });
     w.document.execCommand = () => true;
     const button = w.document.querySelector('[data-action="copy-xml"]');
-    button.textContent = "Copy XML";
-    button.prepend(w.document.querySelector('[data-action="expand"] svg').cloneNode(true));
+    const before = button.querySelector("svg").innerHTML;
     button.click();
-    assert(button.querySelector("svg"), "the icon should survive the flash");
-    assert(button.textContent === "Copied", `the label should flash, got: ${button.textContent}`);
+    const after = button.querySelector("svg");
+    assert(after && after.innerHTML !== before, "the icon should change");
+    assert(after.innerHTML.includes("M3.4 8.4"), "to the tick");
+    assert(button.title === "Copied", `the tooltip should say so, got: ${button.title}`);
+    assert(button.hasAttribute("disabled"), "and the button rests until it is restored");
   });
 });

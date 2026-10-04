@@ -131,11 +131,12 @@ describe("Copying the displayed dialect", () => {
     assert(downloadAll(w).name === "onix-3.0-reference-short-tags.xml", "suffix should follow the dialect");
   });
 
-  test("Download carries an icon and a label that narrow windows can hide", () => {
+  test("Download is an icon named by its tooltip", () => {
     const w = render("onix-3.0-reference.xml");
     const button = w.document.querySelector('[data-action="download-xml"]');
     assert(button.querySelector("svg.px-icon"), "the button should carry an icon");
-    assert(button.querySelector(".px-label").textContent === "Download", "and a label beside it");
+    assert(button.title === "Download the XML as shown", `title: ${button.title}`);
+    assert(button.getAttribute("aria-label") === "Download XML", "and a name for screen readers");
   });
 
   test("returning to the source dialect hands back the untouched source", () => {

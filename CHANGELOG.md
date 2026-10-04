@@ -14,11 +14,15 @@ the main branch.
 - **Download.** A toolbar button beside Copy XML saves the document as it
   is shown: the file itself at its own dialect, the converted ONIX while the
   view is translated, named for the dialect (`feed-short-tags.xml`,
-  `feed-reference-names.xml`). It needs no permission. The icon buttons drop
-  their labels sooner, below 1060px, or 1220px with the search open, to make
-  room for it.
+  `feed-reference-names.xml`). It needs no permission.
 
 ### Changed
+- **The toolbar's controls are icons with tooltips.** Expand and Collapse
+  are chevrons opening from a line and closing onto it, Wrap the familiar
+  wrap-text sign, and Copy XML
+  and Download keep their icons and drop their words; each names itself and
+  its key on hover. Copy shows a tick when it is done. The row is about
+  300px shorter, so the release selector now stays down to 800px.
 - **The file size reads as the Finder gives it.** `373.3 MB` where the
   toolbar said `363360.2 KB`: bytes rather than characters, decimal units,
   whole kilobytes, one decimal for megabytes and gigabytes, in the

@@ -332,7 +332,7 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
 `.px-center` and `.px-right`:
 
 ```
-[ 🦉  ⌄⌄ Expand   ⌃⌃ Collapse   ↵ Soft wrap   View as…   ⧉ Copy XML   ⤓ Download   🔍 ]
+[ 🦉  ⇕  ⇳  ⤶   View as…   ⧉  ⤓   🔍 ]
         [📄 ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 18 KB]  [✓ Valid]
                                                 … [ONIX 3.1, Issue 74 ▾] [⚙]
 ```
@@ -453,12 +453,12 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   wrapper span around it — draws a rotated border corner centred on the
   box, in the text's colour. Chrome on macOS put
   the native one below the text's midline once the box had padding of its
-  own. The wrapper is what the 1000px breakpoint hides, and it hides itself
+  own. The wrapper is what the 800px breakpoint hides, and it hides itself
   when the select is empty.
 
 **What gives way on a narrow window**, in order: the document pill's label
 ellipsises, then the search field shortens, then the pill is dropped
-altogether, and below 1000px the release selector as well. `#oxv-validation` is
+altogether, and below 800px the release selector as well. `#oxv-validation` is
 `flex-shrink: 0` and never gives way — the size, release and issue are
 recoverable from the file, the tree and About, `103 errors` is not. Four
 things are needed to make that happen:
@@ -468,32 +468,31 @@ things are needed to make that happen:
   column push into the right one.
 - `min-width: 0` on `#oxv-meta` and `.px-search-group`. A flex item's default
   `min-width: auto` is its content size, so neither would shrink either.
-- Two breakpoints dropping the pill — `max-width: 1100px` while the search
+- Two breakpoints dropping the pill — `max-width: 900px` while the search
   field is open (it costs 320px of the same row), `max-width: 760px`
   regardless. Without them the verdict, being last in the group, is what gets
   clipped.
-- A breakpoint dropping the **release selector** at `max-width: 1000px`.
-  The controls alone take about 670px with the longer dialect label ("View
-  as reference names"), and the verdict, the selector and the cog need
-  another 320 with their gaps. Below that the grid's right column sat on
-  top of the centre one — measured at 850px with the issue pill the
-  selector replaced, of the same width: verdict 664..800, issue 691..810 —
-  so a click on the verdict landed on the pill and opened nothing. Headless
-  Chrome's default 800px window is where the browser test found it; the
-  test now runs at 1280px.
-- A breakpoint at `max-width: 1060px` hiding the **labels** of the five
-  buttons that carry an icon (Expand, Collapse, Soft wrap, Copy XML,
-  Download), which are wrapped in `.px-label` for the purpose; their
-  `title`s still name them. It sat at 900px until Download arrived; with
-  the extra label the verdict ran into the release selector at 1040px.
-  While the search is open the same labels go at `max-width: 1220px`,
-  since the field costs 320px of the row. The dialect switch keeps its
-  words: its label is what it says.
+- Breakpoints dropping the **release selector** at `max-width: 800px`, or
+  `1000px` while the search is open. The controls are icons, about 480px
+  with the longer dialect label ("View as reference names"); past these
+  the grid's right column sat on top of the centre one — measured from 820
+  to 900px with the search open — so a click on the verdict landed on the
+  selector and opened nothing. Headless Chrome's default 800px window is
+  where the browser test first found it; the test runs at 1280px.
+
+**The controls are icons with tooltips.** Expand, Collapse, Wrap,
+Copy XML and Download are `.px-icon-btn`s with a `title` naming the action
+and its key and an `aria-label` for screen readers. They had labels, and
+the five labels cost about 300px of the row and two breakpoints to hide
+them again. Copy and Download report through the icon instead of a label:
+`flashButton()` shows a tick (or a cross) and says `Copied` in the tooltip
+for a moment. The dialect switch keeps its words: its label is what it
+says.
 
 Measured in Chrome from 1400px down (`tests/browser` has no case for it;
 the script was ad hoc): with both sample dialects, the longest verdict and
 the search closed, nothing overlaps or clips down to 700px. With the search
-open the verdict is clipped below 820px, where the field's `40vw` still
+open the verdict is clipped below 780px, where the field's `40vw` still
 takes more than the row can spare.
 
 The document pill is one bordered unit built by `fillMetaPill()`: a file icon,
@@ -1565,18 +1564,18 @@ and sized to 12px by `.px-icon`, so one chip's colour carries its icon.
 Toolbar buttons scale theirs to 14px: at 12px, beside a 12px label at a
 button's scale, an icon reads as an afterthought.
 
-`wrap` is the return arrow, and it took three attempts to find a form that
-survives 14px. The first two drew the literal thing — a text rule plus a line
-wrapping round with an arrowhead — which needs an arc *and* a head inside about
-10px. Both read as a bar with a nub. The return arrow uses the whole box in two
-bold strokes instead, which is the constraint the rest of the set obeys: no icon
-here holds more than three strokes with no fine detail.
+`wrap` is "wrap text" as the editors draw it: a full line, a line that runs
+to the right edge and hooks back beneath itself with an arrowhead, and the
+short line it lands on. With a label beside it the return arrow (↵) was
+enough; alone it said "Enter".
 
-`expand` and `collapse` are **two chevrons the same way up**, down and up
-respectively — not a pair pointing at each other. Inward-facing chevrons read
-as a ✕ at 14px however far apart the apexes are pushed (tried, and it did),
-and ✕ already means close. Down-opens/up-folds matches the row chevrons (`▾`
-open, `▸` closed), and doubling them says "a level at a time".
+`expand` and `collapse` are **chevrons opening away from a rule and
+closing onto it**, as GitHub's unfold and fold icons expand and hide lines
+in a diff. Tried and dropped on the way: two chevrons the same way up
+(decoration without a label beside them), a stacked pair of boxes with a
+sign (too like Copy), a boxed plus and minus (read as add and remove), and
+rows with the tree's own ▾ and ▸ (specks at 16px). The rule between the
+closing chevrons is what keeps them from reading as a ✕.
 
 They are SVG rather than characters for two reasons: `⚠` has an emoji
 presentation on several platforms, so it renders as a colour emoji inside a
@@ -1601,9 +1600,9 @@ collects several drops the text for a count. The tooltip carries every
 message in full either way. Pills are `aria-hidden` on the icon with the
 wording on the pill's `aria-label`.
 
-Every labelled toolbar button now carries one — Expand, Collapse, Soft wrap,
-Copy XML and Download — with a test asserting all five do. The dialect switch deliberately
-does not: its label names the *translation* and changes with the document, so
+Every icon button in the toolbar carries one — Expand, Collapse, Wrap, Copy
+XML and Download — with a test asserting all five do, and that none shows
+words. The dialect switch deliberately has no icon: its label names the *translation* and changes with the document, so
 the words are the load-bearing part and an icon beside them would compete.
 
 Still characters, deliberately: the fold chevrons (`▾`/`▸`, CSS `content`),

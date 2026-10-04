@@ -40,18 +40,18 @@
     <button type="button" class="px-logo-btn" data-action="about" title="About ONIX Viewer" aria-label="About ONIX Viewer">
       <img id="oxv-logo" src="${logoURL}" srcset="${logoURL} 1x, ${logoURL2x} 2x" width="28" height="28" alt="">
     </button>
-    <!-- Expand and Collapse both work a level at a time; viewer.js prepends
-         their icons. -->
-    <button type="button" data-action="expand" title="Expand one more level (E)"><span class="px-label">Expand</span></button>
-    <button type="button" data-action="collapse" title="Collapse a level: first each Product's contents, then the Products, then everything (C)"><span class="px-label">Collapse</span></button>
-    <button type="button" data-action="toggle-wrap" title="Toggle soft wrap (W)"><span class="px-label">Soft wrap</span></button>
+    <!-- Icon-only, named by their titles and aria-labels; viewer.js fills in
+         the icons. Expand and Collapse both work a level at a time. -->
+    <button type="button" class="px-icon-btn" data-action="expand" title="Expand one more level (E)" aria-label="Expand one more level"></button>
+    <button type="button" class="px-icon-btn" data-action="collapse" title="Collapse a level: first each Product's contents, then the Products, then everything (C)" aria-label="Collapse one level"></button>
+    <button type="button" class="px-icon-btn" data-action="toggle-wrap" title="Wrap long lines (W)" aria-label="Wrap long lines"></button>
     <span class="px-dialect-group">
       <!-- Label and title are filled in by viewer.js, which knows which
            dialect the document is written in. -->
       <button type="button" data-action="dialect-toggle" aria-pressed="false"></button>
     </span>
-    <button type="button" data-action="copy-xml" title="Copy raw XML to clipboard"><span class="px-label">Copy XML</span></button>
-    <button type="button" data-action="download-xml" title="Download the XML as shown"><span class="px-label">Download</span></button>
+    <button type="button" class="px-icon-btn" data-action="copy-xml" title="Copy the XML as shown" aria-label="Copy XML"></button>
+    <button type="button" class="px-icon-btn" data-action="download-xml" title="Download the XML as shown" aria-label="Download XML"></button>
     <span class="px-search-group">
       <!-- Collapsed to its icon until used: the field earns its width only
            while you are searching. viewer.js fills in the icon. -->
