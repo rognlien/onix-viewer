@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.21 — 2026-10-05
 
 ### Added
 - **Thema subject codes.** A `<SubjectCode>` under one of the seven Thema
@@ -50,7 +50,7 @@ the main branch.
   waits for the page to load.
 
 ### Held back
-Built and tested, and in the code behind a switch that is off in 0.9.20
+Built and tested, and in the code behind a switch that is off in 0.9.21
 (`FEATURES.customRules` in `viewer.js`, `CUSTOM_RULES` in `content.js`): the
 custom-rules editor with its cog and its `storage` permission. Until it
 ships, the toolbar has no cog and the manifest asks for no permission at
