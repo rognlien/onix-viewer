@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ONIXMessage xmlns="http://ns.editeur.org/onix/3.1/reference" release="3.1">
+    <Header>
+        <Sender>
+            <SenderName>Whimsical Books Sample Generator</SenderName>
+            <ContactName>Ottoline Fenwick-Snug</ContactName>
+            <EmailAddress>onix@example.invalid</EmailAddress>
+        </Sender>
+        <MessageNumber>1</MessageNumber>
+        <SentDateTime>20261004T1806</SentDateTime>
+        <MessageNote>Generated sample data. Every product in this message is fictional.</MessageNote>
+        <DefaultCurrencyCode>GBP</DefaultCurrencyCode>
+    </Header>
+    <Product>
+        <RecordReference>com.sample.onix.9782620903374</RecordReference>
+        <NotificationType>89</NotificationType>
+        <RecordSourceType>01</RecordSourceType>
+        <RecordSourceIdentifier>
+            <RecordSourceIDType>01</RecordSourceIDType>
+            <IDTypeName>WhimID</IDTypeName>
+            <IDValue>WHIM</IDValue>
+        </RecordSourceIdentifier>
+        <RecordSourceName>Whimsical Books Sample Generator</RecordSourceName>
+        <ProductIdentifier>
+            <ProductIDType>01</ProductIDType>
+            <IDTypeName>WhimID</IDTypeName>
+            <IDValue>com.sample.onix.9782620903374</IDValue>
+        </ProductIdentifier>
+        <ProductIdentifier>
+            <ProductIDType>03</ProductIDType>
+            <IDValue>9782620903374</IDValue>
+        </ProductIdentifier>
+        <ProductIdentifier>
+            <ProductIDType>15</ProductIDType>
+            <IDValue>9782620903375</IDValue>
+        </ProductIdentifier>
+        <ProductIdentifier>
+            <ProductIDType>02</ProductIDType>
+            <IDValue>2620903378</IDValue>
+        </ProductIdentifier>
+        <DescriptiveDetail>
+            <ProductComposition>00</ProductComposition>
+            <ProductForm>EB</ProductForm>
+            <ProductFormDetail>B101</ProductFormDetail>
+            <PrimaryContentType>10</PrimaryContentType>
+            <ProductContentType>07</ProductContentType>
+            <EpubTechnicalProtection>02</EpubTechnicalProtection>
+            <EpubUsageConstraint>
+                <EpubUsageType>02</EpubUsageType>
+                <EpubUsageStatus>02</EpubUsageStatus>
+                <EpubUsageLimit>
+                    <Quantity>20</Quantity>
+                    <EpubUsageUnit>05</EpubUsageUnit>
+                </EpubUsageLimit>
+            </EpubUsageConstraint>
+            <ProductClassification>
+                <ProductClassificationType>01</ProductClassificationType>
+                <ProductClassificationCode>4901.99</ProductClassificationCode>
+            </ProductClassification>
+            <Collection>
+                <CollectionType>10</CollectionType>
+                <CollectionIdentifier>
+                    <CollectionIDType>01</CollectionIDType>
+                    <IDTypeName>WhimID</IDTypeName>
+                    <IDValue>ADVENTUR-3D483A27</IDValue>
+                </CollectionIdentifier>
+                <CollectionSequence>
+                    <CollectionSequenceType>03</CollectionSequenceType>
+                    <CollectionSequenceNumber>11</CollectionSequenceNumber>
+                </CollectionSequence>
+                <TitleDetail>
+                    <TitleType>01</TitleType>
+                    <TitleElement>
+                        <TitleElementLevel>02</TitleElementLevel>
+                        <NoPrefix></NoPrefix>
+                        <TitleWithoutPrefix>Adventures in Squashed Monocle</TitleWithoutPrefix>
+                    </TitleElement>
+                </TitleDetail>
+            </Collection>
+            <TitleDetail>
+                <TitleType>01</TitleType>
+                <TitleElement>
+                    <TitleElementLevel>01</TitleElementLevel>
+                    <TitleText>Songs of the Dawdling Pantaloons</TitleText>
+                </TitleElement>
+            </TitleDetail>
+            <Contributor>
+                <SequenceNumber>1</SequenceNumber>
+                <ContributorRole>A01</ContributorRole>
+                <NameType>04</NameType>
+                <NameIdentifier>
+                    <NameIDType>01</NameIDType>
+                    <IDTypeName>WhimID</IDTypeName>
+                    <IDValue>WIBB-EUS</IDValue>
+                </NameIdentifier>
+                <PersonName>Eusebius Wibbleton</PersonName>
+                <PersonNameInverted>Wibbleton, Eusebius</PersonNameInverted>
+                <NamesBeforeKey>Eusebius</NamesBeforeKey>
+                <KeyNames>Wibbleton</KeyNames>
+                <BiographicalNote>Eusebius Wibbleton grew up in Blatherwick and still keeps the pigeon that started it all. Letters are answered eventually, and postcards sooner.</BiographicalNote>
+                <ContributorPlace>
+                    <ContributorPlaceRelator>01</ContributorPlaceRelator>
+                    <CountryCode>IE</CountryCode>
+                </ContributorPlace>
+            </Contributor>
+            <Contributor>
+                <SequenceNumber>2</SequenceNumber>
+                <ContributorRole>Z12</ContributorRole>
+                <NameType>04</NameType>
+                <NameIdentifier>
+                    <NameIDType>01</NameIDType>
+                    <IDTypeName>WhimID</IDTypeName>
+                    <IDValue>GIGG-PHI</IDValue>
+                </NameIdentifier>
+                <PersonName>Phineas af Gigglecombe</PersonName>
+                <PersonNameInverted>Gigglecombe, Phineas af</PersonNameInverted>
+                <NamesBeforeKey>Phineas</NamesBeforeKey>
+                <PrefixToKey>af</PrefixToKey>
+                <KeyNames>Gigglecombe</KeyNames>
+                <BiographicalNote>Phineas af Gigglecombe writes in a shed at the bottom of the garden, guarded by the tiddly rooster. The brambly brouhaha on the mantelpiece is said to be an heirloom.</BiographicalNote>
+            </Contributor>
+            <ContributorStatement>By Eusebius Wibbleton; illustrated by Phineas af Gigglecombe</ContributorStatement>
+            <EditionType>ALT</EditionType>
+            <EditionNumber>4</EditionNumber>
+            <Language>
+                <LanguageRole>01</LanguageRole>
+                <LanguageCode>en</LanguageCode>
+            </Language>
+            <Extent>
+                <ExtentType>00</ExtentType>
+                <ExtentValue>0</ExtentValue>
+                <ExtentUnit>03</ExtentUnit>
+            </Extent>
+            <Extent>
+                <ExtentType>02</ExtentType>
+                <ExtentValue>94920</ExtentValue>
+                <ExtentUnit>02</ExtentUnit>
+            </Extent>
+            <Extent>
+                <ExtentType>10</ExtentType>
+                <ExtentValue>339</ExtentValue>
+                <ExtentUnit>03</ExtentUnit>
+            </Extent>
+            <Illustrated>02</Illustrated>
+            <NumberOfIllustrations>6</NumberOfIllustrations>
+            <IllustrationsNote>6 illustrations, all of them slightly askew</IllustrationsNote>
+            <AncillaryContent>
+                <AncillaryContentType>09</AncillaryContentType>
+                <Number>6</Number>
+            </AncillaryContent>
+            <Subject>
+                <MainSubject></MainSubject>
+                <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>
+                <SubjectSchemeVersion>1.6</SubjectSchemeVersion>
+                <SubjectCode>JHBL9</SubjectCode>
+            </Subject>
+            <Subject>
+                <SubjectSchemeIdentifier>94</SubjectSchemeIdentifier>
+                <SubjectSchemeVersion>1.6</SubjectSchemeVersion>
+                <SubjectCode>1DNN</SubjectCode>
+            </Subject>
+            <Subject>
+                <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>
+                <SubjectCode>SOC000000</SubjectCode>
+            </Subject>
+            <Subject>
+                <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>
+                <SubjectHeadingText>toad; warthog; orangutan</SubjectHeadingText>
+            </Subject>
+            <Audience>
+                <MainAudience></MainAudience>
+                <AudienceCodeType>01</AudienceCodeType>
+                <AudienceCodeValue>01</AudienceCodeValue>
+            </Audience>
+            <AudienceDescription>For readers with a tolerance for the impractical and a fondness for long sentences.</AudienceDescription>
+        </DescriptiveDetail>
+        <CollateralDetail>
+            <TextContent>
+                <TextType>02</TextType>
+                <ContentAudience>00</ContentAudience>
+                <Text>A quarrelsome tale of eggcup and nattering bowler hat</Text>
+            </TextContent>
+            <TextContent>
+                <TextType>03</TextType>
+                <ContentAudience>00</ContentAudience>
+                <Text>A quarrelsome tale of eggcup and nattering bowler hat, woven together in an unforgettable story that will linger long after the final page.</Text>
+            </TextContent>
+            <TextContent>
+                <TextType>10</TextType>
+                <ContentAudience>00</ContentAudience>
+                <Text>Songs of the Dawdling Pantaloons — the least predictable book of the year</Text>
+            </TextContent>
+            <TextContent>
+                <TextType>06</TextType>
+                <ContentAudience>00</ContentAudience>
+                <Text>“Irresistible, and faintly unsettling. I read it twice.”</Text>
+                <TextAuthor>Mabel Crumbleworth</TextAuthor>
+            </TextContent>
+            <TextContent>
+                <TextType>12</TextType>
+                <ContentAudience>00</ContentAudience>
+                <Text>Eusebius Wibbleton grew up in Blatherwick and still keeps the pigeon that started it all. Letters are answered eventually, and postcards sooner.</Text>
+            </TextContent>
+            <CitedContent>
+                <CitedContentType>01</CitedContentType>
+                <ContentAudience>00</ContentAudience>
+                <SourceType>01</SourceType>
+                <SourceTitle>The Sozzled Washboard Pamphleteers Review</SourceTitle>
+                <ResourceLink>https://reviews.example.invalid/9782620903374</ResourceLink>
+            </CitedContent>
+            <SupportingResource>
+                <ResourceContentType>01</ResourceContentType>
+                <ContentAudience>00</ContentAudience>
+                <ResourceMode>03</ResourceMode>
+                <ResourceFeature>
+                    <ResourceFeatureType>07</ResourceFeatureType>
+                    <FeatureValue>Front cover of Songs of the Dawdling Pantaloons</FeatureValue>
+                </ResourceFeature>
+                <ResourceVersion>
+                    <ResourceForm>02</ResourceForm>
+                    <ResourceLink>https://images.example.invalid/covers/9782620903374.jpg</ResourceLink>
+                </ResourceVersion>
+            </SupportingResource>
+            <Prize>
+                <PrizeName>The Sozzled Prize for Improbable Fiction</PrizeName>
+                <PrizeYear>2008</PrizeYear>
+                <AwardingBody>Sozzled Washboard Pamphleteers</AwardingBody>
+                <PrizeCountry>XX</PrizeCountry>
+                <PrizeCode>01</PrizeCode>
+            </Prize>
+        </CollateralDetail>
+        <PublishingDetail>
+            <Imprint>
+                <ImprintIdentifier>
+                    <ImprintIDType>01</ImprintIDType>
+                    <IDTypeName>WhimID</IDTypeName>
+                    <IDValue>THESHIFT-IMP</IDValue>
+                </ImprintIdentifier>
+                <ImprintName>The Shifty Kerfuffle Bedtime</ImprintName>
+            </Imprint>
+            <Publisher>
+                <PublishingRole>01</PublishingRole>
+                <PublisherIdentifier>
+                    <PublisherIDType>01</PublisherIDType>
+                    <IDTypeName>WhimID</IDTypeName>
+                    <IDValue>THEJITTE</IDValue>
+                </PublisherIdentifier>
+                <PublisherName>The Jittery Duckling Publishing Collective</PublisherName>
+            </Publisher>
+            <CityOfPublication>Edinburgh</CityOfPublication>
+            <CountryOfPublication>UK</CountryOfPublication>
+            <PublishingStatus>12</PublishingStatus>
+            <PublishingDate>
+                <PublishingDateRole>01</PublishingDateRole>
+                <Date dateformat="00">20080608</Date>
+            </PublishingDate>
+            <PublishingDate>
+                <PublishingDateRole>09</PublishingDateRole>
+                <Date dateformat="00">20080209</Date>
+            </PublishingDate>
+            <CopyrightStatement>
+                <CopyrightType>C</CopyrightType>
+                <CopyrightYear>2008</CopyrightYear>
+                <CopyrightOwner>
+                    <CorporateName>The Jittery Duckling Publishing Collective</CorporateName>
+                </CopyrightOwner>
+            </CopyrightStatement>
+            <SalesRights>
+                <SalesRightsType>01</SalesRightsType>
+                <Territory>
+                    <RegionsIncluded>WORLD</RegionsIncluded>
+                </Territory>
+            </SalesRights>
+        </PublishingDetail>
+        <RelatedMaterial>
+            <RelatedProduct>
+                <ProductRelationCode>06</ProductRelationCode>
+                <ProductIdentifier>
+                    <ProductIDType>15</ProductIDType>
+                    <IDValue>9780974896922</IDValue>
+                </ProductIdentifier>
+                <ProductForm>BC</ProductForm>
+            </RelatedProduct>
+        </RelatedMaterial>
+        <ProductSupply>
+            <MarketReference>WORLD-RETAIL-WHIMDIST</MarketReference>
+            <Market>
+                <Territory>
+                    <RegionsIncluded>WORLD</RegionsIncluded>
+                </Territory>
+            </Market>
+            <MarketPublishingDetail>
+                <MarketPublishingStatus>04</MarketPublishingStatus>
+            </MarketPublishingDetail>
+            <SupplyDetail>
+                <Supplier>
+                    <SupplierRole>05</SupplierRole>
+                    <SupplierIdentifier>
+                        <SupplierIDType>01</SupplierIDType>
+                        <IDTypeName>WhimID</IDTypeName>
+                        <IDValue>WHIMDIST</IDValue>
+                    </SupplierIdentifier>
+                    <SupplierName>Whimsical Distribution</SupplierName>
+                    <EmailAddress>orders@example.invalid</EmailAddress>
+                </Supplier>
+                <ProductAvailability>21</ProductAvailability>
+                <SupplyDate>
+                    <SupplyDateRole>08</SupplyDateRole>
+                    <Date dateformat="00">20080608</Date>
+                </SupplyDate>
+                <Stock>
+                    <OnHand>390</OnHand>
+                </Stock>
+                <PackQuantity>12</PackQuantity>
+                <Price>
+                    <PriceType>02</PriceType>
+                    <PriceQualifier>05</PriceQualifier>
+                    <PriceStatus>02</PriceStatus>
+                    <PriceAmount>12,64</PriceAmount>
+                    <Tax>
+                        <TaxType>01</TaxType>
+                        <TaxRateCode>Z</TaxRateCode>
+                        <TaxRatePercent>0</TaxRatePercent>
+                        <TaxableAmount>12.64</TaxableAmount>
+                        <TaxAmount>0.00</TaxAmount>
+                    </Tax>
+                    <CurrencyCode>GBP</CurrencyCode>
+                    <Territory>
+                        <RegionsIncluded>WORLD</RegionsIncluded>
+                    </Territory>
+                    <PriceDate>
+                        <PriceDateRole>14</PriceDateRole>
+                        <Date dateformat="00">20080608</Date>
+                    </PriceDate>
+                </Price>
+                <Price>
+                    <PriceType>02</PriceType>
+                    <PriceQualifier>10</PriceQualifier>
+                    <PriceStatus>02</PriceStatus>
+                    <PriceAmount>0.00</PriceAmount>
+                    <Tax>
+                        <TaxType>01</TaxType>
+                        <TaxRateCode>Z</TaxRateCode>
+                        <TaxRatePercent>0</TaxRatePercent>
+                        <TaxableAmount>1.26</TaxableAmount>
+                        <TaxAmount>0.00</TaxAmount>
+                    </Tax>
+                    <CurrencyCode>ATS</CurrencyCode>
+                    <Territory>
+                        <RegionsIncluded>WORLD</RegionsIncluded>
+                    </Territory>
+                    <PriceDate>
+                        <PriceDateRole>14</PriceDateRole>
+                        <Date dateformat="00">20080608</Date>
+                    </PriceDate>
+                </Price>
+            </SupplyDetail>
+        </ProductSupply>
+    </Product>
+</ONIXMessage>

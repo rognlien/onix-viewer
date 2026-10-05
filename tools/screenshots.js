@@ -5,7 +5,7 @@
 //   npm run screenshots:safari     # Safari  → safari/screenshots/
 //   FIREFOX_BIN=/path/to/firefox node tools/screenshots.js firefox
 //
-// Three 1280×800 captures of the viewer over Onix/onix-3.1-refnames-defects.xml,
+// Three 1280×800 captures of the viewer over Onix/onix-3.1-whimsical.xml,
 // in the light colour scheme: Main.png is the tree as it loads, CodeList.png
 // the code-list popup opened from the <NotificationType> row, Violations.png
 // the findings list opened from the verdict pill. The browser is launched as
@@ -51,7 +51,7 @@ const puppeteer = require("puppeteer-core");
 
 const ROOT = path.join(__dirname, "..");
 const RESOURCES = path.join(ROOT, "Resources");
-const SAMPLE = path.join(ROOT, "Onix", "onix-3.1-refnames-defects.xml");
+const SAMPLE = path.join(ROOT, "Onix", "onix-3.1-whimsical.xml");
 const FIREFOX = process.env.FIREFOX_BIN || "/Applications/Firefox.app/Contents/MacOS/firefox";
 
 const WIDTH = 1280;
