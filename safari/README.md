@@ -211,7 +211,7 @@ Settings → Developer → *Allow unsigned extensions*, then *Add Temporary
 Extension…* → `dist/safari/onix-viewer-<v>-safari`; Settings → Extensions →
 turn ONIX Viewer on **in the profile you will browse from** (a temporary
 extension is enabled in the profile it was added from and nowhere else);
-open `http://127.0.0.1:8000/Onix/onix-3.1-refnames-defects.xml`, click the
+open `http://127.0.0.1:8000/Onix/onix-3.1-whimsical.xml`, click the
 extension's toolbar button and choose *Always Allow on Every Website*,
 reload. A cold load needs a name Safari has not cached, so copy the feed to
 a new name in `dist/` for each one. Look for:
