@@ -155,6 +155,29 @@ if [ "$TARGET" = "safari" ]; then
   # (no encryption of its own) that TestFlight otherwise asks for on every
   # build.
   PBXPROJ="$PROJECT/$APP_NAME/$APP_NAME.xcodeproj/project.pbxproj"
+  # The converter makes the app icon from the extension's transparent owl,
+  # which macOS sits on a gray plate. Replace it with icons/safari-app-icon.png,
+  # an opaque square (tools/render-safari-icon.sh), at the ten Mac sizes.
+  APPICONSET="$(find "$PROJECT/$APP_NAME" -type d -name AppIcon.appiconset | head -n 1)"
+  if [ -z "$APPICONSET" ]; then
+    echo "no AppIcon.appiconset in $PROJECT/$APP_NAME — the converter's layout changed" >&2
+    exit 1
+  fi
+  rm -f "$APPICONSET"/*
+  {
+    echo '{ "images": ['
+    first=1
+    for base in 16 32 128 256 512; do
+      for scale in 1 2; do
+        px=$((base * scale))
+        sips -z "$px" "$px" icons/safari-app-icon.png --out "$APPICONSET/icon_${base}x${base}@${scale}x.png" >/dev/null
+        [ "$first" = 1 ] || echo ','
+        first=0
+        printf '{ "idiom": "mac", "size": "%sx%s", "scale": "%sx", "filename": "icon_%sx%s@%sx.png" }' "$base" "$base" "$scale" "$base" "$base" "$scale"
+      done
+    done
+    echo '], "info": { "version": 1, "author": "xcode" } }'
+  } > "$APPICONSET/Contents.json"
   # App Store Connect refuses a build whose version and build number it has
   # seen, and 0.9.20 (1) was on TestFlight before that tag was taken back,
   # so the build number can be set: APPLE_BUILD_NUMBER=2 for that upload.
