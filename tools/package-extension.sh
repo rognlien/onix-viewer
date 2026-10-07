@@ -111,6 +111,18 @@ check_version_name() {
   fi
 }
 
+# The Mac build number for a version: major, minor and patch two digits
+# each, then two for repeat uploads of the same version.
+build_number() {
+  local major minor patch
+  IFS=. read -r major minor patch <<< "$1"
+  if [ "$minor" -gt 99 ] || [ "$patch" -gt 99 ]; then
+    echo "version $1 does not fit the build number's two digits per part" >&2
+    exit 1
+  fi
+  echo $(( (major * 10000 + minor * 100 + patch) * 100 ))
+}
+
 # The listing material beside the package: the store's copy of the listing
 # text and the screenshots, and for the two that take one, the 128px icon.
 # Not for a dev build, which is never uploaded.
@@ -178,10 +190,12 @@ if [ "$TARGET" = "safari" ]; then
     done
     echo '], "info": { "version": 1, "author": "xcode" } }'
   } > "$APPICONSET/Contents.json"
-  # App Store Connect refuses a build whose version and build number it has
-  # seen, and 0.9.20 (1) was on TestFlight before that tag was taken back,
-  # so the build number can be set: APPLE_BUILD_NUMBER=2 for that upload.
-  sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/; s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${APPLE_BUILD_NUMBER:-1};/" "$PBXPROJ"
+  # App Store Connect wants every Mac build number higher than any uploaded
+  # before, whatever the version, so it is derived from the version with
+  # two digits to spare: 0.9.21 is 92100, 1.0.0 is 1000000. A second upload
+  # of one version sets the next itself: APPLE_BUILD_NUMBER=92101.
+  BUILD_NUMBER="${APPLE_BUILD_NUMBER:-$(build_number "$VERSION")}"
+  sed -i '' -E "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 15.0;/; s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/; s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/" "$PBXPROJ"
   sed -i '' -E "s/INFOPLIST_KEY_NSMainStoryboardFile = Main;/INFOPLIST_KEY_NSMainStoryboardFile = Main;\\
 				INFOPLIST_KEY_LSApplicationCategoryType = \"public.app-category.developer-tools\";\\
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;/; s/INFOPLIST_KEY_NSHumanReadableCopyright = \"\";/INFOPLIST_KEY_NSHumanReadableCopyright = \"© 2026 Bendik Rognlien Johansen\";/" "$PBXPROJ"
