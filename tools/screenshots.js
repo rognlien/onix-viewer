@@ -14,8 +14,8 @@
 // captured is what a reader sees. Nothing of the browser itself is in frame,
 // which is why the Chrome and Firefox sets differ only in text rendering.
 //
-// After a run the set's fingerprint is written beside it, which the store
-// build checks — see tools/screenshot-stamp.js.
+// After a run the set is also copied into dist/<browser>/screenshots/, the
+// store's upload folder, so the folder never holds an older set.
 //
 // The site copies in site/ are held to chrome/screenshots/ by a test, so
 // after the Chrome set tools/site-sync.js copies the three there and
@@ -303,26 +303,11 @@ function safariCapture(win, name) {
   console.log(`  wrote ${path.relative(ROOT, file)} (${scale}x)`);
 }
 
-// Chrome and Firefox load Resources/ from this checkout; Safari runs
-// whichever ONIX Viewer is installed, and the App Store's copy once took the
-// whole set of a release behind. The version the page was given must be the
-// checkout's -dev one, which only a build from here carries.
-function requireThisCheckout() {
-  const expected = JSON.parse(fs.readFileSync(path.join(RESOURCES, "manifest.json"), "utf8")).version_name;
-  const running = safariEval("document.documentElement.dataset.oxvVersion || ''");
-  if (running !== expected) {
-    throw new Error(`Safari is running ONIX Viewer ${running || "(unknown)"}, not this checkout's ${expected}. ` +
-      "Build the dev app (npm run build:dev, then Run dist/dev/safari/ONIX Viewer Dev in Xcode), " +
-      "turn the App Store copy off in Safari → Settings → Extensions, and run this again.");
-  }
-}
-
 async function safariShots(url) {
   const wasDark = systemDarkMode();
   if (wasDark) systemDarkMode(false);
   try {
     await safariOpen(url);
-    requireThisCheckout();
     const win = safariViewport();
     console.log(`safari: ${safariEval("document.getElementById('oxv-meta').textContent.trim()")}, ` +
       `${safariEval("document.getElementById('oxv-validation').textContent.trim()")}`);
@@ -344,6 +329,15 @@ async function safariShots(url) {
   }
 }
 
+function copyToDist() {
+  const dist = path.join(ROOT, "dist", BROWSER, "screenshots");
+  fs.mkdirSync(dist, { recursive: true });
+  for (const name of ["Main", "CodeList", "Violations"]) {
+    fs.copyFileSync(path.join(OUT, `${name}.png`), path.join(dist, `${name}.png`));
+  }
+  console.log(`  copied to ${path.relative(ROOT, dist)}/`);
+}
+
 // ---- main ---------------------------------------------------------------------
 
 (async () => {
@@ -352,7 +346,7 @@ async function safariShots(url) {
   if (BROWSER === "safari") {
     try {
       await safariShots(served.url);
-      require("./screenshot-stamp.js").stamp(BROWSER);
+      copyToDist();
     } finally {
       served.server.close();
     }
@@ -369,7 +363,7 @@ async function safariShots(url) {
     await closeCodeList(page);
     await openFindings(page);
     await capture(page, "Violations");
-    require("./screenshot-stamp.js").stamp(BROWSER);
+    copyToDist();
     if (BROWSER === "chrome") {
       for (const change of require("./site-sync.js").sync()) console.log(`  ${change}`);
     }

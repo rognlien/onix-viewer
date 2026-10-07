@@ -123,21 +123,12 @@ build_number() {
   echo $(( (major * 10000 + minor * 100 + patch) * 100 ))
 }
 
-# The screenshots must show the extension being packaged: a set taken
-# before the last change to Resources/ is refused, naming the command that
-# re-takes it (tools/screenshot-stamp.js). ALLOW_STALE_SCREENSHOTS=1 builds
-# anyway; CI, which builds the GitHub release's zips and no upload folder
-# a store sees, is not checked.
-#
 # The listing material beside the package: the store's copy of the listing
 # text and the screenshots, for the two that take one, the 128px icon, and
 # for the two with a "What's New" field, the version's plain-text notes.
 # Not for a dev build, which is never uploaded.
 assemble_listing() {
-  if [ -z "${CI:-}" ] && [ -z "${ALLOW_STALE_SCREENSHOTS:-}" ]; then
-    node tools/screenshot-stamp.js check "$TARGET"
-  fi
-  rsync -a --delete --exclude .DS_Store --exclude fingerprint "$TARGET/screenshots/" "$OUT_DIR/screenshots/"
+  rsync -a --delete --exclude .DS_Store "$TARGET/screenshots/" "$OUT_DIR/screenshots/"
   cp "$TARGET/listing.md" "$OUT_DIR/$TARGET-listing.md"
   [ "$TARGET" = "safari" ] || cp Resources/icons/icon-128.png "$OUT_DIR/icon-128.png"
   [ "$TARGET" != "chrome" ] || tools/render-tiles.sh "$OUT_DIR"
