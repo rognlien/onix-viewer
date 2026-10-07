@@ -33,6 +33,9 @@ the main branch.
   whole kilobytes, one decimal for megabytes and gigabytes, in the
   browser's own number format. The product count beside it is grouped the
   same way: `20,868 products` (`20 868` in Norwegian).
+- **The Mac app has an icon of its own.** The owl on a teal square, where
+  macOS used to put the extension's transparent owl on a gray plate. Safari
+  only; the extension itself is unchanged.
 
 ### Fixed
 - **Search no longer hangs on a large feed.** It used to render every
