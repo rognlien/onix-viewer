@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# tools/render-safari-icon.sh — Rebuild icons/safari-app-icon.png, the Mac app's
-# icon: the owl on an opaque teal square. The transparent owl that the
-# extension uses everywhere else gets a gray plate from macOS when it is an
-# app icon, so the app gets artwork that fills its own square. macOS rounds
-# the corners itself; do not pre-round them. Requires ImageMagick.
+# tools/render-safari-icon.sh — Render icons/safari-app-icon.png, the Mac app's
+# icon, from icons/safari-app-icon.svg: the owl on an opaque teal square. The
+# transparent owl the extension uses elsewhere gets a gray plate from macOS
+# when it is an app icon. macOS rounds the corners itself; do not pre-round
+# them. Requires rsvg-convert.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-convert -size 1024x1024 radial-gradient:'#4fa3aa-#1b4a52' \
-  \( icons/icon-original.png -resize 760x760 \) \
-  -gravity center -geometry +0+10 -composite \
-  -alpha off -depth 8 icons/safari-app-icon.png
+rsvg-convert -w 1024 -h 1024 icons/safari-app-icon.svg -o icons/safari-app-icon.png
