@@ -23,10 +23,10 @@ const TARGETS = ["chrome", "firefox", "safari"];
 const CHROME_DESCRIPTION_LIMIT = 132;
 const SAFARI_DESCRIPTION_LIMIT = 112;
 
-// The shared description is 113 characters; Safari's is the same sentence
-// one word shorter.
+// The shared description is 118 characters; Safari's is the same sentence
+// a few words shorter.
 const SAFARI_DESCRIPTION =
-  "Readable ONIX XML: collapsible tree, product summaries, EDItEUR code-list labels and automatic validation.";
+  "Readable ONIX XML: tree view, short tags or reference names, EDItEUR code-list labels and automatic validation.";
 
 // Safari 18 is the floor: content-visibility arrived there (MDN).
 const SAFARI_MIN_VERSION = "18.0";

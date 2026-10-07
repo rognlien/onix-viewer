@@ -35,7 +35,7 @@ ONIX Viewer
 **Summary** (max 250 chars, shown in search results and at the top of the page):
 
 ```
-Readable ONIX XML: a collapsible tree, one-line product summaries, EDItEUR code-list labels beside every value, and automatic validation against the ONIX 3.0 and 3.1 schemas. Acts only on ONIX; every other page is left to Firefox.
+Readable ONIX XML: a collapsible tree, one click between short tags and reference names, EDItEUR code-list labels beside every value, and validation against the ONIX 3.0 and 3.1 schemas. Acts only on ONIX.
 ```
 
 **Description** (plain text: AMO shows HTML tags as text, so none):
@@ -43,11 +43,16 @@ Readable ONIX XML: a collapsible tree, one-line product summaries, EDItEUR code-
 ```
 ONIX Viewer turns raw ONIX XML into a readable, collapsible tree inside
 Firefox. Instead of a wall of tags you get syntax highlighting, one-line
-product summaries and every EDItEUR code list resolved in place.
+product summaries and every EDItEUR code list resolved in place. A
+short-tag file reads under reference names, or the reverse, with one
+click.
 
 Features
 
   • Collapsible, syntax-highlighted XML tree
+  • Short tags and reference names: one click shows a short-tag file
+    under reference names, or a reference-name file in short tags, and
+    Copy XML and Download give you the converted file
   • Automatic validation against the bundled ONIX 3.0 and 3.1 content
     models: missing or misplaced elements, codes that aren't in their EDItEUR
     list (including the lists a sibling selects, such as accessibility details,
@@ -55,8 +60,6 @@ Features
     deprecated (naming the replacement), ISBN-13 / GTIN-13 / ISBN-10 check
     digits, and values that break their datatype — each pinned to the row it
     concerns, with a jump-to-row list
-  • Read and copy the other dialect: one switch shows a short-tag file under
-    reference names, or the reverse, and the copy follows what you see
   • Product records fold to a one-line summary (ISBN · form · title),
     so two presses of Collapse make a 10,000-product feed scannable
   • Code-list labels (ProductIDType, ProductForm, ContributorRole,

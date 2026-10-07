@@ -1976,9 +1976,9 @@
     body.className = "px-popup-body";
     const text = document.createElement("p");
     text.className = "px-about-text";
-    text.textContent = "Readable ONIX XML: a collapsible tree, product summaries, " +
-      "EDItEUR code-list labels in place, and automatic validation against the ONIX 3.0 " +
-      "and 3.1 content models, plus any rules of your own.";
+    text.textContent = "Readable ONIX XML: a collapsible tree, short tags or reference names " +
+      "at one click, product summaries, EDItEUR code-list labels in place, and automatic " +
+      "validation against the ONIX 3.0 and 3.1 content models.";
     const credit = document.createElement("p");
     credit.className = "px-about-credit";
     credit.textContent = "ONIX for Books and its code lists are developed and maintained by EDItEUR, " +
