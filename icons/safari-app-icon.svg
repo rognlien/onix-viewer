@@ -6,5 +6,5 @@
     </radialGradient>
   </defs>
   <rect width="1024" height="1024" fill="url(#ground)"/>
-  <image href="icon-original.png" x="62" y="72" width="900" height="900"/>
+  <image href="icon-808x818.png" x="102" y="112" width="820" height="820"/>
 </svg>
