@@ -103,8 +103,9 @@ by EDItEUR. The source is public at github.com/rognlien/onix-viewer.
 ONIX,XML,EDItEUR,books,metadata,publishing,ISBN,viewer,validation,code list
 ```
 
-**What's New**: the release's section of `CHANGELOG.md`, first person
-plural removed.
+**What's New**: paste `dist/safari/release-notes.txt`, which the package
+build makes from the release's section of `CHANGELOG.md` as plain text,
+with no angle brackets (App Store Connect refuses them) and no Markdown.
 
 ## App Privacy
 

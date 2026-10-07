@@ -127,7 +127,8 @@ The findings list: each departure from the ONIX schema, and where it is.
 
 ## Per version
 
-**Release notes**: the release's section of `CHANGELOG.md`.
+**Release notes**: paste `dist/firefox/release-notes.txt`, the release's
+section of `CHANGELOG.md` as plain text, made by the package build.
 
 **Notes to reviewer** (paste into the version's notes and again at the
 source step):

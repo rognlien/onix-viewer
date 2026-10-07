@@ -68,6 +68,9 @@ onix-viewer/
 │   │                               --dev builds the packages alone into dist/dev/<browser>/ with
 │   │                               -dev kept and no version bump (npm run build:dev), the Safari
 │   │                               one as an "ONIX Viewer Dev" app with a bundle id of its own
+│   ├── release-notes.js            a version's CHANGELOG.md section as plain store text, no angle
+│   │                               brackets (App Store Connect refuses them); the packager writes
+│   │                               it to dist/firefox/ and dist/safari/ as release-notes.txt
 │   ├── render-tiles.sh             the two promo tiles from chrome/*.svg into dist/chrome/
 │   ├── render-icons.sh             icons/ -> Resources/icons/, hand-drawn sizes winning
 │   ├── check-icons.js              asserts the shipped icons match their sources

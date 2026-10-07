@@ -124,14 +124,16 @@ build_number() {
 }
 
 # The listing material beside the package: the store's copy of the listing
-# text and the screenshots, and for the two that take one, the 128px icon.
+# text and the screenshots, for the two that take one, the 128px icon, and
+# for the two with a "What's New" field, the version's plain-text notes.
 # Not for a dev build, which is never uploaded.
 assemble_listing() {
   rsync -a --delete --exclude .DS_Store "$TARGET/screenshots/" "$OUT_DIR/screenshots/"
   cp "$TARGET/listing.md" "$OUT_DIR/$TARGET-listing.md"
   [ "$TARGET" = "safari" ] || cp Resources/icons/icon-128.png "$OUT_DIR/icon-128.png"
   [ "$TARGET" != "chrome" ] || tools/render-tiles.sh "$OUT_DIR"
-  echo "  $OUT_DIR/  <- $TARGET-listing.md, screenshots/$([ "$TARGET" = safari ] || echo ', icon-128.png')"
+  [ "$TARGET" = "chrome" ] || node tools/release-notes.js "$VERSION" > "$OUT_DIR/release-notes.txt"
+  echo "  $OUT_DIR/  <- $TARGET-listing.md, screenshots/$([ "$TARGET" = safari ] || echo ', icon-128.png')$([ "$TARGET" = chrome ] || echo ', release-notes.txt')"
 }
 
 # Everything shipped, minus .DS_Store and editor cruft.
