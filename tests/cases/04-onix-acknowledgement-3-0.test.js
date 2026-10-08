@@ -43,4 +43,15 @@ describe("ONIX Acknowledgement 3.0", () => {
     assert(badges(w).some((b) => b.includes("Message processed")), "m489 (MessageStatus) not resolved");
     assert(badges(w).some((b) => b.includes("Record rejected")), "a498 (RecordStatus) not resolved");
   });
+
+  test("offers no dialect switch, since its own elements have no known short tags", () => {
+    const stored = (window) => window.localStorage.setItem("oxv-dialect", "short");
+    for (const fixture of ["onix-3.0-acknowledgement.xml", "onix-3.0-acknowledgement-short.xml"]) {
+      const w = render(fixture, stored);
+      assert(w.document.body.classList.contains("px-no-dialect-toggle"), `${fixture}: the switch should be hidden`);
+      const shortTags = $$(w, "#oxv-root .px-onix-short").length > 0;
+      assert(shortTags === fixture.includes("short"),
+        `${fixture}: a stored preference must not translate the tree`);
+    }
+  });
 });

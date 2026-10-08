@@ -686,9 +686,15 @@
     return dialect === "short" ? "reference" : "short";
   }
 
+  // The Acknowledgement schema is not bundled, so its own elements have no
+  // short tags to translate between and a conversion would mix the dialects.
+  function translatable() {
+    return onixCtx.isOnix && !!onixCtx.dialect && onixCtx.messageType !== "acknowledgement";
+  }
+
   function preferredDialect() {
     let preferred = onixCtx.dialect;
-    if (onixCtx.isOnix && onixCtx.dialect) {
+    if (translatable()) {
       let stored = null;
       try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); }
       catch { /* storage may be blocked; the document's own dialect stands */ }
@@ -702,7 +708,7 @@
   // preferred dialect by this point, so there is nothing to rewrite: this
   // only lights up the right button.
   function setupDialectToggle() {
-    if (!onixCtx.isOnix || !sourceDialect) {
+    if (!translatable()) {
       document.body.classList.add("px-no-dialect-toggle");
       return;
     }
@@ -727,7 +733,7 @@
 
   function applyDialect(target) {
     if (target !== "reference" && target !== "short") return;
-    if (!onixCtx.isOnix || !sourceDialect) return;
+    if (!translatable()) return;
 
     if (target !== displayDialect) {
       // Each name is re-derived from the one on screen rather than from a

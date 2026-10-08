@@ -652,7 +652,11 @@ translated names don't keep the other dialect's italics.
 
 The choice persists in `localStorage` under `oxv-dialect`; the switch is
 hidden (`body.px-no-dialect-toggle`) for non-ONIX documents and for ONIX with
-no detected dialect, where there is nothing to translate between.
+no detected dialect, where there is nothing to translate between, and for
+Acknowledgement messages, whose own elements (`<MessageStatus>`,
+`<RecordStatusDetail>`, …) come from a schema that is not bundled: converting
+one moved the root into the other dialect's namespace and left those names as
+they were. The stored preference is ignored for all three (`translatable()`).
 
 ### Copying follows the display
 
