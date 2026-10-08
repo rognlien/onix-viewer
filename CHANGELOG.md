@@ -9,6 +9,13 @@ the main branch.
 - **No dialect switch on Acknowledgement messages.** Their own elements have
   no short tags the viewer knows, so the conversion mixed the two dialects,
   and Copy XML and Download handed that out as ONIX.
+- **Prefixed ONIX converts.** In a document written as `<onix:Product>`,
+  the dialect switch and its Copy XML and Download moved the namespace but
+  left every name in the source dialect. Names are now translated under
+  their prefix.
+- **The converted document keeps the source's attributes in place.** The
+  namespace declaration no longer moves behind `release`, and a foreign
+  namespace declared on the root stays there.
 
 ## 0.9.21 — 2026-10-05
 

@@ -687,11 +687,19 @@ from the source text.
 Two things deliberately don't move: elements in a foreign namespace, and
 elements with no known translation. That's what leaves the inline XHTML in
 `textformat="05"` content (`<p>`, `<em>`) alone — it inherits the ONIX
-default namespace but isn't ONIX. `xmlns` attributes are never copied from the
-source (they would declare the dialect just translated away from); the
-serialiser re-emits one from the clone's own namespace, and
-`stripSynthesizedNamespace` still removes it unless the *source* element
-declared it, so a copied `<Product>` gains no declaration its siblings lack.
+default namespace but isn't ONIX. A namespace declaration keeps its place
+among the attributes: one that declares the ONIX namespace names the target
+dialect's instead, and any other is copied as it stands, so a foreign
+`xmlns:prefix` on the root stays on the root. A copied subtree that inherited
+its namespace gains a declaration from the serialiser, which
+`stripSynthesizedNamespace` removes, so a copied `<Product>` gains no
+declaration its siblings lack.
+
+A **prefixed** ONIX document (`<onix:Product>`) converts under its own prefix:
+`translatedName()` translates the local name and keeps the prefix, which is
+also what lets the on-screen switch rename those rows. It used to look
+up the whole `onix:Product`, found nothing, and the conversion moved the
+namespace while leaving every name behind.
 
 The conversion is verified against `Onix/onix-3.1-{refnames,shorttags}.xml` —
 the same record supplied in both dialects, so converting either one must

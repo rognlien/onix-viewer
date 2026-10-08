@@ -357,15 +357,17 @@
    * keeps rendering the parsed document, only the displayed names change.
    */
   function translatedName(nodeName, targetDialect) {
-    let translated = null;
     const name = String(nodeName || "");
+    const prefix = name.slice(0, name.indexOf(":") + 1);
+    const local = name.slice(prefix.length);
+    let translated = null;
     if (targetDialect === "reference") {
-      translated = SHORT_TO_REFERENCE[name.toLowerCase()] || null;
+      translated = SHORT_TO_REFERENCE[local.toLowerCase()] || null;
     } else if (targetDialect === "short") {
-      const shortTag = REFERENCE_TO_SHORT[name] || null;
+      const shortTag = REFERENCE_TO_SHORT[local] || null;
       translated = shortTag ? SHORT_SPELLINGS[shortTag] || shortTag : null;
     }
-    return translated === name ? null : translated;
+    return translated && translated !== local ? prefix + translated : null;
   }
 
   /**
@@ -425,26 +427,21 @@
 
   function cloneTranslatedElement(element, targetDialect, sourceNamespace) {
     const doc = element.ownerDocument;
-    const name = translatedName(element.nodeName, targetDialect) || element.nodeName;
-    // Only elements that live in the document's ONIX namespace move; anything
-    // in a foreign namespace stays where it is.
-    const inOnixNamespace = element.namespaceURI && element.namespaceURI === sourceNamespace;
+    // Only elements that live in the document's ONIX namespace are renamed and
+    // move; anything in a foreign namespace stays as it is.
+    const inOnixNamespace = element.namespaceURI === sourceNamespace;
+    const name = (inOnixNamespace && translatedName(element.nodeName, targetDialect)) || element.nodeName;
     const namespace = inOnixNamespace
       ? translatedNamespace(element.namespaceURI, targetDialect)
       : element.namespaceURI;
     const clone = doc.createElementNS(namespace, name);
 
     for (const attribute of element.attributes) {
-      // Namespace declarations are re-emitted by the serialiser from the
-      // element's own namespace; copying the source's would declare the
-      // dialect we just translated away from.
-      if (attribute.name === "xmlns" || attribute.name.startsWith("xmlns:")) continue;
-      clone.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
-    }
-    // A source element that declared the namespace itself should still declare
-    // it after translation — with the translated URI.
-    if (namespace && element.hasAttribute("xmlns")) {
-      clone.setAttributeNS(XMLNS_NS, "xmlns", namespace);
+      // A declaration of the ONIX namespace keeps its place but names the
+      // target dialect's; any other declaration is copied as it stands.
+      const declaresOnix = attribute.namespaceURI === XMLNS_NS && attribute.value === sourceNamespace;
+      const value = declaresOnix ? translatedNamespace(attribute.value, targetDialect) : attribute.value;
+      clone.setAttributeNS(attribute.namespaceURI, attribute.name, value);
     }
 
     for (const child of element.childNodes) {
