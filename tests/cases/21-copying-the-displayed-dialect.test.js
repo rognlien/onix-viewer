@@ -13,8 +13,14 @@ describe("Copying the displayed dialect", () => {
     window.document.querySelector('[data-action="copy-xml"]').click();
     return copied;
   }
+  // Every start tag in order, so a swapped or misplaced name fails too.
   function elementNames(xml) {
-    return new Set([...xml.matchAll(/<([A-Za-z][A-Za-z0-9]*)[\s>/]/g)].map((m) => m[1]));
+    return [...xml.matchAll(/<([A-Za-z][A-Za-z0-9]*)[\s>/]/g)].map((m) => m[1]);
+  }
+  function firstDifference(produced, expected) {
+    const index = produced.findIndex((name, i) => name !== expected[i]);
+    const at = index === -1 && produced.length !== expected.length ? Math.min(produced.length, expected.length) : index;
+    return at === -1 ? null : `start tag ${at}: got <${produced[at]}>, want <${expected[at]}>`;
   }
 
   test("untranslated, Copy XML still hands over the source byte for byte", () => {
@@ -57,12 +63,8 @@ describe("Copying the displayed dialect", () => {
     const w = renderSource(shortFile);
     flip(w);
     const converted = copyAll(w).text;
-    const produced = elementNames(converted);
-    const expected = elementNames(referenceFile);
-    const missing = [...expected].filter((n) => !produced.has(n));
-    const extra = [...produced].filter((n) => !expected.has(n));
-    assert(missing.length === 0, `names missing from the conversion: ${missing.join(", ")}`);
-    assert(extra.length === 0, `names the conversion invented: ${extra.join(", ")}`);
+    const difference = firstDifference(elementNames(converted), elementNames(referenceFile));
+    assert(!difference, `the conversion differs from the other file at ${difference}`);
     assert(converted.includes('xmlns="http://ns.editeur.org/onix/3.1/reference"'),
       "converted document should carry the reference namespace");
     // XHTML inside textformat="05" content is not ONIX and must be left alone.
@@ -75,12 +77,8 @@ describe("Copying the displayed dialect", () => {
     const w = renderSource(referenceFile);
     flip(w);
     const converted = copyAll(w).text;
-    const produced = elementNames(converted);
-    const expected = elementNames(shortFile);
-    const missing = [...expected].filter((n) => !produced.has(n));
-    const extra = [...produced].filter((n) => !expected.has(n));
-    assert(missing.length === 0, `names missing from the conversion: ${missing.join(", ")}`);
-    assert(extra.length === 0, `names the conversion invented: ${extra.join(", ")}`);
+    const difference = firstDifference(elementNames(converted), elementNames(shortFile));
+    assert(!difference, `the conversion differs from the other file at ${difference}`);
     assert(converted.includes('xmlns="http://ns.editeur.org/onix/3.1/short"'),
       "converted document should carry the short namespace");
     assert(converted.includes("<ONIXmessage "), "the root should use the short spelling");

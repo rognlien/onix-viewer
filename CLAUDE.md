@@ -97,7 +97,7 @@ onix-viewer/
 ├── tests/
 │   ├── run.js                      loads every case and prints the summary (takes a name filter)
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (351 tests, ~10s)
+│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (411 tests, ~10s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see firefox/README.md
@@ -701,9 +701,18 @@ also what lets the on-screen switch rename those rows. It used to look
 up the whole `onix:Product`, found nothing, and the conversion moved the
 namespace while leaving every name behind.
 
-The conversion is verified against `Onix/onix-3.1-{refnames,shorttags}.xml` —
-the same record supplied in both dialects, so converting either one must
-reproduce the other's element names exactly, in both directions.
+`tests/cases/42-dialect-conversion.test.js` holds the conversion to
+EDItEUR's schemas rather than to the generated map:
+
+- every pair in each release's short XSD translates both ways, and each
+  release's two XSDs name the same elements;
+- a document holding every element of a release once converts to the other
+  dialect element for element — position, namespace and name — and back;
+- the `Onix/onix-3.1-{refnames,shorttags}.xml` pair, the same record in both
+  dialects, converts into each other element for element;
+- every ONIX fixture and sample but the Acknowledgements survives a round
+  trip through the other dialect byte for byte, and gives the same findings,
+  by severity, code and position, in both.
 
 ## Validation
 
@@ -2016,7 +2025,7 @@ there are none. `SECURITY.md` and `chrome/listing.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 351-test jsdom suite (~10s)
+npm test        # runs the 411-test jsdom suite (~10s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
