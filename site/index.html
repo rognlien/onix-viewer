@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ONIX Viewer</title>
-<meta name="description" content="A browser extension for Chrome and Firefox, with Safari coming soon, that turns raw ONIX XML into a readable, collapsible tree, switches it between short tags and reference names, and shows EDItEUR code-list labels inline with automatic validation.">
+<meta name="description" content="A browser extension for Chrome, Firefox and Safari that turns raw ONIX XML into a readable, collapsible tree, switches it between short tags and reference names, and shows EDItEUR code-list labels inline with automatic validation.">
 <link rel="icon" href="icon-128.png?v=1c4b4a8b">
 <style>
   html { background: linear-gradient(180deg, #f7fbff, #e7f1fb) fixed; }
@@ -43,7 +43,6 @@
   .browsers { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; }
   .browsers li { display: flex; align-items: center; gap: 10px; margin: 0; }
   .browsers img { width: 36px; height: 36px; flex: none; }
-  .soon { color: #5b6b7a; }
   figure { margin: 24px 0; }
   figure img {
     display: block;
@@ -86,7 +85,7 @@
   <ul class="browsers">
     <li><img src="chrome.svg?v=32cea7d9" alt=""><a class="button" href="https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife">Add to Chrome</a></li>
     <li><img src="firefox.svg?v=bd2e801b" alt=""><a class="button" href="https://addons.mozilla.org/firefox/addon/onix-viewer/">Add to Firefox</a></li>
-    <li><img src="safari.svg?v=4530c600" alt=""><span class="soon">Safari: coming soon</span></li>
+    <li><img src="safari.svg?v=4530c600" alt=""><a class="button" href="https://apps.apple.com/app/onix-viewer/id6816859194?mt=12">Add to Safari</a></li>
   </ul>
   <p class="actions">
     <a href="#installation">Manual installation</a>
@@ -129,7 +128,7 @@
   <p>More are listed on the <a href="../onix/">ONIX sample files</a> page.</p>
 
   <h2 id="installation">Installation</h2>
-  <p>ONIX Viewer is available for Chrome and Firefox. A version for Safari is coming soon.</p>
+  <p>ONIX Viewer is available for Chrome, Firefox and Safari.</p>
   <h3>Chrome, from the Chrome Web Store</h3>
   <p>The preferred way. Open <a href="https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife">ONIX Viewer in the Chrome Web Store</a> and click <strong>Add to Chrome</strong>. Chrome keeps it up to date from then on.</p>
   <p>ONIX Viewer needs Chrome 119 or later.</p>
@@ -147,8 +146,14 @@
   <h3>Firefox, from Firefox Add-ons</h3>
   <p>Open <a href="https://addons.mozilla.org/firefox/addon/onix-viewer/">ONIX Viewer on addons.mozilla.org</a> and click <strong>Add to Firefox</strong>. Firefox keeps it up to date from then on, and asks nothing further: local <code>.xml</code> files open without a setting.</p>
   <p>ONIX Viewer needs Firefox 140 or later.</p>
-  <h3>Safari</h3>
-  <p>Coming soon, through the Mac App Store. Installation instructions will be added here when it is released.</p>
+  <h3>Safari, from the Mac App Store</h3>
+  <ol>
+    <li>Open <a href="https://apps.apple.com/app/onix-viewer/id6816859194?mt=12">ONIX Viewer in the Mac App Store</a> and click <strong>Get</strong>.</li>
+    <li>Open the ONIX Viewer app once. That registers the extension with Safari.</li>
+    <li>In Safari, open <strong>Settings → Extensions</strong> and turn on <strong>ONIX Viewer</strong>.</li>
+    <li>Click the extension's button in the toolbar and choose <strong>Always Allow on Every Website</strong>. Until you do, Safari shows ONIX files with its own XML view.</li>
+  </ol>
+  <p>The App Store keeps it up to date from then on. ONIX Viewer needs Safari 18 or later, on macOS 15 or later.</p>
 
   <h2>Keyboard shortcuts</h2>
   <ul>
