@@ -54,12 +54,23 @@ require(path.join(RES, "shell.js"));
 //   npm test -- "short tag"          # via npm, note the --
 //
 // Without it, debugging one assertion means reading past 150 lines of ✓.
-const FILTER = (process.argv[2] || "").toLowerCase();
+// tests/run.js runs each case file in a worker of its own and hands it the
+// filter; a case file run directly takes it from the command line.
+const { workerData } = require("worker_threads");
+const FILTER = ((workerData ? workerData.filter : process.argv[2]) || "").toLowerCase();
 
 let passed = 0;
 let failed = 0;
 let skipped = 0;
 const failures = [];
+// A worker's lines are kept and handed back whole, so files running side by
+// side do not interleave their output.
+const output = [];
+
+function print(line) {
+  if (workerData) output.push(line);
+  else console.log(line);
+}
 
 // The describe label is printed lazily, so filtering to one test doesn't leave
 // the headings of every block it skipped.
@@ -72,18 +83,18 @@ function test(name, fn) {
     return;
   }
   if (labelPending) {
-    console.log(`\n${currentLabel}`);
+    print(`\n${currentLabel}`);
     labelPending = false;
   }
   try {
     fn();
     passed++;
-    console.log(`  \x1b[32m✓\x1b[0m ${name}`);
+    print(`  \x1b[32m✓\x1b[0m ${name}`);
   } catch (err) {
     failed++;
     failures.push({ name, err });
-    console.log(`  \x1b[31m✗\x1b[0m ${name}`);
-    console.log(`    ${err.message}`);
+    print(`  \x1b[31m✗\x1b[0m ${name}`);
+    print(`    ${err.message}`);
   }
 }
 
@@ -229,20 +240,14 @@ function withDescriptiveDetail(extra) {
     "<ProductForm>BC</ProductForm>\n      " + extra);
 }
 
-// ---- summary ---------------------------------------------------------------
+// ---- results ---------------------------------------------------------------
 
-function summary() {
-  const filterNote = FILTER ? `, ${skipped} skipped by filter "${FILTER}"` : "";
-  console.log(`\n${passed} passed, ${failed} failed${filterNote}`);
-  if (FILTER && passed + failed === 0) {
-    console.log(`No test matched "${FILTER}".`);
-    process.exit(1);
-  }
-  if (failed > 0) {
-    console.log("\nFailures:");
-    for (const f of failures) console.log(`  - ${f.name}: ${f.err.message}`);
-    process.exit(1);
-  }
+// What one case file did, for tests/run.js to add up and print.
+function results() {
+  return {
+    passed, failed, skipped, output,
+    failures: failures.map((f) => ({ name: f.name, message: f.err.message })),
+  };
 }
 
 module.exports = {
@@ -251,5 +256,5 @@ module.exports = {
   findings, codes, described, findingsCoded, validationLabel, shortTwin,
   withDescriptiveDetail, ROOT, RES, FIXTURES, SAMPLES, contentModelFor,
   contentModelJs, codelistsJs, onixJs, validateJs, popupJs, viewerJs,
-  viewerCss, summary,
+  viewerCss, results,
 };

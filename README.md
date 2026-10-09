@@ -57,7 +57,7 @@ SVG) is left to the browser.
 
 ```bash
 npm install
-npm test               # the jsdom suite, about 10 s
+npm test               # the jsdom suite, about 8 s
 npm run lint
 npm run test:browser   # the extension in a headless Chrome
 npm run build          # the store packages, into dist/
