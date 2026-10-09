@@ -30,19 +30,30 @@
   li { margin: 6px 0; }
   a { color: #1d5e9e; text-decoration: none; }
   a:hover { text-decoration: underline; }
-  .button {
-    display: inline-block;
-    padding: 10px 18px;
-    border-radius: 8px;
-    background: #1d5e9e;
-    color: #fff;
-    font-weight: 600;
-  }
-  .button:hover { background: #17507f; text-decoration: none; }
   .actions { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
-  .browsers { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; }
-  .browsers li { display: flex; align-items: center; gap: 10px; margin: 0; }
-  .browsers img { width: 36px; height: 36px; flex: none; }
+  .browsers { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+  .browsers li { margin: 0; }
+  .browser {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 18px 9px 12px;
+    border: 1px solid #d3e0ec;
+    border-radius: 12px;
+    background: #fff;
+    color: #15202b;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(21, 32, 43, 0.06), 0 2px 8px rgba(21, 32, 43, 0.04);
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+  .browser img { width: 26px; height: 26px; flex: none; }
+  .browser:hover {
+    border-color: #9dbbd8;
+    box-shadow: 0 2px 4px rgba(21, 32, 43, 0.08), 0 6px 16px rgba(29, 94, 158, 0.12);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+  .browser:focus-visible { outline: 2px solid #1d5e9e; outline-offset: 2px; }
   figure { margin: 24px 0; }
   figure img {
     display: block;
@@ -83,9 +94,9 @@
   <p class="tagline">Readable ONIX XML in your browser: a collapsible tree, short tags or reference names at one click, EDItEUR code-list labels inline, and automatic validation.</p>
 
   <ul class="browsers">
-    <li><img src="chrome.svg?v=32cea7d9" alt=""><a class="button" href="https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife">Add to Chrome</a></li>
-    <li><img src="firefox.svg?v=bd2e801b" alt=""><a class="button" href="https://addons.mozilla.org/firefox/addon/onix-viewer/">Add to Firefox</a></li>
-    <li><img src="safari.svg?v=4530c600" alt=""><a class="button" href="https://apps.apple.com/app/onix-viewer/id6816859194?mt=12">Add to Safari</a></li>
+    <li><a class="browser" href="https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"><img src="chrome.svg?v=32cea7d9" alt="">Add to Chrome</a></li>
+    <li><a class="browser" href="https://addons.mozilla.org/firefox/addon/onix-viewer/"><img src="firefox.svg?v=bd2e801b" alt="">Add to Firefox</a></li>
+    <li><a class="browser" href="https://apps.apple.com/app/onix-viewer/id6816859194?mt=12"><img src="safari.svg?v=4530c600" alt="">Add to Safari</a></li>
   </ul>
   <p class="actions">
     <a href="#installation">Manual installation</a>
