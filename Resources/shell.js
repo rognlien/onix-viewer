@@ -12,16 +12,17 @@
 // the same assignment lands on the harness's globalThis.
 //
 // The only interpolations are the extension URLs the caller resolved — the
-// stylesheet, the mark, and the content models the viewer may fetch later —
+// stylesheet, the mark, and the content models and conversion engine the
+// viewer may fetch later —
 // the extension's version and browser, and the page title, all escaped here.
 // No document content goes near the markup.
 
 (function () {
   "use strict";
 
-  function html({ title, cssURL, logoURL, logoURL2x, version, browser, modelURLs, bytes }) {
+  function html({ title, cssURL, logoURL, logoURL2x, version, browser, modelURLs, migrationURL, bytes }) {
     return `<!doctype html>
-<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}" data-oxv-browser="${escapeHtml(browser || "")}" data-oxv-models="${escapeHtml(JSON.stringify(modelURLs || {}))}" data-oxv-bytes="${escapeHtml(bytes || "")}">
+<html lang="en" data-oxv="1" data-oxv-version="${escapeHtml(version || "")}" data-oxv-browser="${escapeHtml(browser || "")}" data-oxv-models="${escapeHtml(JSON.stringify(modelURLs || {}))}" data-oxv-migration="${escapeHtml(migrationURL || "")}" data-oxv-bytes="${escapeHtml(bytes || "")}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>

@@ -5,6 +5,30 @@ the main branch.
 
 ## Unreleased
 
+### Added
+- **Convert ONIX 3.0 to 3.1.** On a 3.0 file the release selector offers
+  *Convert to ONIX 3.1…*, which lists every change the file needs, each
+  with the XML before and after, and hands over the converted file to copy
+  or download, with its verdict as 3.1. `<DateFormat>` becomes the
+  `dateformat` attribute, `<AudienceCode>` an `<Audience>`, `<Conference>`
+  an `<Event>`, repeats 3.1 forbids go when identical, and `<TitleText>` is
+  split into `<TitlePrefix>` and `<TitleWithoutPrefix>` at the leading
+  article, in ten languages (`The Happy Hippo` → `The` + `Happy Hippo`).
+  The header's defaults are written into each product and price, and a
+  review's `<TextAuthor>` and `<TextSourceCorporate>` become `<TextSource>`.
+  Changes are graded: automatic ones lose nothing, review ones rest on a
+  judgement. Where there is a choice — where a title's article ends, whether
+  to drop `<Gender>`, which `<SalesRights>` a `<SalesRestriction>` belongs
+  in, the eurozone countries for `<CurrencyZone>`, a `<ProductContact>` for
+  `<PromotionContact>`, a publishing date for `<Reissue>` — the options are
+  under the change, and the converted file follows the pick. The window
+  resizes from its corner.
+
+### Changed
+- **A document that declares no release is validated as ONIX 3.0.** A
+  standalone `<Product>` with no namespace used to start on an "Undeclared
+  release" choice that checked no structure; ONIX 3.1 is the other option.
+
 ### Fixed
 - **No dialect switch on Acknowledgement messages.** Their own elements have
   no short tags the viewer knows, so the conversion mixed the two dialects,

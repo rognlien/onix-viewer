@@ -1,0 +1,10 @@
+warning element.deprecated /ONIXMessage/Product[1]/DescriptiveDetail/Conference
+warning element.deprecated /ONIXMessage/Product[1]/DescriptiveDetail/Conference/ConferenceName
+warning element.deprecated /ONIXMessage/Product[1]/DescriptiveDetail/Conference/ConferenceNumber
+warning element.deprecated /ONIXMessage/Product[1]/DescriptiveDetail/AudienceCode
+warning element.deprecated /ONIXMessage/Product[1]/PublishingDetail/PublishingDate/DateFormat
+warning element.deprecated /ONIXMessage/Product[1]/ProductSupply/MarketPublishingDetail/PromotionContact
+warning element.deprecated /ONIXMessage/Product[1]/ProductSupply/SupplyDetail/Price[2]/CurrencyZone
+warning element.deprecated /ONIXMessage/Product[1]/ProductSupply/SupplyDetail/Reissue
+warning element.deprecated /ONIXMessage/Product[1]/ProductSupply/SupplyDetail/Reissue/ReissueDate
+warning element.deprecated /ONIXMessage/Product[1]/ProductSupply/SupplyDetail/Reissue/ReissueDescription

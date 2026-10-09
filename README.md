@@ -23,6 +23,9 @@ SVG) is left to the browser.
   finding sits on its row; the count in the toolbar opens the full list.
 - **Reference names ↔ short tags.** View a file in the other dialect, and
   copy or download it converted.
+- **ONIX 3.0 → 3.1.** See every change a 3.0 file needs to become 3.1, graded
+  automatic, for review or manual, with the XML before and after, and copy or
+  download the converted file.
 - **Folding.** Rows fold to one-line summaries (`ISBN · form · title`), and
   Expand and Collapse work a level at a time.
 - **Search.** Names, values and code-list labels across the whole file,

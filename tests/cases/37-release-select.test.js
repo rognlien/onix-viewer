@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const {
-  test, describe, assert, render, renderSource, findings, codes, validationLabel, RES,
+  test, describe, assert, render, renderSource, codes, validationLabel, RES,
 } = require("../harness");
 
 // The toolbar's release selector: the verdict is against the release the
@@ -105,20 +105,17 @@ describe("Release selector", () => {
       `got "${eyebrow && eyebrow.textContent}"`);
   });
 
-  test("a document with no bundled release keeps its own as the first choice", () => {
-    // A standalone <Product> with no namespace declares nothing; it is the
-    // one document the selector can check that nothing else can.
+  test("a document that declares no release is judged as 3.0, and can be judged as 3.1", () => {
+    // A standalone <Product> with no namespace declares nothing; it is judged
+    // against a real release rather than none.
     const w = render("onix-standalone-product-no-namespace.xml");
-    assert(options(w)[0] === "=Undeclared release, Issue 74", `got ${options(w).join("|")}`);
-    assert(select(w).value === "", "starts as declared");
-    assert(codes(findings(w)).includes("model.missing"), "and no structure is checked there");
-
-    pick(w, "3.1");
-    assert(!pinned(w).includes("model.missing"), `structure is checked now; got ${pinned(w).join()}`);
+    assert(options(w).join("|") === "3.0=ONIX 3.0, Issue 74|3.1=ONIX 3.1, Issue 74", `got ${options(w).join("|")}`);
+    assert(select(w).value === "3.0", `starts on 3.0; got ${select(w).value}`);
+    assert(!pinned(w).includes("model.missing"), `structure is checked; got ${pinned(w).join()}`);
     assert(select(w).title.includes("declares no release"), `got "${select(w).title}"`);
 
-    pick(w, "");
-    assert(pinned(w).includes("model.missing"), "and back");
+    pick(w, "3.1");
+    assert(!pinned(w).includes("model.missing"), `and as 3.1; got ${pinned(w).join()}`);
   });
 
   test("ONIX 2.1 is offered as declared, ahead of the bundled releases", () => {

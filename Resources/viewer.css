@@ -1144,6 +1144,217 @@ body.px-popup-open { overflow: hidden; }
   color: #fff;
 }
 
+/* ---- version conversion ------------------------------------------------ */
+
+/* Wider than the findings list: each entry carries the XML before and after,
+   and a composite's lines want the room. It resizes from its corner, as the
+   rules editor does; the body takes whatever height that leaves. */
+.px-conversion {
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  width: 860px;
+  height: 80vh;
+  min-width: 480px;
+  min-height: 320px;
+  resize: both;
+}
+/* Cards on a ground a shade off their own colour, so each reads as one. */
+.px-conversion .px-popup-body { background: var(--bg-toolbar); }
+.px-conversion-hint {
+  margin: 0 0 14px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.px-conversion-list { display: flex; flex-direction: column; gap: 12px; }
+.px-conversion-remaining {
+  margin: 0 0 20px;
+  padding: 10px 10px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-toolbar);
+}
+.px-conversion-remaining[hidden] { display: none; }
+.px-conversion-remaining h3 {
+  margin: 0 0 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+/* One change, one card: what happened on top, the XML below, and space
+   between cards so a grade pill can only belong to the card it sits in. */
+.px-conversion-item {
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+}
+/* The change a finding was followed to. */
+.px-conversion-item-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* Pill, sentence, link: a wrapped sentence stays in its own column instead
+   of running back under the pill, and the options line up beneath it. */
+.px-conversion-head {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: baseline;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+/* The grade is a word, not a colour alone: automatic is the quiet one,
+   review asks for a look, manual for a decision. A fixed track keeps every
+   sentence starting at the same place down the list. */
+.px-conversion-grade {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--grade) 18%, transparent);
+  color: var(--fg);
+}
+.px-grade-automatic { --grade: var(--severity-ok); }
+.px-grade-review { --grade: var(--severity-warning); }
+.px-grade-manual { --grade: var(--severity-error); }
+.px-grade-chosen { --grade: var(--accent); }
+.px-conversion-message {
+  margin: 0;
+  font-family: var(--ui);
+  line-height: 1.45;
+}
+.px-conversion-where {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.px-conversion-where:hover { text-decoration: underline; }
+.px-conversion-choice {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+}
+/* The legend says what the radios are for; the sentence above has said it
+   already for anyone who can see it. */
+.px-conversion-choice legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.px-conversion-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.px-conversion-choice input { margin: 0; accent-color: var(--accent); }
+
+/* Before and after are one panel with a rule between them, each half barred
+   in its side's colour and labelled with its release in the corner. */
+.px-conversion-diff {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.px-conversion-xml {
+  position: relative;
+  margin: 0;
+  padding: 8px 48px 8px 12px;
+  overflow-x: auto;
+  background: var(--bg);
+  border-left: 3px solid var(--side);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.px-conversion-xml + .px-conversion-xml { border-top: 1px solid var(--border); }
+.px-conversion-xml::after {
+  content: attr(data-release);
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--fg-faint);
+}
+/* What a change took out or put in, on a tint of its side. Bold was tried
+   and looked heavy; the tint alone reads. */
+.px-conversion-changed {
+  color: inherit;
+  background: color-mix(in srgb, var(--side) 18%, transparent);
+  border-radius: 2px;
+}
+.px-conversion-before { --side: var(--severity-error); }
+.px-conversion-after { --side: var(--severity-ok); }
+.px-conversion-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.px-conversion-verdict {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--severity-error);
+}
+.px-conversion-verdict.px-worst-warning { color: var(--severity-warning); }
+.px-conversion-verdict.px-conversion-clean { color: var(--severity-ok); }
+/* With findings the verdict is a button to them; it reads as the line it
+   was, underlined like the toolbar's own verdict. */
+.px-conversion-footer button.px-conversion-verdict {
+  justify-content: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--severity-error);
+  font-size: 12px;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.px-conversion-footer button.px-conversion-verdict.px-worst-warning { color: var(--severity-warning); }
+.px-conversion-footer button.px-conversion-verdict:hover { background: none; }
+.px-conversion-footer button {
+  appearance: none;
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.px-conversion-footer button:hover { background: var(--bg-hover); }
+.px-conversion-footer .px-conversion-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 /* ---- about ------------------------------------------------------------- */
 
 .px-about { max-width: 560px; }

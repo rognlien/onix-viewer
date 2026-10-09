@@ -166,6 +166,13 @@
 
   const DIALECT_STORAGE_KEY = "oxv-dialect";
 
+  // Up here because the release selector is set up, and the first pass
+  // started, before their own sections are reached.
+  const UNDECLARED_RELEASE = "3.0";
+  const CONVERT_OPTION = "convert";
+  const CONVERSION_SOURCE = "3.0";
+  const CONVERSION_TARGET = "3.1";
+
   // The dialect the document is written in, and the one currently on screen.
   // They differ once the reader flips the toolbar toggle.
   let sourceDialect = null;
@@ -245,7 +252,7 @@
   // multi-product feed, which made every file open on a list of chips.)
   fillMetaPill(formatSize(sourceBytes()), productCount);
 
-  validationRelease = onixCtx.version;
+  validationRelease = initialRelease();
   setupToolbar();
   setupReleaseSelect();
   setupDialectToggle();
@@ -1263,12 +1270,33 @@
       return;
     }
     const releases = bundledReleases();
-    if (!releases.includes(declared)) addReleaseOption(select, declared || "", releaseLabel(declared));
+    if (declared && !releases.includes(declared)) addReleaseOption(select, declared, releaseLabel(declared));
     for (const release of releases) addReleaseOption(select, release, releaseLabel(release));
-    select.value = declared || "";
-    select.title = selectorTitle();
-    select.addEventListener("change", () => selectRelease(select.value || null));
+    if (conversionOffered()) addConversionOption(select);
+    select.value = validationRelease || "";
+    markReleaseSelect();
+    select.addEventListener("change", () => {
+      if (select.value === CONVERT_OPTION) {
+        select.value = validationRelease || "";
+        showConversion();
+      } else {
+        selectRelease(select.value || null);
+      }
+    });
     quietPointerFocus(select);
+  }
+
+  // The conversion is a thing to do rather than a release to judge by, so it
+  // sits apart in a group of its own; choosing it opens the conversion and
+  // leaves the selector where it was.
+  function addConversionOption(select) {
+    const group = document.createElement("optgroup");
+    group.label = "Convert";
+    const option = document.createElement("option");
+    option.value = CONVERT_OPTION;
+    option.textContent = `Convert to ONIX ${CONVERSION_TARGET}…`;
+    group.appendChild(option);
+    select.appendChild(group);
   }
 
   // Chrome draws its focus ring on a <select> after a mouse click, where a
@@ -1302,7 +1330,16 @@
   function releaseLabel(release) {
     const schema = window.OnixViewerCodeListSchema;
     const issue = schema && schema.issue != null ? `, Issue ${schema.issue}` : "";
-    return `${release ? `ONIX ${release}` : "Undeclared release"}${issue}`;
+    return `ONIX ${release}${issue}`;
+  }
+
+  // A document that declares no release — a standalone <Product> with no
+  // namespace — is judged against a real one rather than none: 3.0, the
+  // release such exports most often come from. The selector offers the
+  // other, and the verdict's note says the document declared nothing.
+  function initialRelease() {
+    const undeclared = onixCtx.isOnix && !onixCtx.version && onixCtx.messageType !== "acknowledgement";
+    return undeclared ? UNDECLARED_RELEASE : onixCtx.version;
   }
 
   function selectorTitle() {
@@ -1360,13 +1397,21 @@
   // appended the way content.js appends the rest. Either outcome continues:
   // without the model the pass reports model.missing, which is the truth.
   function ensureModel(release, done) {
+    if (!modelLoaded(release)) renderValidationStatus("validating");
+    loadModel(release, done);
+  }
+
+  function modelLoaded(release) {
     const validation = window.OnixViewerValidation;
-    const url = release && modelURLs()[release];
-    if (!validation || validation.modelFor(release) || !url) {
-      done();
-      return;
-    }
-    renderValidationStatus("validating");
+    return !validation || !!validation.modelFor(release) || !(release && modelURLs()[release]);
+  }
+
+  function loadModel(release, done) {
+    if (modelLoaded(release)) done();
+    else loadScript(modelURLs()[release], done);
+  }
+
+  function loadScript(url, done) {
     const script = document.createElement("script");
     script.src = url;
     script.addEventListener("load", done);
@@ -1504,6 +1549,7 @@
       if (event.key === "Escape" && findingsModal && !findingsModal.hidden) closeFindings();
       if (event.key === "Escape" && rulesModal && !rulesModal.hidden) closeRules();
       if (event.key === "Escape" && aboutModal && !aboutModal.hidden) closeAbout();
+      if (event.key === "Escape" && conversionModal && !conversionModal.hidden) closeConversion();
     });
   }
 
@@ -1637,10 +1683,7 @@
     dialog.append(header, body, footer);
     overlay.appendChild(dialog);
     keepTabInside(dialog, "button:not([disabled])");
-
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) closeFindings();
-    });
+    closeOnBackdrop(overlay, closeFindings);
     document.body.appendChild(overlay);
     findingsModal = overlay;
     return overlay;
@@ -1662,6 +1705,21 @@
     });
   }
 
+  // A press inside that is released outside is not a click on the backdrop,
+  // though the browser fires one there: a drag of a modal's corner handle
+  // ends outside — the modal is centred, so its corner moves at half the
+  // cursor's speed — and so does a text selection dragged out of it. Only a
+  // press that began on the backdrop closes the modal.
+  function closeOnBackdrop(overlay, close) {
+    let pressedBackdrop = false;
+    overlay.addEventListener("mousedown", (event) => {
+      pressedBackdrop = event.target === overlay;
+    });
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay && pressedBackdrop) close();
+    });
+  }
+
   function closeFindings() {
     if (!findingsModal || findingsModal.hidden) return;
     findingsModal.hidden = true;
@@ -1669,6 +1727,523 @@
       try { findingsLastFocus.focus(); } catch { /* it may have left the document */ }
     }
     findingsLastFocus = null;
+  }
+
+  // ---- version conversion ---------------------------------------------------
+
+  // An ONIX 3.0 document converted to 3.1 by onix-migrate.js: the changes it
+  // made or could not make, graded, each with the XML before and after, then
+  // the verdict on the result and the result itself to copy or save. The
+  // engine and the 3.1 model are fetched the first time they are asked for,
+  // as the release selector fetches a model; the conversion is worked out
+  // once per set of choices, since the document never changes. A change
+  // with more than one sensible answer offers them as radio buttons; a pick
+  // runs the conversion again with it, and the list is rebuilt where the
+  // reader was.
+  const GRADE_LABELS = { automatic: "Automatic", review: "Review", manual: "Manual", chosen: "Your choice" };
+  let conversionModal = null;
+  let conversionLastFocus = null;
+  let conversion = null;
+  const conversionChoices = {};
+
+  function conversionOffered() {
+    const available = !!window.OnixViewerMigration || !!migrationURL();
+    return available && onixCtx.version === CONVERSION_SOURCE && onixCtx.messageType === "product";
+  }
+
+  function migrationURL() {
+    return document.documentElement.getAttribute("data-oxv-migration") || "";
+  }
+
+  function showConversion() {
+    loadMigration(() => loadModel(CONVERSION_TARGET, () => {
+      if (window.OnixViewerMigration) openConversion(ensureConversion());
+    }));
+  }
+
+  function loadMigration(done) {
+    if (window.OnixViewerMigration || !migrationURL()) done();
+    else loadScript(migrationURL(), done);
+  }
+
+  function ensureConversion() {
+    if (!conversion) {
+      const converted = window.OnixViewerMigration.convert(doc, onixCtx, { choices: conversionChoices });
+      const validation = window.OnixViewerValidation;
+      conversion = Object.assign(converted, {
+        xml: documentXml(converted.document),
+        verdict: validation
+          ? validation.run(converted.document, window.OnixViewerOnix.detect(converted.document), { version: CONVERSION_TARGET })
+          : null,
+      });
+    }
+    return conversion;
+  }
+
+  function openConversion(result) {
+    const overlay = ensureConversionModal();
+    fillConversion(overlay, result);
+    conversionLastFocus = document.activeElement;
+    overlay.hidden = false;
+    overlay.querySelector(".px-popup-close").focus();
+  }
+
+  function fillConversion(overlay, result) {
+    const list = overlay.querySelector(".px-conversion-list");
+    const entries = new Map();
+    list.textContent = "";
+    for (const change of result.changes) {
+      const entry = conversionEntry(change);
+      if (change.node && !entries.has(change.node)) entries.set(change.node, entry);
+      list.appendChild(entry);
+    }
+    overlay.querySelector(".px-popup-title").textContent = conversionSummary(result);
+    overlay.querySelector(".px-conversion-remaining").replaceWith(conversionRemaining(result, entries));
+    overlay.querySelector(".px-conversion-verdict").replaceWith(conversionVerdict(result.verdict));
+  }
+
+  // What 3.1 still reports about the converted document, at the head of the
+  // list: each finding leads to the change about the same element — most
+  // often a decision not yet made — or, when no change concerns it, to the
+  // element's row in the tree.
+  function conversionRemaining(result, entries) {
+    const section = document.createElement("section");
+    section.className = "px-conversion-remaining";
+    const findings = result.verdict ? result.verdict.findings : [];
+    section.hidden = !findings.length;
+    if (findings.length) {
+      const heading = document.createElement("h3");
+      heading.textContent = `Still reported as ONIX ${CONVERSION_TARGET}`;
+      const list = document.createElement("div");
+      list.className = "px-findings-list";
+      for (const finding of findings) list.appendChild(remainingEntry(finding, result.source(finding.at || finding.node), entries));
+      section.append(heading, list);
+    }
+    return section;
+  }
+
+  function remainingEntry(finding, source, entries) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "px-findings-item";
+    const label = finding.severity === "error" ? "Error" : "Warning";
+    const badge = document.createElement("span");
+    badge.className = `px-findings-severity px-sev-${finding.severity}`;
+    badge.setAttribute("role", "img");
+    badge.setAttribute("aria-label", label);
+    badge.title = label;
+    badge.appendChild(icon(finding.severity === "error" ? "error" : "warning"));
+    const where = document.createElement("span");
+    where.className = "px-findings-where";
+    where.textContent = finding.node ? `<${finding.node.nodeName}>` : "";
+    const text = document.createElement("span");
+    text.className = "px-findings-message";
+    text.textContent = window.OnixViewerValidation.message(finding);
+    item.append(badge, where, text);
+    const entry = entryFor(source, entries);
+    item.title = entry ? "Show the change" : "Show in the document";
+    item.addEventListener("click", () => (entry ? showChange(entry) : jumpToSource(source)));
+    return item;
+  }
+
+  // The change about the element, or about the nearest element it lies in.
+  function entryFor(source, entries) {
+    let node = source;
+    while (node && !entries.has(node)) node = node.parentNode;
+    return node ? entries.get(node) : null;
+  }
+
+  function showChange(entry) {
+    for (const current of conversionModal.querySelectorAll(".px-conversion-item-current")) {
+      current.classList.remove("px-conversion-item-current");
+    }
+    entry.classList.add("px-conversion-item-current");
+    if (entry.scrollIntoView) entry.scrollIntoView({ block: "center" });
+    const target = entry.querySelector(".px-conversion-choice input:checked") || entry.querySelector(".px-conversion-where");
+    target.focus();
+  }
+
+  function jumpToSource(node) {
+    ensureRendered(node);
+    const row = node ? elementRows.get(node) : null;
+    closeConversion();
+    if (row) revealRow(row);
+  }
+
+  // The list is rebuilt, so the pick that caused it is found again by its
+  // name and value and given focus back, at the same scroll position.
+  function chooseConversion(key, id) {
+    conversionChoices[key] = id;
+    conversion = null;
+    const body = conversionModal.querySelector(".px-popup-body");
+    const scroll = body.scrollTop;
+    fillConversion(conversionModal, ensureConversion());
+    body.scrollTop = scroll;
+    const picked = [...conversionModal.querySelectorAll(".px-conversion-choice input")]
+      .find((input) => input.name === choiceName(key) && input.value === id);
+    if (picked) picked.focus();
+  }
+
+  function choiceName(key) {
+    return `oxv-choice-${key}`;
+  }
+
+  function conversionSummary(result) {
+    const parts = [];
+    if (result.counts.automatic) parts.push(`${result.counts.automatic} automatic`);
+    if (result.counts.review) parts.push(`${result.counts.review} to review`);
+    if (result.counts.manual) parts.push(`${result.counts.manual} manual`);
+    if (result.counts.chosen) parts.push(`${result.counts.chosen} chosen`);
+    return result.changes.length ? `${countOf(result.changes.length, "change")}: ${parts.join(", ")}` : "No changes";
+  }
+
+  // One change is one card: the grade, the sentence and a way to the row on
+  // top, the options under the sentence, and the XML before and after in one
+  // panel. The sentence names the element already, so the link to it is a
+  // quiet "Show in file" rather than the name a second time.
+  function conversionEntry(change) {
+    const item = document.createElement("article");
+    item.className = "px-conversion-item";
+    item.dataset.oxvGrade = change.grade;
+    item.dataset.oxvElement = change.data.name;
+
+    const grade = document.createElement("span");
+    grade.className = `px-conversion-grade px-grade-${change.grade}`;
+    grade.textContent = GRADE_LABELS[change.grade];
+
+    const text = document.createElement("p");
+    text.className = "px-conversion-message";
+    text.textContent = window.OnixViewerMigration.message(change);
+
+    const where = document.createElement("button");
+    where.type = "button";
+    where.className = "px-conversion-where";
+    where.textContent = "Show in file";
+    where.setAttribute("aria-label", `Show <${change.data.name}> in the file`);
+    where.addEventListener("click", () => jumpToChange(change));
+
+    const head = document.createElement("div");
+    head.className = "px-conversion-head";
+    head.append(grade, text, where);
+    if (change.decision) head.appendChild(conversionChoice(change.decision));
+    item.append(head, conversionDiff(change));
+    return item;
+  }
+
+  function conversionDiff(change) {
+    const panel = document.createElement("div");
+    panel.className = "px-conversion-diff";
+    const marks = change.after ? diffMarks(change.before, change.after) : null;
+    panel.appendChild(conversionXml(change.before, "before", marks && marks.before));
+    if (change.after) panel.appendChild(conversionXml(change.after, "after", marks.after));
+    return panel;
+  }
+
+  // What differs between the before and the after, marked as narrowly as it
+  // can be. The lines are aligned first, by their longest common subsequence;
+  // between two aligned stretches, a removed line and an added one that share
+  // most of their text are the same line edited, and only the words that
+  // differ are marked, so `<Date>` gaining dateformat="05" marks the
+  // attribute alone. So are two lines of the same shape — the same tags and
+  // punctuation, other words — which is how a renamed element reads
+  // (`<ConferenceNumber>3` and `<EventNumber>3`); of the lines that qualify,
+  // the one sharing most is the partner. A line with no such partner was
+  // taken out or put in whole, and is marked from its first character. Snippets are a composite
+  // at most; past a few hundred lines nothing is marked rather than spend the
+  // time.
+  const DIFF_MAX_LINES = 400;
+  const SAME_LINE_SHARE = 0.5;
+
+  function diffMarks(before, after) {
+    const a = before.split("\n");
+    const b = after.split("\n");
+    const marks = { before: new Map(), after: new Map() };
+    if (a.length <= DIFF_MAX_LINES && b.length <= DIFF_MAX_LINES) {
+      let hunk = { removed: [], added: [] };
+      for (const step of alignment(a, b)) {
+        if (step.kind === "same") {
+          markHunk(hunk, a, b, marks);
+          hunk = { removed: [], added: [] };
+        } else {
+          hunk[step.kind].push(step.index);
+        }
+      }
+      markHunk(hunk, a, b, marks);
+    }
+    return marks;
+  }
+
+  // The steps that turn `a` into `b`: kept, removed and added items in order.
+  function alignment(a, b) {
+    const common = commonLengths(a, b);
+    const steps = [];
+    let i = 0;
+    let j = 0;
+    while (i < a.length || j < b.length) {
+      if (i < a.length && j < b.length && a[i] === b[j]) {
+        steps.push({ kind: "same", index: i, other: j });
+        i++;
+        j++;
+      } else if (j < b.length && (i === a.length || common[i][j + 1] >= common[i + 1][j])) {
+        steps.push({ kind: "added", index: j++ });
+      } else {
+        steps.push({ kind: "removed", index: i++ });
+      }
+    }
+    return steps;
+  }
+
+  // common[i][j]: the longest run of items a[i..] and b[j..] share in order.
+  function commonLengths(a, b) {
+    const common = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        common[i][j] = a[i] === b[j] ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
+      }
+    }
+    return common;
+  }
+
+  function markHunk(hunk, a, b, marks) {
+    const paired = new Set();
+    let from = 0;
+    for (const i of hunk.removed) {
+      let partner = null;
+      for (let n = from; n < hunk.added.length; n++) {
+        const edit = wordMarks(a[i], b[hunk.added[n]]);
+        const qualifies = edit.shared >= SAME_LINE_SHARE || shapeOf(a[i]) === shapeOf(b[hunk.added[n]]);
+        if (qualifies && (!partner || edit.shared > partner.edit.shared)) partner = { n, edit };
+      }
+      if (partner) {
+        marks.before.set(i, partner.edit.before);
+        marks.after.set(hunk.added[partner.n], partner.edit.after);
+        paired.add(partner.n);
+        from = partner.n + 1;
+      } else {
+        marks.before.set(i, wholeLine(a[i]));
+      }
+    }
+    hunk.added.forEach((j, n) => {
+      if (!paired.has(n)) marks.after.set(j, wholeLine(b[j]));
+    });
+  }
+
+  // Both lines as segments, { text, marked }, the words one has and the
+  // other lacks marked; `shared` is how much of the shorter line the two
+  // have in common, by characters other than spaces — every line at one
+  // depth shares its indentation, which says nothing.
+  function wordMarks(x, y) {
+    const a = x.match(/\w+|\s+|[^\w\s]/g) || [];
+    const b = y.match(/\w+|\s+|[^\w\s]/g) || [];
+    const before = [];
+    const after = [];
+    let sharedLength = 0;
+    for (const step of alignment(a, b)) {
+      if (step.kind === "same") {
+        sharedLength += a[step.index].trim().length;
+        before.push({ text: a[step.index], marked: false });
+        after.push({ text: b[step.other], marked: false });
+      } else if (step.kind === "removed") {
+        before.push({ text: a[step.index], marked: !!a[step.index].trim() });
+      } else {
+        after.push({ text: b[step.index], marked: !!b[step.index].trim() });
+      }
+    }
+    const shorter = Math.min(x.replace(/\s/g, "").length, y.replace(/\s/g, "").length);
+    return { before: joined(before), after: joined(after), shared: shorter ? sharedLength / shorter : 0 };
+  }
+
+  // A run of marked words reads as one mark, spaces between them included.
+  function joined(segments) {
+    const out = [];
+    segments.forEach((segment, index) => {
+      const next = segments[index + 1];
+      const previous = out[out.length - 1];
+      const bridging = !segment.text.trim() && previous && previous.marked && next && next.marked;
+      const marked = segment.marked || bridging;
+      if (previous && previous.marked === marked) previous.text += segment.text;
+      else out.push({ text: segment.text, marked });
+    });
+    return out;
+  }
+
+  function shapeOf(line) {
+    return line.trim().replace(/\w+/g, "w");
+  }
+
+  function wholeLine(line) {
+    const indent = line.match(/^\s*/)[0];
+    return [{ text: indent, marked: false }, { text: line.slice(indent.length), marked: true }];
+  }
+
+  function conversionChoice(decision) {
+    const group = document.createElement("fieldset");
+    group.className = "px-conversion-choice";
+    const legend = document.createElement("legend");
+    legend.textContent = "What to do";
+    group.appendChild(legend);
+    for (const option of decision.options) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = choiceName(decision.key);
+      input.value = option.id;
+      input.checked = option.id === decision.id;
+      input.addEventListener("change", () => chooseConversion(decision.key, option.id));
+      label.append(input, document.createTextNode(option.label));
+      group.appendChild(label);
+    }
+    return group;
+  }
+
+  function conversionXml(xml, side, marks) {
+    const block = document.createElement("pre");
+    block.className = `px-conversion-xml px-conversion-${side}`;
+    const release = side === "before" ? CONVERSION_SOURCE : CONVERSION_TARGET;
+    block.setAttribute("aria-label", `ONIX ${release}`);
+    block.dataset.release = release;
+    xml.split("\n").forEach((line, index) => {
+      if (index > 0) block.appendChild(document.createTextNode("\n"));
+      const segments = (marks && marks.get(index)) || [{ text: line, marked: false }];
+      for (const segment of segments) {
+        if (segment.marked) {
+          const mark = document.createElement("mark");
+          mark.className = "px-conversion-changed";
+          mark.textContent = segment.text;
+          block.appendChild(mark);
+        } else if (segment.text) {
+          block.appendChild(document.createTextNode(segment.text));
+        }
+      }
+    });
+    return block;
+  }
+
+  // A clean verdict is a line; one with findings is a button that goes to
+  // the list of them.
+  function conversionVerdict(verdict) {
+    const clean = !!verdict && !verdict.total;
+    const line = document.createElement(verdict && !clean ? "button" : "div");
+    line.className = "px-conversion-verdict";
+    if (verdict && !clean) {
+      line.type = "button";
+      line.title = "Show what is still reported";
+      line.addEventListener("click", showRemaining);
+    }
+    if (verdict) {
+      const worst = verdict.errors ? "error" : "warning";
+      line.classList.add(clean ? "px-conversion-clean" : `px-worst-${worst}`);
+      line.append(icon(clean ? "ok" : worst), document.createTextNode(clean
+        ? `The converted document is valid ONIX ${CONVERSION_TARGET}`
+        : `The converted document has ${summariseValidation(verdict)} as ONIX ${CONVERSION_TARGET}`));
+    }
+    return line;
+  }
+
+  function showRemaining() {
+    const section = conversionModal.querySelector(".px-conversion-remaining");
+    if (section.scrollIntoView) section.scrollIntoView({ block: "start" });
+    const first = section.querySelector(".px-findings-item");
+    if (first) first.focus();
+  }
+
+  function jumpToChange(change) {
+    ensureRendered(change.node);
+    const row = change.node ? elementRows.get(change.node) : null;
+    closeConversion();
+    if (row) revealRow(row);
+  }
+
+  function ensureConversionModal() {
+    if (conversionModal) return conversionModal;
+    const overlay = document.createElement("div");
+    overlay.className = "px-popup-overlay";
+    overlay.id = "oxv-conversion";
+    overlay.hidden = true;
+
+    const dialog = document.createElement("div");
+    dialog.className = "px-popup px-conversion";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "oxv-conversion-title");
+    dialog.append(conversionHeader(), conversionBody(), conversionFooter());
+    keepTabInside(dialog, "button:not([disabled]), input:checked");
+
+    closeOnBackdrop(overlay, closeConversion);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    conversionModal = overlay;
+    return overlay;
+  }
+
+  function conversionHeader() {
+    const header = document.createElement("div");
+    header.className = "px-popup-header";
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "px-popup-title-wrap";
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "px-popup-eyebrow";
+    eyebrow.textContent = `Convert ONIX ${CONVERSION_SOURCE} to ${CONVERSION_TARGET}`;
+    const title = document.createElement("div");
+    title.id = "oxv-conversion-title";
+    title.className = "px-popup-title";
+    titleWrap.append(eyebrow, title);
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "px-popup-close";
+    closeButton.setAttribute("aria-label", "Close");
+    closeButton.appendChild(icon("close"));
+    closeButton.addEventListener("click", closeConversion);
+    header.append(titleWrap, closeButton);
+    return header;
+  }
+
+  function conversionBody() {
+    const body = document.createElement("div");
+    body.className = "px-popup-body";
+    const hint = document.createElement("p");
+    hint.className = "px-conversion-hint";
+    hint.textContent = "Automatic changes lose nothing. Review changes are applied but rest on a judgement, " +
+      "such as where a title's article ends. Manual changes are not applied: the converted document " +
+      "keeps them as they were. Where there is a choice, the options are under the change, and the " +
+      "converted document follows what you pick.";
+    const remaining = document.createElement("section");
+    remaining.className = "px-conversion-remaining";
+    const list = document.createElement("div");
+    list.className = "px-conversion-list";
+    body.append(hint, remaining, list);
+    return body;
+  }
+
+  function conversionFooter() {
+    const footer = document.createElement("div");
+    footer.className = "px-popup-footer px-conversion-footer";
+    const verdict = document.createElement("div");
+    verdict.className = "px-conversion-verdict";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.dataset.action = "copy-converted";
+    copy.textContent = "Copy XML";
+    copy.addEventListener("click", () => {
+      writeClipboard(conversion.xml, () => flashButton(copy, "Copied", true), () => flashButton(copy, "Failed", false));
+    });
+    const save = document.createElement("button");
+    save.type = "button";
+    save.dataset.action = "download-converted";
+    save.className = "px-conversion-save";
+    save.textContent = "Download";
+    save.addEventListener("click", () => saveXml(conversion.xml, `${downloadBase()}-${CONVERSION_TARGET}.xml`));
+    footer.append(verdict, copy, save);
+    return footer;
+  }
+
+  function closeConversion() {
+    if (!conversionModal || conversionModal.hidden) return;
+    conversionModal.hidden = true;
+    if (conversionLastFocus && typeof conversionLastFocus.focus === "function") {
+      try { conversionLastFocus.focus(); } catch { /* it may have left the document */ }
+    }
+    conversionLastFocus = null;
   }
 
   // ---- custom rules ---------------------------------------------------------
@@ -1704,18 +2279,7 @@
     dialog.append(rulesHeader(), rulesBody(), rulesFooter());
     keepTabInside(dialog, "button:not([disabled]), textarea");
 
-    // A press inside that is released outside is not a click on the backdrop:
-    // a drag of the modal's corner handle ends there — the modal is centred,
-    // so its corner moves at half the cursor's speed — and so does a text
-    // selection dragged out of the field. Only a press that began on the
-    // backdrop closes it.
-    let pressedBackdrop = false;
-    overlay.addEventListener("mousedown", (event) => {
-      pressedBackdrop = event.target === overlay;
-    });
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay && pressedBackdrop) closeRules();
-    });
+    closeOnBackdrop(overlay, closeRules);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     rulesModal = overlay;
@@ -1934,9 +2498,7 @@
     dialog.append(aboutHeader(), aboutBody());
     keepTabInside(dialog, "button:not([disabled]), a[href]");
 
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) closeAbout();
-    });
+    closeOnBackdrop(overlay, closeAbout);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     aboutModal = overlay;
@@ -2087,15 +2649,16 @@
   // the source text.
   function displayedXml() {
     let xml = SOURCE || "";
-    if (translating() && xml) {
-      const translated = window.OnixViewerOnix.translateNode(doc, displayDialect);
-      const serializer = new XMLSerializer();
-      let body = "";
-      for (const child of translated.childNodes) body += serializer.serializeToString(child);
-      const declaration = SOURCE.match(/^\s*<\?xml[^?]*\?>\s*/i);
-      xml = (declaration ? declaration[0] : "") + body;
-    }
+    if (translating() && xml) xml = documentXml(window.OnixViewerOnix.translateNode(doc, displayDialect));
     return xml;
+  }
+
+  function documentXml(document) {
+    const serializer = new XMLSerializer();
+    let body = "";
+    for (const child of document.childNodes) body += serializer.serializeToString(child);
+    const declaration = SOURCE.match(/^\s*<\?xml[^?]*\?>\s*/i);
+    return (declaration ? declaration[0] : "") + body;
   }
 
   // ---- download XML ---------------------------------------------------------
@@ -2107,30 +2670,34 @@
   // the download in Firefox.
   function downloadXml(btn) {
     const text = displayedXml();
-    if (text) {
-      const url = URL.createObjectURL(new Blob([text], { type: "application/xml" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = downloadName();
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } else {
-      flashButton(btn, "Empty", false);
-    }
+    if (text) saveXml(text, downloadName());
+    else flashButton(btn, "Empty", false);
+  }
+
+  function saveXml(text, name) {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/xml" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // The file's own name, marked with the dialect when the view translates
   // it: feed.xml becomes feed-short-tags.xml. A blob: URL or a path ending
   // in "/" has no name to offer, so those are called onix.xml.
   function downloadName() {
-    const last = location.protocol === "blob:" ? "" : location.pathname.split("/").pop();
-    const base = safeDecode(last).replace(/\.xml$/i, "") || "onix";
     const suffix = translating()
       ? (displayDialect === "short" ? "-short-tags" : "-reference-names")
       : "";
-    return `${base}${suffix}.xml`;
+    return `${downloadBase()}${suffix}.xml`;
+  }
+
+  function downloadBase() {
+    const last = location.protocol === "blob:" ? "" : location.pathname.split("/").pop();
+    return safeDecode(last).replace(/\.xml$/i, "") || "onix";
   }
 
   function safeDecode(text) {

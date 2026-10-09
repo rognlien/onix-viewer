@@ -424,6 +424,32 @@ async function releaseSelector(browser, served) {
       `the note names both; got "${after.note}"`);
     await page.close();
   });
+
+  await test("converting a 3.0 document fetches the engine and the 3.1 model only when asked", async () => {
+    const page = await open(browser, served.url("onix-3.0-conversion.xml"));
+    const before = await page.evaluate(() => ({
+      engine: Boolean(window.OnixViewerMigration),
+      loaded: window.OnixViewerValidation.availableVersions(),
+    }));
+    assert(!before.engine, "the engine is not sent with the page");
+    assert(before.loaded.join() === "3.0", `only the document's model is sent; got ${before.loaded}`);
+
+    await page.select("#oxv-release", "convert");
+    await page.waitForSelector("#oxv-conversion:not([hidden])", { timeout: 10000 });
+    const after = await page.evaluate(() => ({
+      engine: Boolean(window.OnixViewerMigration),
+      loaded: window.OnixViewerValidation.availableVersions(),
+      title: document.querySelector("#oxv-conversion .px-popup-title").textContent,
+      verdict: document.querySelector("#oxv-conversion .px-conversion-verdict").textContent,
+      selected: document.getElementById("oxv-release").value,
+    }));
+    assert(after.engine, "the engine arrived");
+    assert(after.loaded.join() === "3.0,3.1", `the 3.1 model arrived; got ${after.loaded}`);
+    assert(after.title === "18 changes: 9 automatic, 5 to review, 4 manual", `title: ${after.title}`);
+    assert(after.verdict === "The converted document has 4 errors as ONIX 3.1", `verdict: ${after.verdict}`);
+    assert(after.selected === "3.0", `the selector stays on the release judged; got ${after.selected}`);
+    await page.close();
+  });
 }
 
 async function schematronInChrome(browser, served) {

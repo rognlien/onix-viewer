@@ -49,6 +49,8 @@ onix-viewer/
 │   ├── onix-content-model-3.0.js   ONIX 3.0.8 content model for validation (auto-generated, ~62 KB)
 │   ├── onix-validate.js            content-model interpreter, rule registry, messages
 │   ├── onix-schematron.js          custom rules: a Schematron subset over the browser's XPath
+│   ├── onix-migrate.js             ONIX 3.0 → 3.1 conversion: rule registry, graded changes
+│   │                               (fetched on demand, like the other release's model)
 │   ├── onix-popup.js               modal popup listing all entries of a code list
 │   └── icons/                      icon-{16,28,32,48,56,96,128,256,512}.png, built from icons/
 ├── icons/                          SOURCE artwork — not shipped. The master plus
@@ -95,9 +97,11 @@ onix-viewer/
 │       └── ONIX_BookProduct_3.1_short_strict.xsd      (reference; not read by anything)
 ├── Onix/                           real ONIX samples: one record in both dialects
 ├── tests/
-│   ├── run.js                      loads every case and prints the summary (takes a name filter)
+│   ├── run.js                      runs every case file in a worker of its own, prints the
+│   │                               output in name order and the summary (takes a name filter)
+│   ├── run-case.js                 the worker: one case file, its results posted back
 │   ├── harness.js                  jsdom setup, test/describe/assert, render and validation helpers
-│   ├── cases/                      one file per area, NN-<area>.test.js, run in name order (411 tests, ~10s)
+│   ├── cases/                      one file per area, NN-<area>.test.js (450 tests, ~8s)
 │   ├── browser/run.js              the extension in a headless Chrome: the takeover, and the
 │   │                               custom rules on Chrome's XPath (npm run test:browser)
 │   ├── browser/firefox.js          the same in a headless Firefox (npm run test:firefox); see firefox/README.md
@@ -426,9 +430,12 @@ The viewer labels these documents `ONIX Acknowledgement 3.0 (N records)` in the 
   toolbar buttons' own box — border, 6px radius, padding and type — so it
   stands level with the cog, filled by `setupReleaseSelect()` in `viewer.js`
   with one `ONIX N, Issue I` option per bundled release, and ahead of them
-  the document's own when that is not bundled (`ONIX 2.1, Issue 74`, or
-  `Undeclared release, Issue 74` for a standalone `<Product>` with no
-  namespace). The issue is the same on every option, since code lists are
+  the document's own when that is not bundled (`ONIX 2.1, Issue 74`). A
+  document that declares no release at all — a standalone `<Product>` with
+  no namespace — gets no option of its own and starts on **3.0**
+  (`initialRelease()`): the viewer always judges against a real release,
+  and an "Undeclared release" choice that checked no structure made no
+  sense. The issue is the same on every option, since code lists are
   release-independent; it comes from `OnixViewerCodeListSchema`, and the
   title carries the issue's release date. It starts on the declared release.
   While the choice differs from it the select shows nothing of its own —
@@ -1043,8 +1050,9 @@ reword it.
    `<AudienceCode>` and the `Conference*` composites are deprecated in 3.0
    and unknown to 3.1, an error. A feed about to move between them can be
    read both ways, and a standalone `<Product>` with no namespace, which
-   declares nothing, can be checked structurally at all — its first option
-   is *Validate as declared*, which reports `model.missing` as before.
+   declares nothing, is checked structurally at all: as 3.0 by default, as
+   3.1 on request. `run()` itself still reports `model.missing` for such a
+   document when no `version` is passed; the default is the viewer's.
 
    A pass that is superseded — the reader picks another release, or applies
    rules, while a large feed is still being sliced — stops at its next slice
@@ -1757,6 +1765,167 @@ Cost, measured in Chrome: the walk is ~100 ms for a 4.8 MB feed with 135k
 elements, and the finding chips are free by comparison — 380 SVG chips built
 and laid out in **2 ms**, about 4 µs each.
 
+## Version conversion (ONIX 3.0 → 3.1)
+
+A 3.0 document can be converted to 3.1. The release selector offers
+**Convert to ONIX 3.1…** in a group of its own below the releases, on a 3.0
+product message only; choosing it opens a modal (`#oxv-conversion`) and
+leaves the selector on the release being judged. The modal lists every
+change as a card of its own — on a ground a shade off the cards' colour,
+with room between them, so a grade pill can only belong to the card it sits
+in: the grade, the sentence (which names the element) and a quiet **Show in
+file** on top, in a grid that keeps a wrapped sentence in its column and the
+options under it; then before and after in one panel, a rule between them,
+each half barred in its side's colour and labelled 3.0 or 3.1. Below the
+list, the verdict on the converted document as 3.1, and **Copy XML** and
+**Download** (`feed-3.1.xml`) for it.
+
+`Resources/onix-migrate.js` does the work, on the validator's pattern: a
+registry of rules, one walk, every element offered to every rule, messages
+as templates keyed by code. `convert()` never touches the source: it copies
+the document into the 3.1 namespace, remembering each copy's source node so
+a change can point at the row the reader sees, then lets the rules rewrite
+the copy. Names are compared as reference names and written in the
+document's dialect, so a short-tag file converts to short tags; a test
+holds the two conversions of one record to the same document.
+
+**The grades** are the point of the list:
+
+| Grade | Means |
+|---|---|
+| automatic | applied, and nothing is lost |
+| review | applied, but a judgement — where a title's article ends |
+| manual | not applied: a person decides, and the result still carries it |
+
+**What changed between the releases** was worked out from the two bundled
+content models, not from prose: 19 elements left (`DateFormat`,
+`AudienceCode`, the twelve `Conference*`, `CurrencyZone`, `Gender`,
+`PromotionContact`, the three `Reissue*`), `<SalesRestriction>` may no
+longer sit directly in `<PublishingDetail>`, `<TitleText>` and the header's
+`Default*` became deprecated, and 3.1 added uniqueness constraints a valid
+3.0 file can break (one `<ContributorRole>` of a kind per contributor, one
+`<PublishingDate>` per role, …). Everything else that differs is additive:
+new optional elements, raised maximums, relaxed number types. Code lists
+are the same for both.
+
+**The rules**, in order:
+
+- `release` — the root's `release` attribute; the namespace moved with the copy.
+- `defaults` — the header's `<DefaultLanguageOfText>`, `<DefaultPriceType>`
+  and `<DefaultCurrencyCode>`, deprecated in 3.1, are written into every
+  place that does not say otherwise (a `<Language>` of role 01 in each
+  `<DescriptiveDetail>`; `<PriceType>`, and `<CurrencyCode>` where there is
+  an amount, in each `<Price>`) and leave the header. **Automatic**, unless a
+  product other than a deletion has no `<DescriptiveDetail>` to take the
+  language, which is **review**.
+- `dateformat` — `<DateFormat>` becomes the `dateformat` attribute of the
+  `<Date>` beside it, the child-to-attribute case. Same value already there,
+  or an empty `<DateFormat>`: dropped. A different value: manual.
+- `audience` — `<AudienceCode>` X becomes `<Audience>` with type 01 and
+  value X, or is dropped when such an `<Audience>` is already there.
+- `conference` — `<Conference>` becomes `<Event>` child for child, through a
+  name map. `<EventRole>` is required where `<ConferenceRole>` was optional
+  with an XSD default of 01, so a missing role is written out as 01, which
+  loses nothing.
+- `textsource` — `<TextAuthor>`, `<TextSourceCorporate>` and
+  `<TextSourceDescription>` in a `<TextContent>`, deprecated in 3.1.3,
+  become one `<TextSource>` per source (`<PersonName>`, `<CorporateName>`),
+  the descriptions going with the source when there is exactly one. With
+  several sources and a description nothing says whose it is, so the old
+  form stays and the leftover rule reports it.
+- `gender` — dropped, as **review**: 3.1 has no place for it.
+- `salesrestriction`, `currencyzone`, `promotioncontact`, `reissue` — the
+  real decisions, **manual** until the reader picks (below).
+- `title` — `<TitleText>` becomes `<TitlePrefix>` or `<NoPrefix/>`, then
+  `<TitleWithoutPrefix>`. The article comes from a table per language
+  (English, French, German, Spanish, Italian, Dutch, Portuguese, Norwegian,
+  Swedish, Danish, from the MARC non-filing lists; elided forms such as `L'`
+  join the next word). The language is the title's own `language`
+  attribute, else the product's one language of text (role 01), else the
+  header's `<DefaultLanguageOfText>`. A split is **review**; a known
+  language with no article is **automatic**; an unknown or unsupported
+  language gets `<NoPrefix/>` and **review**. `collationkey` goes to
+  `<TitleWithoutPrefix>`, the part the title files under; `<NoPrefix/>`
+  takes none of the language attributes, which it does not allow.
+- `leftover` — anything still there that 3.1 does not know, or deprecates,
+  is **manual**, with EDItEUR's advice from the models' `deprecated` maps. A
+  removed composite (`<Reissue>`) is reported once, not again per child.
+- After the walk, **exact duplicates** under 3.1's new uniqueness rules go:
+  the validator is run over the copy as 3.1, and a `unique.duplicate` whose
+  element repeats an earlier sibling exactly is removed. A repeat that
+  differs stays, and the verdict reports it.
+
+**Choices.** Where there is more than one sensible answer, the rule calls
+`api.decision(rule, node, options, defaultId)` and the change carries
+`decision: { key, id, explicit, options }`. The modal shows the options as
+radio buttons under the change; a pick goes into `conversionChoices`,
+`convert(doc, ctx, { choices })` runs again, and the list is rebuilt at the
+same scroll position with focus back on the pick. A picked change is graded
+**chosen** ("Your choice"). The key is the rule and the source element's
+index in document order, which is stable across runs; a pick that no longer
+applies falls back to the default. The options:
+
+| Decision | Options (default first) |
+|---|---|
+| `<TitleText>` | the article split, the first word, no prefix (whichever apply) |
+| `<Gender>` | drop · keep |
+| text sources | make `<TextSource>`s · keep the deprecated form |
+| `<SalesRestriction>` in `<PublishingDetail>` | keep · into each `<SalesRights>` for sale (types 01, 02, 07, 08) · into every one · drop |
+| `<CurrencyZone>` | keep · a `<Territory>` of the 21 eurozone countries of 2026 (EUR, and only where the price has no territory) · drop |
+| `<PromotionContact>` | keep · a `<ProductContact>` with role 02, Promotional contact, the text as its name · drop |
+| `<Reissue>` | keep · its date as a `<PublishingDate>` with role 21, Forthcoming reissue date (when the product has none) · drop |
+
+A test picks through every option and requires the result to be valid 3.1
+whenever nothing is kept. New elements go where the 3.1 content model puts
+them (`api.insertChild`, which orders by the model's particles), and a moved
+`<SalesRestriction>` is re-indented for its new depth (`api.moved`). The
+eurozone list is dated because the eurozone grows; it wants updating when it
+does.
+
+The modal resizes from its corner (`resize: both` on `.px-conversion`, as on
+the rules editor), starting at 860px by 80% of the window. A press inside
+released on the backdrop — the end of a resize drag — does not close it, nor
+any modal: `closeOnBackdrop()` closes only on a press that began there.
+
+**What differs is marked, not whole lines.** `diffMarks()` aligns the before
+and after by their longest common subsequence of lines; between two aligned
+stretches, a removed and an added line that share at least half the shorter
+one's text, or have the same shape (the same tags and punctuation, other
+words — a renamed element), are one line edited, and only the words that
+differ are marked — a `<mark>` on a red or green tint of its side; bold was
+tried and dropped as too heavy (`<Date>` gaining ` dateformat="05"` marks
+the attribute).
+A line with no partner was taken out or put in whole and is marked from its
+first character. The text of the block is the snippet unchanged.
+
+**What 3.1 still reports** heads the list (`.px-conversion-remaining`): the
+verdict's findings, each a button to the change about the same element —
+found through `result.source()`, which leads from a converted node to its
+source — or, when no change covers it, to its row in the tree. The verdict in
+the footer is a button to the list when there is anything in it.
+
+**Layout is kept.** A new element takes the line and indentation of the one
+it replaces, new children are indented one step further — the step the
+document itself uses — and a document on one line gets no whitespace. The
+`after` snippet of a change is serialised at the moment of that change, so
+two changes in one composite each show their own.
+
+**Loaded on demand.** Nothing about the conversion costs a page that does
+not use it: `content.js` stamps the engine's URL on the shell as
+`data-oxv-migration`, and `showConversion()` appends it, and the 3.1 model
+when the page was sent only 3.0's, the first time it is asked for; the
+conversion is then worked out once, since the document never changes. The
+browser test proves both arrive only on request.
+
+The guarantee the suite holds it to: **no 3.0 document gains an error from
+conversion that it was not told about** — across every fixture and sample
+in both dialects, the converted document's errors as 3.1 are at most its
+errors as 3.0 plus its manual changes.
+
+Not converted, and reported as manual by the leftover rule: anything else
+3.1 does not know, and the 3.1.3 text-source elements where there is more
+than one source and a description.
+
 ## Search, collapsed to its icon
 
 The search field sits behind a magnifier button in the toolbar: zero width
@@ -1952,14 +2121,16 @@ After the rename from "PrettyXML" to "ONIX Viewer":
 - `window.OnixViewerDeprecatedCodes` — list number → code → the issue it was deprecated at
 - `window.OnixViewerValidation` — `run`, `start` (sliced session), `message`, `severity`, `messages`, `severities`, `rules`, `registerRule`, `modelFor`, `availableVersions`
 - `window.OnixViewerSchematron` — custom rules: `install(text)` → `{ patterns, assertions, problems }`, `parse`, `reset`
+- `window.OnixViewerMigration` — the 3.0 → 3.1 conversion: `convert(doc, ctx, { choices })` → `{ document, changes, counts, source, from, to }`, `message`, `messages`, `rules`, `registerRule`, `articles`; present only once a reader has asked for a conversion
 - `__oxv-rules__` — the inert data block the reader's rule set arrives in, beside `__oxv-source__`; `oxv-rules`, `oxv-rules-text`, `oxv-rules-status` are the editor modal and its parts
 - `oxv-rules` / `oxv-rules-kept` — the two `postMessage` types between the viewer and `content.js`, the only traffic between the page's world and the content script
 - `[OnixViewer]` — console log prefix (gated behind a `DEBUG = false` flag in `content.js`)
-- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-release`, `oxv-release-group`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`)
+- `oxv-*` — DOM IDs (`oxv-toolbar`, `oxv-root`, `oxv-search`, `oxv-release`, `oxv-release-group`, `oxv-meta`, `oxv-block-list`, `oxv-node-menu`, `oxv-validation`, `oxv-findings`, `oxv-rules`, `oxv-about`, `oxv-conversion`)
 - `data-oxv-version` — the extension version on the replaced `<html>`, `-dev` when loaded unpacked
 - `data-oxv-browser` — `chrome`, `firefox` or `safari` on the replaced `<html>`, read off the scheme of `runtime.getURL("")` by `content.js`; the About window words itself and picks its install link from it
 - `data-oxv-bytes` — on the replaced `<html>`, the source's size in bytes as `content.js` read it; absent for a source read from the DOM, where the viewer works out its UTF-8 length
 - `data-oxv-models` — on the replaced `<html>`, a JSON map from bundled release to the URL of its content model, stamped by `content.js`; the release selector fetches the model it was not sent from it
+- `data-oxv-migration` — on the replaced `<html>`, the URL of `onix-migrate.js`, stamped by `content.js`; the conversion fetches the engine from it
 - `data-oxv` — data attribute on the replaced `<html>`
 - `px-tag-name` — marks a span holding an element name, so the dialect switch can find it
 - `px-icon` — a tiny inline SVG from `icon(name)`; `px-sev-error` / `px-sev-warning` are the severity modifiers (not `px-error`, which is the parse-error panel)
@@ -2014,8 +2185,8 @@ refactor:
 
 `web_accessible_resources` is the one broad-looking entry that isn't a
 permission, and *is* asked about: the viewer runs in the page's world, so the
-page has to be allowed to load the ten scripts, the stylesheet and the icon
-that `content.js` appends. It exposes only static files that are public in this
+page has to be allowed to load the scripts, the stylesheet and the icon that
+`content.js` and the viewer append. It exposes only static files that are public in this
 repository, and grants a page none of the extension's privileges — of which
 there are none. `SECURITY.md` and `chrome/listing.md` both spell that out.
 
@@ -2025,24 +2196,38 @@ there are none. `SECURITY.md` and `chrome/listing.md` both spell that out.
 
 ```bash
 npm install     # one-time, installs jsdom
-npm test        # runs the 411-test jsdom suite (~10s)
+npm test        # runs the 450-test jsdom suite (~8s)
 npm run test:update-expected   # rewrite tests/expected/ after an intended change in findings
 npm run lint    # ESLint, recommended rules; CI runs it after the suite
 npm run test:browser   # the extension in a headless Chrome (~5s; needs Chrome installed)
 npm run test:oracle    # every ONIX document as 3.0 and as 3.1, our verdict against xmllint's (downloads EDItEUR's bundles once)
-npm test -- x512          # just the tests matching "x512" (~0.2s)
+npm test -- x512          # just the tests matching "x512" (~1s)
 npm test -- validation    # a whole describe block
 ```
 
-The harness lives in `tests/harness.js`: it loads the viewer scripts in jsdom against fixtures in `tests/fixtures/` and exports `test`, `describe`, `assert`, the render helpers (`render`, `renderSource`, `$$`, `rowsNamed`, …) and the validation helpers (`findingsFor`, `findings`, `codes`, `validationLabel`, `shortTwin`), so no case file defines its own. The cases are `tests/cases/NN-<area>.test.js`, one `describe` block each, loaded in name order by `tests/run.js`. Add a fixture + a `test()` call in the right file when introducing new behavior — much faster than reloading the extension in the browser.
+The harness lives in `tests/harness.js`: it loads the viewer scripts in jsdom against fixtures in `tests/fixtures/` and exports `test`, `describe`, `assert`, the render helpers (`render`, `renderSource`, `$$`, `rowsNamed`, …) and the validation helpers (`findingsFor`, `findings`, `codes`, `validationLabel`, `shortTwin`), so no case file defines its own. The cases are `tests/cases/NN-<area>.test.js`, one `describe` block each, run by `tests/run.js`. Add a fixture + a `test()` call in the right file when introducing new behavior — much faster than reloading the extension in the browser.
 
 `test()` is hand-rolled but takes an optional case-insensitive substring
 filter, matched against the test name *and* its `describe` label — so
 `node tests/run.js x512` runs one test and `node tests/run.js validation` runs a
 block. Skipped blocks print no heading, the summary says how many were filtered
 out, and a filter matching nothing exits non-zero rather than reporting success
-over an empty run. Filtering also cuts the run to ~0.2s, since only the matching
-tests build a jsdom window.
+over an empty run. Filtering also cuts the run to about a second, since only the
+matching tests build a jsdom window; what is left is each worker loading the
+harness.
+
+**Each case file runs in a worker thread of its own.** jsdom gives every
+window a `vm` context, and Node keeps the context alive after the window is
+closed — a heap snapshot shows it held from Node's own realm, not from
+anything in the suite — so a single process running every file grew by
+about 6 MB a window. At 411 tests it peaked at 4.5 GB and had reached node's
+default heap limit: one more test file and it died with `JavaScript heap out
+of memory`. A worker's contexts end with the worker. `tests/run.js` runs up
+to eight at a time, each hands back its output whole (the harness's `print()`
+buffers in a worker), and the output is printed in file order, so it reads
+as it always did. A side effect: the suite takes 8 s rather than 10.
+`results()` replaced the harness's own `summary()`; the totals and the exit
+code are `run.js`'s.
 
 ### The findings on record
 
@@ -2124,6 +2309,7 @@ Each fixture in `tests/fixtures/` is intentionally minimal — just enough to ex
 | `onix-3.1-invalid.xml` | One instance of each finding kind: unknown element, bad code, deprecated code, deprecated element, missing required element, out-of-range value, bad ISBN-10 check digit |
 | `onix-3.0-text-attributes.xml` | `<Text textformat="05">` (leaf row) and `textformat="06"` (open row with child elements): attribute code-list chips |
 | `onix-2.1-doctype.xml` | An ONIX 2.1 message with the standard `<!DOCTYPE … SYSTEM "…dtd">`: the DOCTYPE row keeps its `SYSTEM` keyword |
+| `onix-3.0-conversion.xml` | Version conversion: one instance of each rule — a `<TitleText>` in English, French, Norwegian and Icelandic, `<DateFormat>`, `<AudienceCode>`, a `<Conference>` with no role, a repeated `<ContributorRole>`, `<Gender>`, the header's three defaults, a review's author and source, and the four decisions: a `<SalesRestriction>` in `<PublishingDetail>`, a `<PromotionContact>`, a `<CurrencyZone>` and a `<Reissue>`. Valid 3.0 bar deprecation warnings; converted, only the four decisions remain until they are made |
 | `onix-3.1-dependent-codelists.xml` | Second-order code lists: one value element per selector (`ProductFormFeatureType` 01, 09 and 47, `AudienceCodeType`, `AudienceRangeQualifier`, `SalesOutletIDType`, `ReturnsCodeType`) plus a type 07 value that must stay plain. Schema-valid, so also the clean baseline; its short-tag twin is made in the test with `translateNode` |
 
 When adding behavior, prefer adding a fixture + assertion rather than a manual browser test. The browser step is for *verification*, not for *iteration*.

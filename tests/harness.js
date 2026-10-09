@@ -37,6 +37,9 @@ const contentModelJs = [
 const onixJs = fs.readFileSync(path.join(RES, "onix.js"), "utf8");
 const validateJs = fs.readFileSync(path.join(RES, "onix-validate.js"), "utf8");
 const schematronJs = fs.readFileSync(path.join(RES, "onix-schematron.js"), "utf8");
+// content.js sends the conversion engine nowhere; the viewer fetches it when a
+// reader asks for a conversion. jsdom fetches nothing, so the suite loads it.
+const migrateJs = fs.readFileSync(path.join(RES, "onix-migrate.js"), "utf8");
 const popupJs = fs.readFileSync(path.join(RES, "onix-popup.js"), "utf8");
 const viewerJs = fs.readFileSync(path.join(RES, "viewer.js"), "utf8");
 const viewerCss = fs.readFileSync(path.join(RES, "viewer.css"), "utf8");
@@ -156,6 +159,7 @@ function renderSource(xml, label, beforeScripts, models) {
   window.eval(onixJs);
   window.eval(validateJs);
   window.eval(schematronJs);
+  window.eval(migrateJs);
   window.eval(popupJs);
   window.eval(viewerJs);
 

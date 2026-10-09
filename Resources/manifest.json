@@ -52,6 +52,7 @@
         "onix-content-model-3.0.js",
         "onix-validate.js",
         "onix-schematron.js",
+        "onix-migrate.js",
         "onix-popup.js",
         "icons/icon-28.png",
         "icons/icon-56.png"
