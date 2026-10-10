@@ -17,6 +17,7 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const puppeteer = require("puppeteer-core");
+const standalone = require("./standalone");
 
 const ROOT = path.join(__dirname, "..", "..");
 const RESOURCES = path.join(ROOT, "Resources");
@@ -32,11 +33,13 @@ const SAMPLES = path.join(ROOT, "Onix");
 // the rest a 200 with an HTML page instead, the way a share link behind a
 // session answers a request without its cookies. Both force content.js off
 // its re-fetch and onto the DOM fallback. "large.xml" is the EDItEUR sample
-// product repeated 300 times, a feed that arrives in many chunks.
+// product repeated 300 times, a feed that arrives in many chunks. The
+// standalone page's bundle and a plain consumer page are served by name too.
 function serve() {
   const served = new Set();
   const held = new Set();
   const large = largeFeed(300);
+  const pages = standalone.assets();
   const server = http.createServer((request, response) => {
     const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
     const once = name.startsWith("once-");
@@ -55,6 +58,9 @@ function serve() {
       response.writeHead(200, { "Content-Type": "application/xml", "Content-Length": 600 * 1000 * 1000 });
       response.write(fs.readFileSync(file));
       held.add(response);
+    } else if (pages[name]) {
+      response.writeHead(200, { "Content-Type": pages[name].type });
+      response.end(pages[name].body);
     } else if (name === "large.xml" || file) {
       served.add(request.url);
       response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
@@ -97,12 +103,13 @@ function fileFor(name) {
 
 // `enableExtensions` loads the directory over the DevTools protocol. The
 // classic `--load-extension` flag is ignored by branded Chrome since 137, and
-// silently: the page just shows Chrome's own XML viewer.
-function launch() {
+// silently: the page just shows Chrome's own XML viewer. The standalone page
+// is tested in a Chrome without the extension.
+function launch({ extension = true } = {}) {
   return puppeteer.launch({
     channel: "chrome",
     headless: true,
-    enableExtensions: [RESOURCES],
+    ...(extension ? { enableExtensions: [RESOURCES] } : {}),
     args: ["--no-sandbox"],
   });
 }
@@ -194,6 +201,7 @@ async function main() {
     await schematronInChrome(browser, served);
     if (features.customRules) await rulesRoundTrip(browser, served);
     else console.log("\nThe rules editor is held back; the storage round trip is skipped");
+    await standalone.standalone({ launch: () => launch({ extension: false }), served, test, assert });
   } finally {
     await browser.close();
     served.release();

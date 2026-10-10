@@ -1,0 +1,183 @@
+// tests/browser/standalone.js — the standalone page in a real Chrome.
+//
+// Called from run.js's main(). The bundle is served to a plain HTML page and
+// Chrome is launched without the extension, so nothing but the bundle can be
+// at work. The jsdom case (tests/cases/44-standalone.test.js) covers the
+// contract; this one settles what only a browser can: that the page really
+// is inert to hostile text, that the clipboard gets the exact input, that no
+// request leaves the page, and that a large feed opens.
+
+const fs = require("fs");
+const path = require("path");
+const { bundle } = require("../../tools/build-standalone");
+
+const ROOT = path.join(__dirname, "..", "..");
+const PRODUCT = fs.readFileSync(path.join(ROOT, "tests", "fixtures", "onix-3.1-standalone-product.xml"), "utf8");
+const MALFORMED = fs.readFileSync(path.join(ROOT, "tests", "fixtures", "malformed.xml"), "utf8");
+
+// What a consumer page looks like: ordinary HTML, a fallback to show until
+// the viewer takes over, and the script. The tests call open() themselves.
+const CONSUMER = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Consumer</title></head>
+<body>
+<pre id="fallback">raw XML</pre>
+<script src="onix-viewer-standalone.js"></script>
+</body>
+</html>
+`;
+
+// The two files run.js's server adds, by name.
+function assets() {
+  return {
+    "onix-viewer-standalone.js": { type: "text/javascript", body: bundle() },
+    "consumer.html": { type: "text/html", body: CONSUMER },
+  };
+}
+
+async function standalone({ launch, served, test, assert }) {
+  console.log("\nThe standalone page");
+  const browser = await launch();
+  try {
+    await browser.defaultBrowserContext().overridePermissions(served.url("").replace(/\/$/, ""),
+      ["clipboard-read", "clipboard-write"]);
+
+    // A fresh consumer page. `stored` seeds localStorage before any script
+    // runs, the way a returning reader would have it. Ready once the bundle
+    // has defined its entry point: there is no #oxv-validation to wait for.
+    async function consumer({ stored } = {}) {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1280, height: 800 });
+      page.errors = [];
+      page.requests = [];
+      page.on("pageerror", (error) => page.errors.push(error.message));
+      page.on("request", (request) => page.requests.push(request.url()));
+      if (stored) await page.evaluateOnNewDocument((value) => localStorage.setItem("oxv-dialect", value), stored);
+      await page.goto(served.url("consumer.html"), { waitUntil: "load" });
+      await page.waitForFunction(() => typeof window.OnixViewerStandalone?.open === "function", { timeout: 10000 });
+      return page;
+    }
+
+    const open = (page, xml) => page.evaluate((text) =>
+      window.OnixViewerStandalone.open(text, { title: "Feed", fallback: document.getElementById("fallback") }), xml);
+
+    await test("a document renders, resolves a code-list badge and drops the fallback", async () => {
+      const page = await consumer();
+      const result = await open(page, PRODUCT);
+      const state = await page.evaluate(() => ({
+        rows: document.querySelectorAll("#oxv-root .px-row").length,
+        badge: document.querySelector("#oxv-root .px-codelist")?.textContent || "",
+        fallback: Boolean(document.getElementById("fallback")),
+        pruned: ["#oxv-validation", '[data-action="about"]', '[data-action="dialect-toggle"]',
+          '[data-action="download-xml"]', "#oxv-release", '[data-action="rules"]', "link[rel=stylesheet]"]
+          .filter((selector) => document.querySelector(selector)),
+        styles: document.head.querySelectorAll("style").length,
+      }));
+      assert(result.rendered && result.parsed, `result: ${JSON.stringify(result)}`);
+      assert(state.rows > 20, `the tree is rendered; got ${state.rows} rows`);
+      assert(state.badge !== "", "a code-list label is resolved");
+      assert(!state.fallback, "the fallback is removed");
+      assert(state.pruned.length === 0, `controls that should be absent: ${state.pruned.join(", ")}`);
+      assert(state.styles === 1, `one injected <style>; got ${state.styles}`);
+      assert(page.errors.length === 0, `page errors: ${page.errors.join("; ")}`);
+      await page.close();
+    });
+
+    await test("t and ? change nothing; w toggles wrapping", async () => {
+      const page = await consumer();
+      await open(page, PRODUCT);
+      const snapshot = () => page.evaluate(() => document.documentElement.outerHTML);
+      const before = await snapshot();
+      await page.keyboard.press("t");
+      await page.keyboard.press("?");
+      await page.keyboard.press("v");
+      assert(await snapshot() === before, "t, ? and v left the page as it was");
+      await page.keyboard.press("w");
+      assert(await page.evaluate(() => document.body.classList.contains("px-no-wrap")), "w, the positive control, acts");
+      await page.close();
+    });
+
+    await test("a stored dialect preference that differs from the document is ignored", async () => {
+      const page = await consumer({ stored: "short" });
+      await open(page, PRODUCT);
+      const state = await page.evaluate(() => ({
+        names: [...document.querySelectorAll("#oxv-root .px-tag-name")].map((el) => el.textContent),
+        stored: localStorage.getItem("oxv-dialect"),
+      }));
+      assert(state.names.includes("Product") && !state.names.includes("product"),
+        `names as written; got ${state.names.slice(0, 4).join(", ")}`);
+      assert(state.stored === "short", "and the preference itself is left alone");
+      await page.close();
+    });
+
+    await test("malformed input shows the parse error, hides the toolbar and keeps the fallback", async () => {
+      const page = await consumer();
+      const result = await open(page, MALFORMED);
+      const state = await page.evaluate(() => ({
+        panel: document.querySelector("#oxv-root .px-error h2")?.textContent,
+        toolbar: getComputedStyle(document.getElementById("oxv-toolbar")).display,
+        fallback: Boolean(document.getElementById("fallback")),
+      }));
+      assert(result.rendered === true && result.parsed === false, `result: ${JSON.stringify(result)}`);
+      assert(state.panel === "Could not parse XML", `panel: ${state.panel}`);
+      assert(state.toolbar === "none", `toolbar display: ${state.toolbar}`);
+      assert(state.fallback, "the fallback is kept");
+      await page.close();
+    });
+
+    await test("markup inside a CDATA text node stays inert and triggers no request", async () => {
+      const hostile = PRODUCT.replace(/<RecordReference>[^<]*<\/RecordReference>/,
+        "<RecordReference><![CDATA[</script><img src=x onerror=\"window.pwned=1\">]]></RecordReference>");
+      const page = await consumer();
+      const before = page.requests.length;
+      const result = await open(page, hostile);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const state = await page.evaluate(() => ({
+        images: document.querySelectorAll("img").length,
+        pwned: window.pwned === 1,
+        shown: document.getElementById("oxv-root").textContent.includes("<img src=x"),
+      }));
+      assert(result.parsed === true, "the document is well-formed and renders");
+      assert(state.shown, "the text is shown as text");
+      assert(state.images === 0 && !state.pwned, `no element was made from it; images ${state.images}, pwned ${state.pwned}`);
+      const after = page.requests.slice(before);
+      assert(after.length === 0, `no request after open(); got ${after.join(", ")}`);
+      assert(!page.requests.some((url) => /\/x(\?|$)/.test(url)), "nothing asked for src=x");
+      await page.close();
+    });
+
+    await test("copy puts the exact input on the clipboard", async () => {
+      // Were the stored preference honoured, Copy would hand back the
+      // translated document; the input has to come back untouched.
+      const page = await consumer({ stored: "short" });
+      await open(page, PRODUCT);
+      await page.click('#oxv-toolbar [data-action="copy-xml"]');
+      await page.waitForFunction(() => document.querySelector('[data-action="copy-xml"]').title === "Copied",
+        { timeout: 5000 });
+      const copied = await page.evaluate(() => navigator.clipboard.readText());
+      assert(copied === PRODUCT, "the clipboard holds the input, character for character");
+      await page.close();
+    });
+
+    await test("a 300-product feed opens and renders the Products in view", async () => {
+      const page = await consumer();
+      const result = await page.evaluate(async (url) => {
+        const xml = await (await fetch(url)).text();
+        return window.OnixViewerStandalone.open(xml, { fallback: document.getElementById("fallback") });
+      }, served.url("large.xml"));
+      const state = await page.evaluate(() => ({
+        meta: document.getElementById("oxv-meta").textContent,
+        pending: document.querySelectorAll("#oxv-root .px-children.px-pending").length,
+        rows: document.querySelectorAll("#oxv-root .px-row").length,
+      }));
+      assert(result.parsed === true, "parsed");
+      assert(state.meta.includes("300 products"), `the pill counts the feed; got "${state.meta}"`);
+      assert(state.pending > 250 && state.rows > 100, `most Products wait for the viewport; got ${state.pending} pending, ${state.rows} rows`);
+      await page.close();
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+module.exports = { standalone, assets };
