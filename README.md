@@ -45,6 +45,51 @@ SVG) is left to the browser.
   *Load unpacked* and pick `Resources/`.
 - **Safari:** in progress; see [safari/](safari/README.md).
 
+## Standalone page
+
+The viewer also builds as one script for an ordinary web page, with no
+extension. You load and decode the XML; the script renders it.
+
+```html
+<pre id="fallback">…</pre>
+<script src="onix-viewer-standalone.js"></script>
+<script>
+  OnixViewerStandalone.open(xmlText, { title: "Feed", fallback: document.getElementById("fallback") });
+</script>
+```
+
+Build it with `npm run build:standalone`. It writes
+`dist/standalone/onix-viewer-standalone.js`, the same bytes every time. The
+header carries the MIT notice, the repository and the commit it came from,
+marked `+dirty` when an input has changed.
+
+Loading the script defines `window.OnixViewerStandalone` with one function,
+`open(xml, { title, fallback } = {})`.
+
+- **`xml`** is XML text, already decoded. There is no size limit on this path;
+  the 500 MB guard belongs to the extension's content script.
+- **The host** is the current document. It must be an ordinary HTML document
+  with nothing in `document.body` you want to keep, and `open()` runs once per
+  document.
+- **Well-formed XML** gets the tree, toolbar, search, wrap, fold and expand,
+  code-list popup and Copy. `open()` returns `{ rendered: true, parsed: true }`
+  and removes `fallback` if it is an element.
+- **Malformed XML** gets the viewer's parse-error panel and a hidden toolbar.
+  `fallback` stays. `open()` returns `{ rendered: true, parsed: false }`.
+- **Errors.** A non-string `xml` throws a `TypeError`. A second call, or a
+  document without a `body`, throws an `Error`. A call that fails part-way
+  removes what it added and can be tried again.
+- **Left out.** No dialect switch (`t` does nothing, and a stored `oxv-dialect`
+  is ignored), no validation (`v`), no About (`?`), no download, no release
+  select and no custom rules. Copy returns the text you passed in.
+
+The script injects an inline `<style>` into the document's `<head>`. A page
+with a strict `style-src` must allow it. It also publishes the viewer's usual
+`window.OnixViewer*` globals (`OnixViewerOnix`, `OnixViewerCodeLists` and so
+on) next to `OnixViewerStandalone`.
+
+The extension is unchanged.
+
 ## Keyboard
 
 | Key | Action |
