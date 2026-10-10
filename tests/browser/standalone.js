@@ -218,6 +218,40 @@ async function standalone({ launch, served, test, assert }) {
       assert(result.parsed === true, "parsed");
       assert(state.meta.includes("300 products"), `the pill counts the feed; got "${state.meta}"`);
       assert(state.pending > 250 && state.rows > 100, `most Products wait for the viewport; got ${state.pending} pending, ${state.rows} rows`);
+
+      // The counts above hold even if nothing ever fills a Product, because
+      // each keeps its open and close rows. Look at the content itself.
+      const products = () => page.evaluate(() => {
+        const containers = [...document.querySelectorAll("#oxv-root > .px-children > .px-children")]
+          .filter((c) => c.previousElementSibling.querySelector(".px-tag-name")?.textContent === "Product");
+        const describe = (c) => ({
+          pending: c.classList.contains("px-pending"),
+          references: [...c.querySelectorAll(".px-tag-name")].filter((n) => n.textContent === "RecordReference").length,
+        });
+        return { count: containers.length, first: describe(containers[0]), last: describe(containers[containers.length - 1]),
+          pending: containers.filter((c) => c.classList.contains("px-pending")).length };
+      });
+      await page.waitForFunction(() => {
+        const first = [...document.querySelectorAll("#oxv-root > .px-children > .px-children")]
+          .find((c) => c.previousElementSibling.querySelector(".px-tag-name")?.textContent === "Product");
+        return first && !first.classList.contains("px-pending");
+      }, { timeout: 10000 });
+      const initial = await products();
+      assert(initial.count === 300, `300 Product containers; got ${initial.count}`);
+      assert(!initial.first.pending && initial.first.references === 1, `the first Product is rendered; ${JSON.stringify(initial.first)}`);
+      assert(initial.last.pending && initial.last.references === 0, `the last Product is empty; ${JSON.stringify(initial.last)}`);
+
+      await page.evaluate(() => {
+        const containers = [...document.querySelectorAll("#oxv-root > .px-children > .px-children")];
+        containers[containers.length - 1].previousElementSibling.scrollIntoView({ behavior: "instant", block: "start" });
+      });
+      await page.waitForFunction(() => {
+        const containers = [...document.querySelectorAll("#oxv-root > .px-children > .px-children")];
+        return !containers[containers.length - 1].classList.contains("px-pending");
+      }, { timeout: 10000 });
+      const scrolled = await products();
+      assert(!scrolled.last.pending && scrolled.last.references === 1, `the last Product is rendered once in view; ${JSON.stringify(scrolled.last)}`);
+      assert(scrolled.pending < initial.pending, `fewer Products pending; ${initial.pending} before, ${scrolled.pending} after`);
       await page.close();
     });
   } finally {
