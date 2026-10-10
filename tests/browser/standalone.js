@@ -39,8 +39,10 @@ async function standalone({ launch, served, test, assert }) {
   console.log("\nThe standalone page");
   const browser = await launch();
   try {
-    await browser.defaultBrowserContext().overridePermissions(served.url("").replace(/\/$/, ""),
-      ["clipboard-read", "clipboard-write"]);
+    // writeText needs clipboard-sanitized-write; clipboard-write alone leaves
+    // it rejecting with NotAllowedError, and the viewer falls back silently.
+    await browser.defaultBrowserContext().overridePermissions(new URL(served.url("")).origin,
+      ["clipboard-read", "clipboard-write", "clipboard-sanitized-write"]);
 
     // A fresh consumer page. `stored` seeds localStorage before any script
     // runs, the way a returning reader would have it. Ready once the bundle
@@ -146,16 +148,59 @@ async function standalone({ launch, served, test, assert }) {
       await page.close();
     });
 
-    await test("copy puts the exact input on the clipboard", async () => {
-      // Were the stored preference honoured, Copy would hand back the
-      // translated document; the input has to come back untouched.
+    // Text that a lossy copy would change: a byte-order mark, CRLF line
+    // endings, non-ASCII text, an entity and a CDATA section.
+    const HARD = "\uFEFF" + PRODUCT.replace(/<RecordReference>[^<]*<\/RecordReference>/,
+      "<RecordReference>Qadir \u2013 caf\u00e9 \u2013 \u65e5\u672c\u8a9e &amp; <![CDATA[a < b]]></RecordReference>")
+      .replace(/\r?\n/g, "\r\n");
+
+    // Copy through the Clipboard API: the page records that writeText was
+    // called and resolved, so a silent fall back to execCommand would fail.
+    await test("copy puts the exact input on the clipboard through the Clipboard API", async () => {
       const page = await consumer({ stored: "short" });
-      await open(page, PRODUCT);
+      const origin = new URL(page.url()).origin;
+      assert(origin === new URL(served.url("")).origin, `permissions were granted for ${served.url("")}; the page is at ${origin}`);
+      const result = await page.evaluate((text) => {
+        window.clipLog = [];
+        const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = (value) => write(value).then(
+          (done) => { window.clipLog.push("resolved"); return done; },
+          (error) => { window.clipLog.push(`rejected: ${error.name}`); throw error; });
+        document.execCommand = () => { window.clipLog.push("execCommand"); return false; };
+        return window.OnixViewerStandalone.open(text);
+      }, HARD);
+      assert(result.parsed === true, `the hard input is well-formed; ${JSON.stringify(result)}`);
       await page.click('#oxv-toolbar [data-action="copy-xml"]');
       await page.waitForFunction(() => document.querySelector('[data-action="copy-xml"]').title === "Copied",
         { timeout: 5000 });
-      const copied = await page.evaluate(() => navigator.clipboard.readText());
-      assert(copied === PRODUCT, "the clipboard holds the input, character for character");
+      const state = await page.evaluate(async () => ({ log: window.clipLog, text: await navigator.clipboard.readText() }));
+      assert(state.log.join() === "resolved", `writeText resolved and execCommand did not run; log: ${state.log.join(" | ")}`);
+      assert(state.text === HARD, "the clipboard holds the input, character for character");
+      await page.close();
+    });
+
+    // Where the browser refuses the Clipboard API, the viewer copies through
+    // a textarea, and a textarea normalises CRLF to LF. That is the fallback's
+    // documented behaviour, not a defect to chase here.
+    await test("where the Clipboard API refuses, the fallback copies the text with CRLF turned to LF", async () => {
+      const page = await consumer();
+      await page.evaluate((text) => {
+        window.clipLog = [];
+        navigator.clipboard.writeText = () => { window.clipLog.push("refused"); return Promise.reject(new Error("refused")); };
+        const exec = document.execCommand.bind(document);
+        document.execCommand = (command) => { window.clipLog.push(`execCommand ${command}`); return exec(command); };
+        return window.OnixViewerStandalone.open(text);
+      }, HARD);
+      await page.click('#oxv-toolbar [data-action="copy-xml"]');
+      await page.waitForFunction(() => document.querySelector('[data-action="copy-xml"]').title === "Copied",
+        { timeout: 5000 });
+      const state = await page.evaluate(async () => {
+        const text = await navigator.clipboard.readText();
+        return { log: window.clipLog, text };
+      });
+      assert(state.log.join() === "refused,execCommand copy", `the fallback ran; log: ${state.log.join(" | ")}`);
+      assert(state.text === HARD.replace(/\r\n/g, "\n"), "the clipboard holds the input with CRLF turned to LF");
+      assert(state.text !== HARD, "and so differs from the input");
       await page.close();
     });
 

@@ -82,7 +82,10 @@ Loading the script defines `window.OnixViewerStandalone` with one function,
   inside the viewer is final.
 - **Left out.** No dialect switch (`t` does nothing, and a stored `oxv-dialect`
   is ignored), no validation (`v`), no About (`?`), no download, no release
-  select and no custom rules. Copy returns the text you passed in.
+  select and no custom rules.
+- **Copy** puts the text you passed in on the clipboard through the Clipboard
+  API. Where the browser refuses that, the viewer falls back to copying through
+  a textarea, which normalises CRLF line endings to LF.
 
 The script injects an inline `<style>` into the document's `<head>`. A page
 with a strict `style-src` must allow it. It also publishes the viewer's usual
