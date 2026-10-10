@@ -3,6 +3,7 @@ const path = require("path");
 const {
   test, describe, assert, ROOT, RES,
 } = require("../harness");
+const { bundle } = require("../../tools/build-standalone");
 
 describe("Reviewability", () => {
   const SHIPPED = fs.readdirSync(RES)
@@ -131,6 +132,40 @@ describe("Reviewability", () => {
     for (const resource of injected) {
       assert(accessible.includes(resource), `${resource} is injected but not web-accessible`);
       assert(fs.existsSync(path.join(RES, resource)), `${resource} is injected but missing`);
+    }
+  });
+});
+
+describe("Reviewability of the standalone page", () => {
+  // The rules about code that runs in a page apply to the runtime and to the
+  // built bundle. The extension-only ones (the re-fetch, the storage key, the
+  // manifest) do not: the bundle fetches and stores nothing at all.
+  const dir = path.join(ROOT, "standalone");
+  const SCRIPTS = fs.readdirSync(dir).filter((f) => f.endsWith(".js"))
+    .map((f) => ({ file: `standalone/${f}`, source: fs.readFileSync(path.join(dir, f), "utf8") }));
+  SCRIPTS.push({ file: "the built bundle", source: bundle() });
+  const withoutComments = (source) => source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+
+  test("no dynamic code execution", () => {
+    for (const { file, source } of SCRIPTS) {
+      const code = withoutComments(source);
+      for (const pattern of [/\beval\s*\(/, /new\s+Function\s*\(/, /\bdocument\.write\s*\(/]) {
+        assert(!pattern.test(code), `${file} must not use ${pattern}`);
+      }
+    }
+  });
+
+  test("no markup is written from text", () => {
+    for (const { file, source } of SCRIPTS) {
+      const code = withoutComments(source);
+      assert(!/\.(inner|outer)HTML\s*=/.test(code), `${file} assigns to innerHTML or outerHTML`);
+      assert(!/insertAdjacentHTML/.test(code), `${file} must not use insertAdjacentHTML`);
+    }
+  });
+
+  test("no script element is given a remote src", () => {
+    for (const { file, source } of SCRIPTS) {
+      assert(!/["'`]https?:\/\/[^"'`]*\.js/.test(source), `${file} must not reference a remote script`);
     }
   });
 });
