@@ -13,6 +13,7 @@
     "check:icons": "node tools/check-icons.js",
     "icons": "tools/render-icons.sh",
     "build": "tools/package-extension.sh --target=chrome && tools/package-extension.sh --target=firefox && tools/package-extension.sh --target=safari",
+    "build:standalone": "node tools/build-standalone.js",
     "build:dev": "tools/package-extension.sh --dev --target=chrome && tools/package-extension.sh --dev --target=firefox && tools/package-extension.sh --dev --target=safari",
     "clean": "rm -rf dist",
     "site:sync": "node tools/site-sync.js",
