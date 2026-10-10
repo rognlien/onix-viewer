@@ -77,8 +77,9 @@ Loading the script defines `window.OnixViewerStandalone` with one function,
 - **Malformed XML** gets the viewer's parse-error panel and a hidden toolbar.
   `fallback` stays. `open()` returns `{ rendered: true, parsed: false }`.
 - **Errors.** A non-string `xml` throws a `TypeError`. A second call, or a
-  document without a `body`, throws an `Error`. A call that fails part-way
-  removes what it added and can be tried again.
+  document without a `body`, throws an `Error`. A call that fails before
+  the viewer starts removes what it added and can be tried again. A failure
+  inside the viewer is final.
 - **Left out.** No dialect switch (`t` does nothing, and a stored `oxv-dialect`
   is ignored), no validation (`v`), no About (`?`), no download, no release
   select and no custom rules. Copy returns the text you passed in.

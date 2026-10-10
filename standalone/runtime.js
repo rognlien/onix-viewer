@@ -57,19 +57,24 @@ function createStandalone(viewer) {
     try {
       document.head.appendChild(style);
       document.body.append(...added);
-      start();
     } catch (error) {
-      // Leave the page as it was, so the call can be tried again.
+      // Nothing has started yet: leave the page as it was, so the call can be
+      // tried again.
       style.remove();
       for (const el of added) el.remove();
       throw error;
     }
 
+    // The viewer registers listeners on the document as it starts and cannot
+    // take them back, so a second run would double them. From here the call
+    // is final, whether start() returns or throws.
+    opened = true;
+    start();
+
     const parsed = !document.querySelector("#oxv-root .px-error");
     if (!parsed) document.getElementById("oxv-toolbar").style.display = "none";
     if (parsed && fallback instanceof Element) fallback.remove();
     if (title) document.title = title;
-    opened = true;
     return { rendered: true, parsed };
   }
 

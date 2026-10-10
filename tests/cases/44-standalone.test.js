@@ -166,18 +166,34 @@ describe("Standalone page", () => {
     assert(w.OnixViewerStandalone.open(PRODUCT).parsed === true, "the retry renders");
   });
 
-  test("a failure mid-render leaves the page as it was, and the call can be tried again", () => {
+  test("a failure before the viewer starts leaves the page as it was, and the call can be tried again", () => {
     const w = page();
     const before = dom(w);
-    const detect = w.OnixViewerOnix.detect;
-    w.OnixViewerOnix.detect = () => { throw new Error("boom"); };
+    // The style goes in first, so the throw comes with something to undo.
+    w.document.body.append = () => { throw new Error("boom"); };
     let error;
     try { w.OnixViewerStandalone.open(PRODUCT); } catch (e) { error = e; }
     assert(error && error.message === "boom", "the error reaches the caller");
     assert(dom(w) === before, "everything the call added is gone");
-    w.OnixViewerOnix.detect = detect;
+    delete w.document.body.append;
     assert(w.OnixViewerStandalone.open(PRODUCT).parsed === true, "the retry renders");
     assert($$(w, "#oxv-toolbar").length === 1 && $$(w, "head style").length === 1, "once, not twice");
+  });
+
+  test("a failure inside the viewer is final: a second call throws and no handler is doubled", () => {
+    // The viewer has registered its document listeners by the time validation
+    // starts, and cannot take them back. A stub that throws from there stands
+    // for any late failure.
+    const w = page();
+    w.OnixViewerValidation = { start() { throw new Error("late"); } };
+    let error;
+    try { w.OnixViewerStandalone.open(PRODUCT); } catch (e) { error = e; }
+    assert(error && error.message === "late", "the error reaches the caller");
+    try { w.OnixViewerStandalone.open(PRODUCT); error = null; } catch (e) { error = e; }
+    assert(error && /once per document/.test(error.message), "the second call throws the once-error");
+    assert($$(w, "#oxv-toolbar").length === 1, "and adds nothing");
+    press(w, "w");
+    assert(w.document.body.classList.contains("px-no-wrap"), "w toggled wrapping once, not twice");
   });
 
   test("the code lists run before onix.js: a short-tag file resolves its full badge count", () => {
