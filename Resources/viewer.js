@@ -1548,7 +1548,7 @@
     overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
     overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
     overlay.querySelector(".px-popup-footer").textContent = lastValidation.truncated
-      ? `Showing the first ${lastValidation.findings.length} of ${lastValidation.total}.`
+      ? `Showing ${lastValidation.findings.length} of ${lastValidation.total}.`
       : "";
     findingsLastFocus = document.activeElement;
     overlay.hidden = false;

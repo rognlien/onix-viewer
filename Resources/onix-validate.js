@@ -143,8 +143,10 @@
   /**
    * Validate `doc` in one go. Returns
    * { findings, total, errors, warnings, version, checkedStructure, truncated }.
-   * `options.maxFindings` caps the array (default 500) so a badly broken feed
-   * can't build an unbounded list; counting continues past the cap.
+   * `options.maxFindings` caps the array per severity (default 10,000) so a
+   * badly broken feed can't build an unbounded list; counting continues past
+   * the cap. Each severity has its own cap, so warnings never crowd out an
+   * error.
    * `options.version` is the release to judge the document against — the
    * viewer's release selector — and defaults to the one the document declares.
    */
@@ -156,7 +158,7 @@
 
   function createPass(doc, onixCtx, options) {
     const settings = options || {};
-    const limit = settings.maxFindings == null ? 500 : settings.maxFindings;
+    const limit = settings.maxFindings == null ? 10000 : settings.maxFindings;
     // An Acknowledgement message is a different schema — <MessageStatus>,
     // <RecordStatus> and friends aren't in the Book Product model at all — so
     // judging one against it would report every element as unknown. Its code
@@ -186,7 +188,7 @@
         const finding = { code, node, data: data || {}, severity: SEVERITIES[code] || "error" };
         if (at) finding.at = at;
         counts[finding.severity]++;
-        if (findings.length < limit) findings.push(finding);
+        if (counts[finding.severity] <= limit) findings.push(finding);
       },
       referenceName,
       // An element's effective shape. Five declarations in ONIX 3.1 name a

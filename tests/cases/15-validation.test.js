@@ -881,4 +881,27 @@ describe("Validation", () => {
       `and use its own template; got: ${validation.message(finding)}`);
     assert(finding.severity === "warning", "and its own severity");
   });
+
+  test("the cap is per severity, so warnings never crowd out an error", () => {
+    const w = render("onix-3.1-valid.xml");
+    const validation = w.OnixViewerValidation;
+    validation.severities["house.every"] = "warning";
+    validation.registerRule({
+      name: "house-every",
+      element(node, api) {
+        api.report("house.every", node, {});
+        if (!node.nextElementSibling && !node.firstElementChild) api.report("house.last", node, {});
+        return true;
+      },
+    });
+    const xml = '<?xml version="1.0"?><Root><A/><B/><C/><D/></Root>';
+    const doc = new w.DOMParser().parseFromString(xml, "application/xml");
+    const result = validation.run(doc, w.OnixViewerOnix.detect(doc), { maxFindings: 2 });
+    const kept = (severity) => result.findings.filter((f) => f.severity === severity).length;
+    assert(result.warnings === 6 && result.errors === 1,
+      `every finding is counted; got ${result.warnings} warnings, ${result.errors} errors`);
+    assert(kept("warning") === 2 && kept("error") === 1,
+      `two warnings and the error are kept; got: ${codes(result).join(", ")}`);
+    assert(result.truncated, "and the result says it was cut");
+  });
 });
