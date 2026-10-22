@@ -1510,6 +1510,9 @@
   // reader back where they were rather than at the top of a 17,000-row tree.
   // onix-popup.js does the same for the code-list modal.
   let findingsLastFocus = null;
+  // "all", "error" or "warning". Kept while the page is open, so a release
+  // switch re-validates into the same view; never carried to another page.
+  let findingsFilter = "all";
 
   function setupFindingsLabel() {
     const status = document.getElementById("oxv-validation");
@@ -1534,10 +1537,29 @@
   function showFindings(about) {
     if (!lastValidation || !lastValidation.total) return;
     const overlay = ensureFindingsModal();
-    const list = overlay.querySelector(".px-findings-list");
+    // A pill opens on its own entries, so a filter that would hide any of
+    // them gives way to All.
+    if (about && lastValidation.findings.some((f) => f.node === about && !passesFilter(f))) {
+      findingsFilter = "all";
+    }
+    overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
+    overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
+    const first = renderFindingsList(about);
+    findingsLastFocus = document.activeElement;
+    overlay.hidden = false;
+    const target = first || overlay.querySelector(".px-popup-close");
+    if (target) target.focus();
+    if (first && first.scrollIntoView) first.scrollIntoView({ block: "center" });
+  }
+
+  // Fills the list with the findings the filter lets through and returns the
+  // first entry about `about`, if any.
+  function renderFindingsList(about) {
+    const list = findingsModal.querySelector(".px-findings-list");
     list.textContent = "";
     let first = null;
     for (const finding of lastValidation.findings) {
+      if (!passesFilter(finding)) continue;
       const entry = findingEntry(finding);
       if (about && finding.node === about) {
         entry.classList.add("px-findings-item-current");
@@ -1545,16 +1567,88 @@
       }
       list.appendChild(entry);
     }
-    overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
-    overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
-    overlay.querySelector(".px-popup-footer").textContent = lastValidation.truncated
-      ? `Showing the first ${lastValidation.findings.length} of ${lastValidation.total}.`
-      : "";
-    findingsLastFocus = document.activeElement;
-    overlay.hidden = false;
-    const target = first || overlay.querySelector(".px-popup-close");
-    if (target) target.focus();
-    if (first && first.scrollIntoView) first.scrollIntoView({ block: "center" });
+    updateFindingsFilter();
+    findingsModal.querySelector(".px-popup-footer").textContent = findingsFooter(list.children.length);
+    return first;
+  }
+
+  function passesFilter(finding) {
+    return effectiveFilter() === "all" || finding.severity === effectiveFilter();
+  }
+
+  // With only one severity present, every option would show the same list,
+  // so the filter is hidden and All applies.
+  function effectiveFilter() {
+    return hasBothSeverities() ? findingsFilter : "all";
+  }
+
+  function hasBothSeverities() {
+    return lastValidation.errors > 0 && lastValidation.warnings > 0;
+  }
+
+  function findingsFooter(shown) {
+    const counted = {
+      all: lastValidation.total,
+      error: lastValidation.errors,
+      warning: lastValidation.warnings,
+    }[effectiveFilter()];
+    const noun = { all: "", error: " errors", warning: " warnings" }[effectiveFilter()];
+    return shown < counted ? `Showing ${shown} of ${counted}${noun}.` : "";
+  }
+
+  function updateFindingsFilter() {
+    const group = findingsModal.querySelector(".px-findings-filter");
+    group.hidden = !hasBothSeverities();
+    const counts = {
+      all: lastValidation.total,
+      error: lastValidation.errors,
+      warning: lastValidation.warnings,
+    };
+    for (const option of group.querySelectorAll("[role=radio]")) {
+      const value = option.dataset.oxvFilter;
+      const checked = value === effectiveFilter();
+      option.setAttribute("aria-checked", checked ? "true" : "false");
+      option.tabIndex = checked && !group.hidden ? 0 : -1;
+      option.querySelector(".px-findings-filter-count").textContent = String(counts[value]);
+    }
+  }
+
+  function selectFindingsFilter(value) {
+    findingsFilter = value;
+    renderFindingsList(null);
+    const checked = findingsModal.querySelector(".px-findings-filter [aria-checked=true]");
+    if (checked) checked.focus();
+  }
+
+  // A radio group: one tab stop, arrow keys move the selection.
+  function buildFindingsFilter() {
+    const group = document.createElement("div");
+    group.className = "px-findings-filter";
+    group.setAttribute("role", "radiogroup");
+    group.setAttribute("aria-label", "Show");
+    const options = [["all", "All"], ["error", "Errors"], ["warning", "Warnings"]];
+    for (const [value, label] of options) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.setAttribute("role", "radio");
+      option.dataset.oxvFilter = value;
+      const name = document.createElement("span");
+      name.textContent = label;
+      const count = document.createElement("span");
+      count.className = "px-findings-filter-count";
+      option.append(name, count);
+      option.addEventListener("click", () => selectFindingsFilter(value));
+      group.appendChild(option);
+    }
+    group.addEventListener("keydown", (event) => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      const values = options.map(([value]) => value);
+      const next = (values.indexOf(findingsFilter) + step + values.length) % values.length;
+      selectFindingsFilter(values[next]);
+    });
+    return group;
   }
 
   function findingEntry(finding) {
@@ -1637,7 +1731,7 @@
     const title = document.createElement("div");
     title.id = "oxv-findings-title";
     title.className = "px-popup-title";
-    titleWrap.append(eyebrow, title);
+    titleWrap.append(eyebrow, title, buildFindingsFilter());
     const closeButton = document.createElement("button");
     closeButton.type = "button";
     closeButton.className = "px-popup-close";
@@ -1657,7 +1751,7 @@
 
     dialog.append(header, body, footer);
     overlay.appendChild(dialog);
-    keepTabInside(dialog, "button:not([disabled])");
+    keepTabInside(dialog, "button:not([disabled]):not([tabindex='-1'])");
     closeOnBackdrop(overlay, closeFindings);
     document.body.appendChild(overlay);
     findingsModal = overlay;

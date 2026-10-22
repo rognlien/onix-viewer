@@ -539,6 +539,74 @@ describe("Validation", () => {
       "with the severity in the label");
   });
 
+  test("the findings list filters to errors or warnings, and opens on all of them", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validationLabel(w).click();
+    const modal = w.document.getElementById("oxv-findings");
+    const group = modal.querySelector('[role="radiogroup"]');
+    assert(group && !group.hidden, "both severities are present, so the filter shows");
+    const options = [...group.querySelectorAll('[role="radio"]')];
+    const option = (label) => options.find((o) => o.textContent.startsWith(label));
+    assert(options.map((o) => o.textContent).join() === "All7,Errors5,Warnings2",
+      `each option carries its count; got ${options.map((o) => o.textContent).join()}`);
+    assert(option("All").getAttribute("aria-checked") === "true", "All is the default");
+    const severities = () => [...modal.querySelectorAll(".px-findings-item")].map((i) => i.dataset.oxvSeverity);
+
+    option("Errors").click();
+    assert(severities().join() === "error,error,error,error,error", `errors only; got ${severities()}`);
+    assert(option("Errors").getAttribute("aria-checked") === "true" &&
+      option("All").getAttribute("aria-checked") === "false", "and the choice is checked");
+    option("Warnings").click();
+    assert(severities().join() === "warning,warning", `warnings only; got ${severities()}`);
+
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    validationLabel(w).click();
+    assert(severities().join() === "warning,warning", "the choice holds while the page is open");
+  });
+
+  test("the findings filter is one tab stop, moved with the arrow keys", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validationLabel(w).click();
+    const group = w.document.querySelector('#oxv-findings [role="radiogroup"]');
+    const checked = () => group.querySelector('[aria-checked="true"]');
+    const stops = () => [...group.querySelectorAll('[role="radio"]')].filter((o) => o.tabIndex === 0);
+    assert(stops().length === 1 && stops()[0] === checked(), "only the checked option is in the Tab order");
+    const press = (key) => group.dispatchEvent(new w.KeyboardEvent("keydown", { key, bubbles: true }));
+    press("ArrowRight");
+    assert(checked().textContent.startsWith("Errors"), `right moves on; got ${checked().textContent}`);
+    assert(w.document.activeElement === checked(), "and takes focus with it");
+    press("ArrowLeft");
+    press("ArrowLeft");
+    assert(checked().textContent.startsWith("Warnings"), `left wraps around; got ${checked().textContent}`);
+    assert(stops().length === 1, "still one tab stop");
+  });
+
+  test("the findings filter is hidden when only one severity is present", () => {
+    const w = render("onix-3.1-valid.xml");
+    const source = w.__OXV_SOURCE__.replace("</ProductIdentifier>",
+      "</ProductIdentifier><ProductIdentifier><ProductIDType>02</ProductIDType>" +
+      "<IDValue>0306406152</IDValue></ProductIdentifier>");
+    const warned = renderSource(source, "warnings-only.xml");
+    validationLabel(warned).click();
+    const group = warned.document.querySelector('#oxv-findings [role="radiogroup"]');
+    assert(group.hidden, "every option would show the same list");
+    assert(warned.document.querySelectorAll("#oxv-findings .px-findings-item").length === 1, "the list is all of it");
+    assert([...group.querySelectorAll("button")].every((b) => b.tabIndex === -1),
+      "and the hidden options are out of the Tab order");
+  });
+
+  test("a pill whose entries the filter hides opens the list on all", () => {
+    const w = render("onix-3.1-invalid.xml");
+    validationLabel(w).click();
+    const modal = w.document.getElementById("oxv-findings");
+    [...modal.querySelectorAll('[role="radio"]')].find((o) => o.textContent.startsWith("Errors")).click();
+    w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    rowsNamed(w, "ProductIDType")[0].querySelector(".px-finding").click();
+    const current = modal.querySelector(".px-findings-item-current");
+    assert(current && current.dataset.oxvSeverity === "warning", "the warning the pill shows is listed");
+    assert(modal.querySelector('[aria-checked="true"]').textContent.startsWith("All"), "under All");
+  });
+
   test("clicking an entry closes the list and reveals that row", () => {
     const w = render("onix-3.1-invalid.xml");
     validationLabel(w).click();
@@ -880,5 +948,28 @@ describe("Validation", () => {
     assert(validation.message(finding) === "9780306406157 is outside our 978-82 prefix",
       `and use its own template; got: ${validation.message(finding)}`);
     assert(finding.severity === "warning", "and its own severity");
+  });
+
+  test("the cap is per severity, so warnings never crowd out an error", () => {
+    const w = render("onix-3.1-valid.xml");
+    const validation = w.OnixViewerValidation;
+    validation.severities["house.every"] = "warning";
+    validation.registerRule({
+      name: "house-every",
+      element(node, api) {
+        api.report("house.every", node, {});
+        if (!node.nextElementSibling && !node.firstElementChild) api.report("house.last", node, {});
+        return true;
+      },
+    });
+    const xml = '<?xml version="1.0"?><Root><A/><B/><C/><D/></Root>';
+    const doc = new w.DOMParser().parseFromString(xml, "application/xml");
+    const result = validation.run(doc, w.OnixViewerOnix.detect(doc), { maxFindings: 2 });
+    const kept = (severity) => result.findings.filter((f) => f.severity === severity).length;
+    assert(result.warnings === 6 && result.errors === 1,
+      `every finding is counted; got ${result.warnings} warnings, ${result.errors} errors`);
+    assert(kept("warning") === 2 && kept("error") === 1,
+      `two warnings and the error are kept; got: ${codes(result).join(", ")}`);
+    assert(result.truncated, "and the result says it was cut");
   });
 });

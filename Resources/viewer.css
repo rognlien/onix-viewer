@@ -773,6 +773,35 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
   text-overflow: ellipsis;
 }
 .px-findings-message { font-family: var(--ui); font-size: 12px; }
+/* All / Errors / Warnings: a segmented radio group under the title. */
+.px-findings-filter {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-surface);
+}
+.px-findings-filter[hidden] { display: none; }
+.px-findings-filter > button {
+  appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.px-findings-filter > button:hover { background: var(--bg-hover); color: var(--fg); }
+.px-findings-filter > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.px-findings-filter > button[aria-checked="true"] { background: var(--accent); color: #fff; }
+.px-findings-filter-count { font-variant-numeric: tabular-nums; opacity: 0.8; }
 
 /* Fold suffix: "…</Tag>" appears inline on the open row when folded so the
    collapsed element reads as <Tag>…</Tag>. Hidden when the row is expanded
