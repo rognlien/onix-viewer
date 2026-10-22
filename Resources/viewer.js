@@ -185,9 +185,11 @@
   // produces real HTMLElements.
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const _createElementNS = document.createElementNS.bind(document);
-  document.createElement = function (tagName) {
-    return _createElementNS(HTML_NS, tagName);
-  };
+  if (document.contentType !== "text/html") {
+    document.createElement = function (tagName) {
+      return _createElementNS(HTML_NS, tagName);
+    };
+  }
 
   // content.js stashes the source in a non-executing <script type="application/xml">
   // data block; the test harness still sets window.__OXV_SOURCE__ directly.
@@ -698,7 +700,7 @@
 
   function preferredDialect() {
     let preferred = onixCtx.dialect;
-    if (translatable()) {
+    if (translatable() && document.querySelector('#oxv-toolbar [data-action="dialect-toggle"]')) {
       let stored = null;
       try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); }
       catch { /* storage may be blocked; the document's own dialect stands */ }
@@ -2813,13 +2815,13 @@
           document.body.classList.toggle("px-no-wrap");
           break;
         case "t":
-          applyDialect(otherDialect(displayDialect));
+          if (document.querySelector('#oxv-toolbar [data-action="dialect-toggle"]')) applyDialect(otherDialect(displayDialect));
           break;
         case "v":
-          showFindings();
+          if (document.getElementById("oxv-validation")) showFindings();
           break;
         case "?":
-          showAbout();
+          if (document.querySelector('[data-action="about"]')) showAbout();
           break;
       }
     });
