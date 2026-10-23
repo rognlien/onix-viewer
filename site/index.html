@@ -54,6 +54,15 @@
     text-decoration: none;
   }
   .browser:focus-visible { outline: 2px solid #1d5e9e; outline-offset: 2px; }
+  .help {
+    margin: 20px 0 16px;
+    padding: 12px 16px;
+    border: 1px solid #d3e0ec;
+    border-left: 4px solid #1d5e9e;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .help a { font-weight: 600; }
   figure { margin: 24px 0; }
   figure img {
     display: block;
@@ -98,6 +107,7 @@
     <li><a class="browser" href="https://addons.mozilla.org/firefox/addon/onix-viewer/"><img src="firefox.svg?v=bd2e801b" alt="">Add to Firefox</a></li>
     <li><a class="browser" href="https://apps.apple.com/app/onix-viewer/id6816859194?mt=12"><img src="safari.svg?v=4530c600" alt="">Add to Safari</a></li>
   </ul>
+  <p class="help">Can't get it working? Take a look in the <a href="faq.html">FAQ</a>.</p>
   <p class="actions">
     <a href="#installation">Manual installation</a>
     <a href="https://github.com/rognlien/onix-viewer">Source on GitHub</a>
@@ -153,7 +163,7 @@
   </ol>
   <p>Chrome shows a developer-mode notice on restart for extensions loaded this way, and updates are manual: replace the folder's contents with the new release and press the reload arrow on the extension's card.</p>
   <h3>Chrome, local files</h3>
-  <p>Either way, to open <code>.xml</code> files from disk, enable <strong>Allow access to file URLs</strong> under the extension's <strong>Details</strong> in <code>chrome://extensions</code>.</p>
+  <p>Either way, to open <code>.xml</code> files from disk, enable <strong>Allow access to file URLs</strong> under the extension's <strong>Details</strong> in <code>chrome://extensions</code>. The <a href="faq.html#local-files">FAQ</a> explains why Chrome asks for this.</p>
   <h3>Firefox, from Firefox Add-ons</h3>
   <p>Open <a href="https://addons.mozilla.org/firefox/addon/onix-viewer/">ONIX Viewer on addons.mozilla.org</a> and click <strong>Add to Firefox</strong>. Firefox keeps it up to date from then on, and asks nothing further: local <code>.xml</code> files open without a setting.</p>
   <p>ONIX Viewer needs Firefox 140 or later.</p>
@@ -180,7 +190,7 @@
 
   <footer>
     <p>ONIX for Books and its code lists are developed and maintained by <a href="https://www.editeur.org/8/ONIX/">EDItEUR</a>, which holds the copyright and makes them freely available. ONIX Viewer is an independent tool, not affiliated with or endorsed by EDItEUR.</p>
-    <p><a href="https://github.com/rognlien/onix-viewer/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/rognlien/onix-viewer/issues">Issues</a> · <a href="privacy.html">Privacy</a> · <a href="https://maendeleo.io/">maendeleo.io</a></p>
+    <p><a href="https://github.com/rognlien/onix-viewer/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/rognlien/onix-viewer/issues">Issues</a> · <a href="faq.html">FAQ</a> · <a href="privacy.html">Privacy</a> · <a href="https://maendeleo.io/">maendeleo.io</a></p>
   </footer>
 </main>
 <script data-goatcounter="https://maendeleo.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>

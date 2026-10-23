@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ONIX Viewer FAQ</title>
+<meta name="description" content="Common questions about ONIX Viewer: opening local ONIX files in Chrome, why a file shows as raw XML, and what the extension can see.">
+<link rel="icon" href="icon-128.png?v=1c4b4a8b">
+<style>
+  html { background: linear-gradient(180deg, #f7fbff, #e7f1fb) fixed; }
+  body {
+    margin: 0;
+    padding: 40px 24px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #15202b;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .sub { color: #5b6b7a; margin: 0 0 28px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; }
+  p, li { font-size: 16px; }
+  li { margin: 4px 0; }
+  a { color: #1d5e9e; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 14px; background: rgba(21,32,43,0.06); padding: 1px 4px; border-radius: 3px; }
+  footer { margin-top: 48px; color: #5b6b7a; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ONIX Viewer FAQ</h1>
+  <p class="sub">Common questions about ONIX Viewer for Chrome, Firefox and Safari.</p>
+
+  <h2 id="local-files">Why does Chrome show my local ONIX file as plain XML?</h2>
+  <p>Chrome does not let any extension run on files opened from your disk (addresses starting with <code>file://</code>) until you allow it, one extension at a time. This is Chrome's rule, not a choice made by ONIX Viewer: an extension cannot ask for this access when it is installed, and it cannot turn it on by itself. Until you allow it, Chrome shows local files with its own XML view. Files opened from a web address are not affected.</p>
+
+  <h2 id="allow-file-urls">How do I allow ONIX Viewer to open local files in Chrome?</h2>
+  <ol>
+    <li>Open <code>chrome://extensions</code> in the address bar.</li>
+    <li>Find <strong>ONIX Viewer</strong> and click <strong>Details</strong>.</li>
+    <li>Turn on <strong>Allow access to file URLs</strong>.</li>
+    <li>Reload any tab that already shows the file.</li>
+  </ol>
+  <p>You only need to do this once. Chrome keeps the setting when the extension updates.</p>
+
+  <h2 id="file-access-safety">Is it safe to allow access to file URLs?</h2>
+  <p>The setting lets ONIX Viewer read a local file when you open that file in a tab, the same way it reads an ONIX file from a web address. ONIX Viewer cannot list, open or read files on its own, has no background process, and sends nothing anywhere. The <a href="privacy.html">privacy policy</a> describes this in full, and the <a href="https://github.com/rognlien/onix-viewer">source code</a> is public.</p>
+
+  <h2 id="firefox-local-files">Do I need this setting in Firefox?</h2>
+  <p>No. Firefox has no such setting, and local ONIX files open in ONIX Viewer without one.</p>
+
+  <h2 id="raw-xml">Why does an ONIX file still show as raw XML?</h2>
+  <p>ONIX Viewer takes over a page only when all of these are true:</p>
+  <ul>
+    <li>The browser received the file as XML. A server that sends the file as plain text, or makes the browser download it, leaves nothing for the extension to take over. Download the file and open it from disk instead.</li>
+    <li>The file is ONIX: its root element is <code>&lt;ONIXMessage&gt;</code> or <code>&lt;ONIXmessage&gt;</code>, or it uses EDItEUR's ONIX namespace. Other XML is left to the browser on purpose.</li>
+    <li>In Chrome, for a file on your disk, <a href="#allow-file-urls">access to file URLs is allowed</a>.</li>
+    <li>In Safari, ONIX Viewer is turned on in <strong>Settings → Extensions</strong> and allowed on every website from its toolbar button.</li>
+  </ul>
+  <p>A tab that was open before you installed or enabled the extension needs a reload.</p>
+
+  <h2 id="safari-blob">Why does Safari not take over files opened from a web app?</h2>
+  <p>Some web apps open a file in a new tab through a temporary <code>blob:</code> address. Safari does not run extensions on those addresses, so the file shows as raw XML there. Chrome and Firefox take these pages over. In Safari, download the file and open it instead.</p>
+
+  <h2 id="large-files">Is there a size limit?</h2>
+  <p>Files up to 500 MB open in the viewer. A larger file gets a notice instead, because a larger file can crash the tab.</p>
+
+  <h2 id="privacy">Does ONIX Viewer send my files anywhere?</h2>
+  <p>No. ONIX Viewer collects nothing, stores nothing and sends nothing. Its only network request fetches the page you are already viewing again, from the same address, to read the XML source. See the <a href="privacy.html">privacy policy</a>.</p>
+
+  <h2 id="more">Something else?</h2>
+  <p>Ask in <a href="https://github.com/rognlien/onix-viewer/issues">the issue tracker</a>.</p>
+
+  <footer>
+    <p><a href="./">ONIX Viewer</a> · <a href="privacy.html">Privacy</a> · <a href="https://maendeleo.io/">maendeleo.io</a></p>
+  </footer>
+</main>
+<script data-goatcounter="https://maendeleo.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>

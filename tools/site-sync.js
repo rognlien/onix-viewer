@@ -6,7 +6,7 @@
 // site/ carries its own copies of the three Chrome screenshots and the 128px
 // icon, because the page is copied elsewhere to publish and has to be
 // self-contained. This copies them in, then rewrites every local asset
-// reference in the page and the privacy policy — src="Main.png",
+// reference in the page, the privacy policy and the FAQ — src="Main.png",
 // href="icon-128.png" — to carry a query with the file's content hash,
 // Main.png?v=1a2b3c4d. The host caches images for thirty days and the HTML
 // not at all, so without the query a re-taken screenshot stayed the old
@@ -26,7 +26,7 @@ const COPIES = {
   "Violations.png": "chrome/screenshots/Violations.png",
   "icon-128.png": "Resources/icons/icon-128.png",
 };
-const PAGES = ["index.html", "privacy.html"];
+const PAGES = ["index.html", "privacy.html", "faq.html"];
 const REFERENCE = /((?:src|href)=")([A-Za-z0-9._-]+\.(?:png|svg))(?:\?v=[0-9a-f]*)?(")/g;
 
 function hashOf(file) {
