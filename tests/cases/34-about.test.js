@@ -1,5 +1,5 @@
 // The About window behind the mark: the version content.js stamped on the
-// shell, the code-list issue, the shortcuts and the links.
+// shell, the versions of the bundled data, the shortcuts and the links.
 const {
   test, describe, assert, render, $$,
 } = require("../harness");
@@ -19,12 +19,30 @@ describe("About window", () => {
       `the version the shell was stamped with; got "${w.document.getElementById("oxv-about-version").textContent}"`);
     const facts = [...$$(w, "#oxv-about dt")].map((dt) => `${dt.textContent}: ${dt.nextElementSibling.textContent}`);
     const issue = w.OnixViewerVersions.codeLists.issue;
-    assert(facts.join("; ") === `Version: 0.0.0-test; Code lists: EDItEUR Issue ${issue}`,
+    assert(facts[0] === "Version: 0.0.0-test" && facts[1] === `Code lists: EDItEUR Issue ${issue}`,
       `the facts; got ${facts.join("; ")}`);
     const dialog = modal(w).querySelector(".px-popup");
     assert(dialog.getAttribute("aria-modal") === "true" &&
       dialog.getAttribute("aria-labelledby") === "oxv-about-title", "the dialog contract");
     assert(w.document.activeElement === modal(w).querySelector(".px-popup-close"), "focus on close");
+  });
+
+  // The bundled data, as tools/generate-versions.js read it from tools/data/:
+  // the Thema version and the schema revision of each release.
+  test("it names the Thema version and the schema revision of each bundled release", () => {
+    const w = render("onix-3.1-valid.xml");
+    mark(w).click();
+    const facts = [...$$(w, "#oxv-about dt")].map((dt) => `${dt.textContent}: ${dt.nextElementSibling.textContent}`);
+    const versions = w.OnixViewerVersions;
+    const expected = [
+      `Thema: ${versions.thema.version}`,
+      `ONIX 3.0: ${versions.releases["3.0"].revision}`,
+      `ONIX 3.1: ${versions.releases["3.1"].revision}`,
+    ];
+    assert(facts.slice(2).join("; ") === expected.join("; "), `the facts; got ${facts.join("; ")}`);
+    assert(/^1\.\d+$/.test(versions.thema.version), `a Thema version; got ${versions.thema.version}`);
+    assert(versions.releases["3.0"].revision.startsWith("3.0.") && versions.releases["3.1"].revision.startsWith("3.1."),
+      "each revision belongs to its release");
   });
 
   test("it lists every keyboard shortcut the viewer answers to, and the links", () => {
