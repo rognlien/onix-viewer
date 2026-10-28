@@ -227,8 +227,10 @@ async function takeover(browser, served) {
       verdict: document.getElementById("oxv-validation").textContent,
       rows: document.querySelectorAll("#oxv-root .px-row").length,
       badge: document.querySelector("#oxv-root .px-codelist")?.textContent || "",
+      versions: Boolean(window.OnixViewerVersions),
     }));
     assert(state.marked, "the replaced <html> carries data-oxv");
+    assert(state.versions, "versions.js is injected on every ONIX page");
     assert(state.meta.includes("ONIX 3.1") && state.meta.includes("1 product"),
       `the document pill names the release and count; got "${state.meta}"`);
     assert(state.verdict.includes("Valid"), `the verdict; got "${state.verdict}"`);

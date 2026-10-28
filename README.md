@@ -68,8 +68,9 @@ npm run test:browser   # the extension in a headless Chrome
 npm run build          # the store packages, into dist/
 ```
 
-The code lists, Thema and the content models are generated from EDItEUR's
-files in `tools/data/` and committed; CI fails if they drift. Each test
+The code lists, Thema, the content models and the table of their versions
+are generated from EDItEUR's files in `tools/data/` and committed; CI fails if
+they drift. Each test
 fixture's purpose is in [tests/fixtures/](tests/fixtures/README.md).
 
 ## Privacy

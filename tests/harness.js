@@ -22,6 +22,7 @@ const RES = path.join(ROOT, "Resources");
 const FIXTURES = path.join(__dirname, "fixtures");
 const SAMPLES = path.join(ROOT, "Onix");
 
+const versionsJs = fs.readFileSync(path.join(RES, "versions.js"), "utf8");
 const codelistsJs = fs.readFileSync(path.join(RES, "onix-codelists.js"), "utf8");
 // content.js sends Thema only to a document naming a Thema scheme; without
 // one it resolves nothing, so the suite loads it for every document.
@@ -147,6 +148,7 @@ function renderSource(xml, label, beforeScripts, models) {
   window.__OXV_SOURCE__ = xml;
   if (beforeScripts) beforeScripts(window);
 
+  window.eval(versionsJs);
   window.eval(codelistsJs);
   window.eval(themaJs);
   // Production ships only the model matching the document's release (see

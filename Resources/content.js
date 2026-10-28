@@ -516,6 +516,7 @@
     const cssURL = browserAPI().runtime.getURL("viewer.css");
     const logoURL = browserAPI().runtime.getURL("icons/icon-28.png");
     const logoURL2x = browserAPI().runtime.getURL("icons/icon-56.png");
+    const versionsURL = browserAPI().runtime.getURL("versions.js");
     const codelistsURL = browserAPI().runtime.getURL("onix-codelists.js");
     const modelURLs = contentModelURLs(xmlSource);
     const thema = themaURLs(xmlSource);
@@ -570,7 +571,7 @@
     // Inject viewer scripts in order. async=false preserves insertion order,
     // which matters: the data files must define their globals before onix.js
     // and viewer.js read them.
-    [codelistsURL, ...thema, ...modelURLs, onixURL, validateURL, schematronURL,
+    [versionsURL, codelistsURL, ...thema, ...modelURLs, onixURL, validateURL, schematronURL,
      popupURL, viewerURL].forEach((src) => {
       const s = document.createElementNS(HTML_NS, "script");
       s.setAttribute("src", src);
