@@ -972,4 +972,26 @@ describe("Validation", () => {
       `two warnings and the error are kept; got: ${codes(result).join(", ")}`);
     assert(result.truncated, "and the result says it was cut");
   });
+
+  test("by default the cap keeps 10,000 of each severity", () => {
+    const w = render("onix-3.1-valid.xml");
+    const validation = w.OnixViewerValidation;
+    validation.severities["house.many"] = "warning";
+    validation.registerRule({
+      name: "house-many",
+      start(api) {
+        const root = api.doc.documentElement;
+        for (let index = 0; index < 10001; index++) api.report("house.many", root, {});
+        api.report("house.error", root, {});
+      },
+    });
+    const doc = new w.DOMParser().parseFromString("<Root/>", "application/xml");
+    const result = validation.run(doc, w.OnixViewerOnix.detect(doc));
+    const kept = (severity) => result.findings.filter((f) => f.severity === severity).length;
+    assert(result.warnings > 10000 && result.errors === 1,
+      `every finding is counted; got ${result.warnings} warnings, ${result.errors} errors`);
+    assert(kept("warning") === 10000 && kept("error") === 1,
+      `10,000 warnings and the error are kept; got ${kept("warning")} and ${kept("error")}`);
+    assert(result.truncated, "and the result says it was cut");
+  });
 });
