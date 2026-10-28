@@ -18,9 +18,8 @@ describe("About window", () => {
     assert(w.document.getElementById("oxv-about-version").textContent === "Version 0.0.0-test",
       `the version the shell was stamped with; got "${w.document.getElementById("oxv-about-version").textContent}"`);
     const facts = [...$$(w, "#oxv-about dt")].map((dt) => `${dt.textContent}: ${dt.nextElementSibling.textContent}`);
-    const schema = w.OnixViewerCodeListSchema;
-    const dated = schema.releaseDate ? ` (${schema.releaseDate})` : "";
-    assert(facts.join("; ") === `Version: 0.0.0-test; Code lists: EDItEUR Issue ${schema.issue}${dated}`,
+    const issue = w.OnixViewerVersions.codeLists.issue;
+    assert(facts.join("; ") === `Version: 0.0.0-test; Code lists: EDItEUR Issue ${issue}`,
       `the facts; got ${facts.join("; ")}`);
     const dialog = modal(w).querySelector(".px-popup");
     assert(dialog.getAttribute("aria-modal") === "true" &&

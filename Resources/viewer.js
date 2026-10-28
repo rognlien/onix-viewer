@@ -2112,11 +2112,8 @@
     const facts = document.createElement("dl");
     facts.className = "px-about-facts";
     const rows = [["Version", extensionVersion() || "unknown"]];
-    const schema = window.OnixViewerCodeListSchema;
-    if (schema && schema.issue != null) {
-      const dated = schema.releaseDate ? ` (${schema.releaseDate})` : "";
-      rows.push(["Code lists", `EDItEUR Issue ${schema.issue}${dated}`]);
-    }
+    const versions = window.OnixViewerVersions;
+    if (versions) rows.push(["Code lists", `EDItEUR Issue ${versions.codeLists.issue}`]);
     for (const [term, detail] of rows) {
       const dt = document.createElement("dt");
       dt.textContent = term;
