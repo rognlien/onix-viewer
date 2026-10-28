@@ -3,6 +3,12 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Changed
+- Thema subject codes upgraded to **Thema 1.7** (was 1.6). 261 new codes,
+  none removed.
+
 ## 0.9.22 — 2026-10-16
 
 ### Changed
