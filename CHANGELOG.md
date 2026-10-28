@@ -5,6 +5,10 @@ the main branch.
 
 ## Unreleased
 
+### Added
+- About names the bundled Thema version and the ONIX 3.0 and 3.1 schema
+  revisions (3.0.8 and 3.1.3) beside the code-list issue.
+
 ### Changed
 - Thema subject codes upgraded to **Thema 1.7** (was 1.6). 261 new codes,
   none removed.

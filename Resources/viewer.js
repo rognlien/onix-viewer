@@ -2111,10 +2111,7 @@
   function aboutFacts() {
     const facts = document.createElement("dl");
     facts.className = "px-about-facts";
-    const rows = [["Version", extensionVersion() || "unknown"]];
-    const versions = window.OnixViewerVersions;
-    if (versions) rows.push(["Code lists", `EDItEUR Issue ${versions.codeLists.issue}`]);
-    for (const [term, detail] of rows) {
+    for (const [term, detail] of aboutFactRows()) {
       const dt = document.createElement("dt");
       dt.textContent = term;
       const dd = document.createElement("dd");
@@ -2122,6 +2119,23 @@
       facts.append(dt, dd);
     }
     return facts;
+  }
+
+  function aboutFactRows() {
+    const rows = [["Version", extensionVersion() || "unknown"]];
+    const versions = window.OnixViewerVersions;
+    if (versions) rows.push(...dataVersionRows(versions));
+    return rows;
+  }
+
+  function dataVersionRows(versions) {
+    const releases = Object.entries(versions.releases)
+      .map(([release, { revision }]) => [`ONIX ${release}`, revision]);
+    return [
+      ["Code lists", `EDItEUR Issue ${versions.codeLists.issue}`],
+      ["Thema", versions.thema.version],
+      ...releases,
+    ];
   }
 
   function aboutKeys() {
