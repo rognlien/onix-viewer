@@ -5,7 +5,15 @@ the main branch.
 
 ## Unreleased
 
+### Added
+- **The findings list filters by severity**: All, Errors or Warnings, each
+  with its count. The filter shows when a file has both.
+
 ### Changed
+- **Up to 10,000 errors and 10,000 warnings are listed**, where the limit
+  was 500 findings in all. Each severity has its own limit, so a file with
+  many warnings no longer pushes its errors out of the list and the tree.
+  Findings past the limit are still counted.
 - Thema subject codes upgraded to **Thema 1.7** (was 1.6). 261 new codes,
   none removed.
 
