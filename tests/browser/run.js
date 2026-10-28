@@ -32,11 +32,13 @@ const SAMPLES = path.join(ROOT, "Onix");
 // the rest a 200 with an HTML page instead, the way a share link behind a
 // session answers a request without its cookies. Both force content.js off
 // its re-fetch and onto the DOM fallback. "large.xml" is the EDItEUR sample
-// product repeated 300 times, a feed that arrives in many chunks.
+// product repeated 300 times, a feed that arrives in many chunks;
+// "many-warnings.xml" is that feed with over 10,000 warnings and one error
+// at its very end.
 function serve() {
   const served = new Set();
   const held = new Set();
-  const large = largeFeed(300);
+  const generated = { "large.xml": largeFeed(300), "many-warnings.xml": manyWarningsFeed(300) };
   const server = http.createServer((request, response) => {
     const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
     const once = name.startsWith("once-");
@@ -55,10 +57,10 @@ function serve() {
       response.writeHead(200, { "Content-Type": "application/xml", "Content-Length": 600 * 1000 * 1000 });
       response.write(fs.readFileSync(file));
       held.add(response);
-    } else if (name === "large.xml" || file) {
+    } else if (generated[name] || file) {
       served.add(request.url);
       response.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
-      response.end(name === "large.xml" ? large : fs.readFileSync(file));
+      response.end(generated[name] || fs.readFileSync(file));
     } else {
       response.writeHead(404);
       response.end();
@@ -82,6 +84,23 @@ function largeFeed(count) {
     product.replace(/<RecordReference>[^<]*<\/RecordReference>/,
       `<RecordReference>large-${i}</RecordReference>`)).join("\n");
   return sample.slice(0, start) + products + sample.slice(end);
+}
+
+// Each product gives two warnings of its own and 33 more from unknown Thema
+// codes; the last product's ISBN has a wrong check digit, the one error.
+function manyWarningsFeed(count) {
+  const subjects = Array.from({ length: 33 }, (_, i) =>
+    `<Subject><SubjectSchemeIdentifier>93</SubjectSchemeIdentifier><SubjectCode>ZZQ${i}</SubjectCode></Subject>`).join("");
+  const products = largeFeed(count).split("</Product>");
+  const withSubjects = products.map((product, index) => {
+    if (index === products.length - 1) return product;
+    const last = product.lastIndexOf("</Subject>") + "</Subject>".length;
+    return product.slice(0, last) + subjects + product.slice(last);
+  });
+  const lastProduct = withSubjects.length - 2;
+  withSubjects[lastProduct] = withSubjects[lastProduct].replace("<IDValue>9780007232833</IDValue>",
+    "<IDValue>9780007232834</IDValue>");
+  return withSubjects.join("</Product>");
 }
 
 function fileFor(name) {
@@ -113,15 +132,15 @@ function launch() {
 // 860px the toolbar's right column overlaps its centre one — the issue pill
 // covers the verdict pill, so a click on it opens nothing. A bug of the
 // toolbar's own, not of what these tests are about.
-async function open(browser, url) {
+async function open(browser, url, timeout = 10000) {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
   page.on("pageerror", (error) => { throw error; });
   await page.goto(url, { waitUntil: "load" });
-  await page.waitForSelector("#oxv-root .px-row", { timeout: 10000 });
+  await page.waitForSelector("#oxv-root .px-row", { timeout });
   await page.waitForFunction(
     () => !document.getElementById("oxv-validation").textContent.includes("Validating"),
-    { timeout: 10000 });
+    { timeout });
   return page;
 }
 
@@ -191,6 +210,7 @@ async function main() {
     await takeover(browser, served);
     const features = await heldBack(browser, served);
     await releaseSelector(browser, served);
+    await findingsList(browser, served);
     await schematronInChrome(browser, served);
     if (features.customRules) await rulesRoundTrip(browser, served);
     else console.log("\nThe rules editor is held back; the storage round trip is skipped");
@@ -426,6 +446,74 @@ async function releaseSelector(browser, served) {
       `the note names both; got "${after.note}"`);
     await page.close();
   });
+}
+
+// The findings list, clicked as a reader would: page.click() presses the
+// mouse at the element's centre, so a covered or hidden button fails here
+// where jsdom, which lays nothing out, would let the click through.
+async function findingsList(browser, served) {
+  console.log("\nThe findings list");
+
+  await test("the filter shows errors or warnings when clicked", async () => {
+    const page = await openFindings(browser, served.url("onix-3.1-invalid.xml"));
+    assert(await page.$eval(".px-findings-filter", (group) => group.checkVisibility()),
+      "both severities are present, so the filter is visible");
+    await page.click('.px-findings-filter [data-oxv-filter="error"]');
+    const errors = await listedSeverities(page);
+    assert(errors.join() === "error,error,error,error,error", `errors only; got ${errors}`);
+    await page.click('.px-findings-filter [data-oxv-filter="warning"]');
+    const warnings = await listedSeverities(page);
+    assert(warnings.join() === "warning,warning", `warnings only; got ${warnings}`);
+    await page.click('.px-findings-filter [data-oxv-filter="all"]');
+    assert((await listedSeverities(page)).length === 7, "and all seven again");
+    await page.close();
+  });
+
+  await test("the filter is not shown when a file has only errors", async () => {
+    const page = await openFindings(browser, served.url("onix-3.0-gtin-only.xml"));
+    assert(!(await page.$eval(".px-findings-filter", (group) => group.checkVisibility())),
+      "the filter is not visible");
+    assert((await listedSeverities(page)).join() === "error,error", "and both errors are listed");
+    await page.close();
+  });
+
+  await test("a feed with over 10,000 warnings keeps its one error, and stays usable", async () => {
+    const started = Date.now();
+    const page = await open(browser, served.url("many-warnings.xml"), 60000);
+    const loaded = Date.now() - started;
+    const opening = Date.now();
+    await page.click("#oxv-validation");
+    await page.waitForSelector("#oxv-findings:not([hidden])");
+    const opened = Date.now() - opening;
+    const counts = await page.$$eval(".px-findings-filter [role=radio]", (options) =>
+      Object.fromEntries(options.map((option) =>
+        [option.dataset.oxvFilter, Number(option.querySelector(".px-findings-filter-count").textContent)])));
+    assert(counts.warning > 10000 && counts.error === 1, `counted ${JSON.stringify(counts)}`);
+    const all = await listedSeverities(page);
+    assert(all.length === 10001 && all.includes("error"),
+      `10,000 warnings and the error are listed; got ${all.length}, error ${all.includes("error")}`);
+    const footer = await page.$eval("#oxv-findings .px-popup-footer", (element) => element.textContent);
+    assert(footer === `Showing 10001 of ${counts.all}.`, `the footer says the list is cut; got "${footer}"`);
+    await page.click('.px-findings-filter [data-oxv-filter="error"]');
+    const errors = await listedSeverities(page);
+    assert(errors.join() === "error", `the error alone; got ${errors.length} entries`);
+    assert(loaded < 30000, `loaded and validated in ${loaded} ms`);
+    assert(opened < 3000, `the list opened in ${opened} ms`);
+    console.log(`    loaded and validated in ${loaded} ms, the list opened in ${opened} ms`);
+    await page.close();
+  });
+}
+
+async function openFindings(browser, url) {
+  const page = await open(browser, url);
+  await page.click("#oxv-validation");
+  await page.waitForSelector("#oxv-findings:not([hidden])");
+  return page;
+}
+
+function listedSeverities(page) {
+  return page.$$eval("#oxv-findings .px-findings-item", (items) =>
+    items.filter((item) => item.checkVisibility()).map((item) => item.dataset.oxvSeverity));
 }
 
 async function schematronInChrome(browser, served) {
