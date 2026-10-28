@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ONIX Viewer",
-  "version": "0.9.22",
-  "version_name": "0.9.22-dev",
+  "version": "0.9.23",
+  "version_name": "0.9.23-dev",
   "description": "Readable ONIX XML: collapsible tree, short tags or reference names, EDItEUR code-list labels and automatic validation.",
   "minimum_chrome_version": "119",
   "browser_specific_settings": {
