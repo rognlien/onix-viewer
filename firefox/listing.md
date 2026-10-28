@@ -79,7 +79,9 @@ EDItEUR namespace or an ONIX root element. Every other page — HTML, JSON,
 RSS, generic XML — is left exactly as Firefox shows it. Nothing is stored,
 nothing is sent anywhere, and the only
 network request is a re-fetch of the page you are already viewing, to read
-its source. Local .xml files work too.
+its source. Local .xml files work too, once "Access local files on your
+computer" is turned on under the add-on's Permissions and data in
+about:addons (Firefox 153 and later).
 
 ONIX for Books and its code lists are developed and maintained by EDItEUR
 (https://www.editeur.org/8/ONIX/), which holds the copyright and makes them

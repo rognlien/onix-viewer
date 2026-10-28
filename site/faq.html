@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ONIX Viewer FAQ</title>
-<meta name="description" content="Common questions about ONIX Viewer: opening local ONIX files in Chrome, why a file shows as raw XML, and what the extension can see.">
+<meta name="description" content="Common questions about ONIX Viewer: opening local ONIX files in Chrome and Firefox, why a file shows as raw XML, and what the extension can see.">
 <link rel="icon" href="icon-128.png?v=1c4b4a8b">
 <style>
   html { background: linear-gradient(180deg, #f7fbff, #e7f1fb) fixed; }
@@ -47,8 +47,15 @@
   <h2 id="file-access-safety">Is it safe to allow access to file URLs?</h2>
   <p>The setting lets ONIX Viewer read a local file when you open that file in a tab, the same way it reads an ONIX file from a web address. ONIX Viewer cannot list, open or read files on its own, has no background process, and sends nothing anywhere. The <a href="privacy.html">privacy policy</a> describes this in full, and the <a href="https://github.com/rognlien/onix-viewer">source code</a> is public.</p>
 
-  <h2 id="firefox-local-files">Do I need this setting in Firefox?</h2>
-  <p>No. Firefox has no such setting, and local ONIX files open in ONIX Viewer without one.</p>
+  <h2 id="firefox-local-files">How do I allow ONIX Viewer to open local files in Firefox?</h2>
+  <p>From Firefox 153 on, Firefox does not let any extension run on files opened from your disk until you allow it, the same as Chrome. Firefox 153 turned this access off for extensions that were already installed too.</p>
+  <ol>
+    <li>Open <code>about:addons</code> in the address bar.</li>
+    <li>Click <strong>ONIX Viewer</strong>, then the <strong>Permissions and data</strong> tab.</li>
+    <li>Turn on <strong>Access local files on your computer</strong>.</li>
+    <li>Reload any tab that already shows the file.</li>
+  </ol>
+  <p>Firefox 152 and earlier have no such setting, and local ONIX files open in ONIX Viewer without one.</p>
 
   <h2 id="edge">Can I use ONIX Viewer in Microsoft Edge?</h2>
   <p>Yes. ONIX Viewer is not listed in Microsoft's Edge Add-ons store, but Edge is built on Chromium and can install it from the Chrome Web Store. In Edge, turn on <strong>Allow extensions from other stores</strong> (Edge offers this on the Chrome Web Store page, or under <code>edge://extensions</code>), then open <a href="https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife">ONIX Viewer in the Chrome Web Store</a> and click its install button. Brave, Opera and Vivaldi install it from the Chrome Web Store too.</p>
@@ -60,7 +67,8 @@
   <ul>
     <li>The browser received the file as XML. A server that sends the file as plain text, or makes the browser download it, leaves nothing for the extension to take over. Download the file and open it from disk instead.</li>
     <li>The file is ONIX: its root element is <code>&lt;ONIXMessage&gt;</code> or <code>&lt;ONIXmessage&gt;</code>, or it uses EDItEUR's ONIX namespace. Other XML is left to the browser on purpose.</li>
-    <li>In Chrome, for a file on your disk, <a href="#allow-file-urls">access to file URLs is allowed</a>.</li>
+    <li>In Chrome or Edge, for a file on your disk, <a href="#allow-file-urls">access to file URLs is allowed</a>.</li>
+    <li>In Firefox 153 or later, for a file on your disk, <a href="#firefox-local-files">access to local files is allowed</a>.</li>
     <li>In Safari, ONIX Viewer is turned on in <strong>Settings → Extensions</strong> and allowed on every website from its toolbar button.</li>
   </ul>
   <p>A tab that was open before you installed or enabled the extension needs a reload.</p>
