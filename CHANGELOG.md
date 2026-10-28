@@ -15,7 +15,7 @@ the main branch.
   many warnings no longer pushes its errors out of the list and the tree.
   Findings past the limit are still counted.
 - Thema subject codes upgraded to **Thema 1.7** (was 1.6). 261 new codes,
-  none removed.
+  none removed, and revised headings for 655 existing codes.
 
 ## 0.9.22 — 2026-10-16
 
