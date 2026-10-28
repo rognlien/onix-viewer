@@ -3,7 +3,7 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
-## Unreleased
+## 0.9.23 — 2026-10-28
 
 ### Added
 - **The findings list filters by severity**: All, Errors or Warnings, each
