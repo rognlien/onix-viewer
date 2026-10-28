@@ -7,7 +7,7 @@ the main branch.
 
 ### Changed
 - Thema subject codes upgraded to **Thema 1.7** (was 1.6). 261 new codes,
-  none removed.
+  none removed, and revised headings for 655 existing codes.
 
 ## 0.9.22 — 2026-10-16
 
