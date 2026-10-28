@@ -8,6 +8,8 @@ the main branch.
 ### Added
 - **The findings list filters by severity**: All, Errors or Warnings, each
   with its count. The filter shows when a file has both.
+- About names the bundled Thema version and the ONIX 3.0 and 3.1 schema
+  revisions (3.0.8 and 3.1.3) beside the code-list issue.
 
 ### Changed
 - **Up to 10,000 errors and 10,000 warnings are listed**, where the limit
