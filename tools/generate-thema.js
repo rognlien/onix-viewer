@@ -5,7 +5,7 @@
 // code with its English heading, one Map per ONIX subject scheme.
 //
 // EDItEUR publishes the JSON at
-//   https://www.editeur.org/files/Thema/<version>/v<version>_en/<date>_Thema_v<version>_en.json
+//   https://www.editeur.org/files/Thema/<version>/en/<date>_Thema_v<version>_en.json
 // and we keep the latest committed at tools/data/thema-codes.json.
 //
 // Thema is one code list in seven ONIX schemes (List 27): the subject

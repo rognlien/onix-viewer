@@ -6,7 +6,7 @@ const {
 
 describe("Thema", () => {
   // A <SubjectCode> under one of the seven Thema schemes, 93 to 99, resolves
-  // through onix-thema.js: a heading badge, a "Thema 1.6" chip that opens the
+  // through onix-thema.js: a heading badge, a "Thema 1.7" chip that opens the
   // scheme in the popup, and a warning for a code Thema does not have.
   const valid = fs.readFileSync(path.join(FIXTURES, "onix-3.1-valid.xml"), "utf8");
 
@@ -29,10 +29,10 @@ describe("Thema", () => {
     const row = subjectRow(w, "FYT");
     const badge = row.querySelector(".px-codelist");
     assert(badge && badge.textContent.includes("Fiction in translation"), `badge: ${badge && badge.textContent}`);
-    assert(badge.title === "SubjectCode when SubjectSchemeIdentifier is 93: code resolved via Thema 1.6",
+    assert(badge.title === "SubjectCode when SubjectSchemeIdentifier is 93: code resolved via Thema 1.7",
       `title: ${badge.title}`);
     const link = row.querySelector(".px-codelist-link");
-    assert(link.textContent.startsWith("Thema 1.6"), `chip: ${link.textContent}`);
+    assert(link.textContent.startsWith("Thema 1.7"), `chip: ${link.textContent}`);
     assert(link.getAttribute("href") === "https://ns.editeur.org/thema/en/FYT", `href: ${link.getAttribute("href")}`);
   });
 
@@ -72,7 +72,7 @@ describe("Thema", () => {
     const popup = w.document.querySelector(".px-popup");
     assert(popup.querySelector("#px-popup-title").textContent === "Thema subject category", "title");
     const eyebrow = popup.querySelector(".px-popup-eyebrow").textContent;
-    assert(eyebrow === "Thema 1.6 · SubjectCode when SubjectSchemeIdentifier is 93", `eyebrow: ${eyebrow}`);
+    assert(eyebrow === "Thema 1.7 · SubjectCode when SubjectSchemeIdentifier is 93", `eyebrow: ${eyebrow}`);
     const current = popup.querySelector(".px-popup-row-current");
     assert(current && current.textContent.startsWith("FYT"), `current: ${current && current.textContent}`);
   });
@@ -88,7 +88,7 @@ describe("Thema", () => {
     assert(codes(result).join() === "codelist.thema", `codes: ${codes(result)}`);
     assert(w.OnixViewerValidation.severity(result.findings[0]) === "warning", "Thema grows; an unknown code warns");
     const message = w.OnixViewerValidation.message(result.findings[0]);
-    assert(message === "\"1DNN\" is not a code in Thema 1.6 (Thema subject category), which applies " +
+    assert(message === "\"1DNN\" is not a code in Thema 1.7 (Thema subject category), which applies " +
       "when <SubjectSchemeIdentifier> is 93", `message: ${message}`);
   });
 
