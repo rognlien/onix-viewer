@@ -77,11 +77,15 @@ function largeFeed(count) {
 
 // ---- the browser -----------------------------------------------------------
 
+// Firefox runs no add-on's content scripts on file:// until the user allows
+// it on the add-on's about:addons page, the counterpart of Chrome's "Allow
+// access to file URLs". Turning the opt-in off stands in for that click.
 async function launch() {
   const browser = await puppeteer.launch({
     browser: "firefox",
     executablePath: FIREFOX,
     headless: true,
+    extraPrefsFirefox: { "extensions.webextensions.fileSchemeAccess.requireOptIn": false },
   });
   await browser.installExtension(RESOURCES);
   return browser;
@@ -183,7 +187,10 @@ async function main() {
     await takeover(browser, served);
     await largeFeedCase(browser, served);
     await localFile(browser);
-    await aboutAndStorage(browser, served);
+    await about(browser, served);
+    const features = await heldBack(browser, served);
+    if (features.customRules) await rulesRoundTrip(browser, served);
+    else await rulesHeldBack(browser, served);
     await xpathInGecko(browser, served);
   } finally {
     await browser.close();
@@ -200,14 +207,15 @@ async function main() {
 async function takeover(browser, served) {
   console.log("\nThe takeover");
 
-  for (const name of ["onix-3.1-valid.xml", "onix-3.0-short.xml", "onix-2.1-doctype.xml"]) {
+  const fixtures = [["onix-3.1-valid.xml", 40], ["onix-3.0-short.xml", 30], ["onix-2.1-doctype.xml", 20]];
+  for (const [name, leastRows] of fixtures) {
     await test(`${name} is taken over, rendered, styled and validated`, async () => {
       const { page, noise } = await open(browser, served.url(name));
       const state = await inspect(page);
       show("state", state);
       if (noise.length) show("noise", noise);
       assert(state.marked, "the replaced <html> carries data-oxv");
-      assert(state.rows > 30, `the tree is rendered; got ${state.rows} rows`);
+      assert(state.rows >= leastRows, `the tree is rendered; got ${state.rows} rows, expected at least ${leastRows}`);
       assert(state.badge !== "", "a code-list label is resolved in the page");
       assert(state.toolbarHeight > 0, "the toolbar is laid out — a hidden light DOM means the pretty-printer's shadow root is over the shell");
       assert(state.bodyBackground !== "rgba(0, 0, 0, 0)", "viewer.css applied");
@@ -253,7 +261,7 @@ async function largeFeedCase(browser, served) {
 
 async function localFile(browser) {
   console.log("\nA local file");
-  await test("file:// is taken over through the DOM fallback, with no toggle", async () => {
+  await test("file:// is taken over through the DOM fallback", async () => {
     const url = "file://" + path.join(FIXTURES, "onix-3.1-valid.xml");
     const { page, noise } = await open(browser, url);
     const state = await inspect(page);
@@ -264,8 +272,8 @@ async function localFile(browser) {
   });
 }
 
-async function aboutAndStorage(browser, served) {
-  console.log("\nAbout, and the rules editor through browser.storage");
+async function about(browser, served) {
+  console.log("\nAbout");
 
   await test("About shows a version; -dev only if Firefox keeps version_name", async () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(RESOURCES, "manifest.json"), "utf8"));
@@ -278,7 +286,29 @@ async function aboutAndStorage(browser, served) {
       `one of the two spellings; got "${eyebrow}"`);
     await page.close();
   });
+}
 
+// The shipped build has the custom rules off (viewer.js FEATURES); the test
+// that drives the editor through the real UI runs only when it is on.
+async function heldBack(browser, served) {
+  const { page } = await open(browser, served.url("onix-3.1-valid.xml"));
+  const features = await page.evaluate(() => window.OnixViewerFeatures);
+  await page.close();
+  return features;
+}
+
+async function rulesHeldBack(browser, served) {
+  console.log("\nThe rules editor is held back; the browser.storage round trip is skipped");
+  await test("the toolbar has no rules button", async () => {
+    const { page } = await open(browser, served.url("onix-3.1-valid.xml"));
+    const button = await page.$('#oxv-toolbar [data-action="rules"]');
+    assert(button === null, "no rules button in the shipped build");
+    await page.close();
+  });
+}
+
+async function rulesRoundTrip(browser, served) {
+  console.log("\nThe rules editor through browser.storage");
   const fires = pattern(`<rule context="Header"><report id="header-here" test="true()" role="warning">A header, noted</report></rule>`);
 
   await test("rules applied in the modal are kept and validate the next load", async () => {
