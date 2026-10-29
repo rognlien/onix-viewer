@@ -122,9 +122,9 @@ https://github.com/rognlien/onix-viewer.
 **Icon**: `Resources/icons/icon-128.png` (AMO wants 128 × 128, and shows it
 at 64).
 
-**Screenshots**: `firefox/screenshots/Main.png`, `CodeList.png`,
-`Violations.png`, taken by `npm run screenshots:firefox` at 1280 × 800 — the
-same three views as the Chrome set, from Firefox. Captions, one per file:
+**Screenshot captions**: one per file of `firefox/screenshots/Main.png`,
+`CodeList.png`, `Violations.png`, taken by `npm run screenshots:firefox` at
+1280 × 800 — the same three views as the Chrome set, from Firefox:
 
 ```
 The tree: product summaries, code-list labels beside every value, the
