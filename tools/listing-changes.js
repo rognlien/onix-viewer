@@ -6,7 +6,9 @@
 // The baseline is the listing as of the previous release: the newest v* tag
 // older than the manifest's version, or the tag --since names, for when a
 // version never reached a store. tools/package-extension.sh writes the result
-// to dist/<browser>/listing-changes.md, passing LISTING_SINCE as --since.
+// to dist/<browser>/listing-changes.md, passing LISTING_SINCE as --since;
+// tools/screenshots.js rewrites that file through refreshListingChanges()
+// after it replaces the screenshots there.
 //
 // A text field is a fenced block with no language in <browser>/listing.md,
 // named by the nearest heading or line-leading **bold** label above it;
@@ -231,12 +233,16 @@ function unchangedLine(fields, images) {
   return kinds.length ? `**Unchanged** — ${kinds.map(([kind, list]) => `${kind}: ${list}`).join("; ")}.` : null;
 }
 
-function report({ browser, version, baseline, note, fields, notesText, images }) {
+function builtFromLine({ hash, dirty }) {
+  return `Built from ${hash}${dirty ? " with uncommitted changes" : ""}.`;
+}
+
+function report({ browser, version, baseline, note, commit, fields, notesText, images }) {
   const store = STORES[browser];
   return [
     note ? `> **Warning:** ${note}` : null,
     `# ${store.title} listing for ${version}`,
-    `${version} compared with ${baseline || "nothing"}.`,
+    `${version} compared with ${baseline || "nothing"}. ${builtFromLine(commit)}`,
     checklist({ browser, version, fields, images }),
     ...fields.filter(isPasted).map((field) => fieldSection(field, baseline)),
     store.releaseNotes ? `## ${store.releaseNotes} for ${version}\n\n${fenced(notesText)}` : null,
@@ -298,6 +304,11 @@ function baselineFor(version, since) {
   return { tag: note ? null : tag, note };
 }
 
+function currentCommit() {
+  const hash = (git(["rev-parse", "--short", "HEAD"]) || "an unknown commit").trim();
+  return { hash, dirty: Boolean((git(["status", "--porcelain"]) || "").trim()) };
+}
+
 function listingChanges(browser, since) {
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, "Resources", "manifest.json"), "utf8")).version;
   const { tag, note } = baselineFor(version, since);
@@ -309,8 +320,15 @@ function listingChanges(browser, since) {
   const missingListing = tag && oldListing === null ? `${listing} did not exist at ${tag}, so every field is listed as new.` : null;
   return report({
     browser, version, baseline: tag, note: missingListing || note,
-    fields, notesText, images: compareImages(imageAssets(browser, tag)),
+    commit: currentCommit(), fields, notesText, images: compareImages(imageAssets(browser, tag)),
   });
+}
+
+function refreshListingChanges(browser, directory = path.join(ROOT, "dist", browser)) {
+  const file = path.join(directory, "listing-changes.md");
+  const built = fs.existsSync(file);
+  if (built) fs.writeFileSync(file, listingChanges(browser, process.env.LISTING_SINCE || null));
+  return built;
 }
 
 function main() {
@@ -326,4 +344,6 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { listingFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, STORES };
+module.exports = {
+  listingFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, refreshListingChanges, STORES,
+};
