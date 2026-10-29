@@ -59,13 +59,16 @@ Features
     cover colours and hazard warnings), codes and elements EDItEUR has
     deprecated (naming the replacement), ISBN-13 / GTIN-13 / ISBN-10 check
     digits, and values that break their datatype — each pinned to the row it
-    concerns, with a jump-to-row list
+    concerns, with a jump-to-row list that filters by severity and holds up
+    to 10,000 errors and 10,000 warnings
   • Product records fold to a one-line summary (ISBN · form · title),
     so two presses of Collapse make a 10,000-product feed scannable
   • Code-list labels (ProductIDType, ProductForm, ContributorRole,
     LanguageCode, CountryCode, …) shown beside every value
   • One-click popup listing every entry of a code list, linked to the
     EDItEUR definition page — all 165 lists bundled
+  • Thema subject codes labelled with their headings and checked against
+    Thema 1.7; an unknown code is a warning, since Thema grows
   • Large feeds open fast: products are rendered as you scroll to them
   • Search that sees folded rows, keyboard shortcuts, soft wrap, dark mode,
     copy of any node's XML
