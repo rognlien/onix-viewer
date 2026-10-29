@@ -7,11 +7,16 @@
 // older than the manifest's version (npm run listing:mark sets one on the
 // commit that was uploaded), else the newest such v* tag. The tag --since
 // names wins over both. tools/package-extension.sh writes the result to
-// dist/<browser>/listing-changes.md, passing LISTING_SINCE as --since.
+// dist/<browser>/listing-changes.md, passing LISTING_SINCE as --since;
+// tools/screenshots.js rewrites that file through refreshListingChanges()
+// after it replaces the screenshots there.
 //
 // A text field is a fenced block with no language in <browser>/listing.md,
 // named by the nearest heading or line-leading **bold** label above it;
 // fenced blocks with a language (```bash) are instructions, not fields.
+// A field new since the baseline is unchanged when the baseline wrote its
+// value inline: every line of it between its **label** and the next blank
+// line or **label**:.
 // A store's renamedFields maps a field's old label to its new one, so a
 // renamed label still compares with the previous release.
 // Images compare by git blob hash, that is by bytes. The promo tiles are not
@@ -160,12 +165,31 @@ function renameFields(fields, renamedFields) {
   return fields.map((field) => ({ ...field, label: renamedFields[field.label] || field.label }));
 }
 
-function compareFields(before, after) {
+function labelParagraph(markdown, label) {
+  const opening = `**${label}**`;
+  const start = markdown.indexOf(opening);
+  const rest = start < 0 ? null : markdown.slice(start + opening.length);
+  return rest === null ? null : rest.split(/\n\n|\*\*[^*\n]+\*\*:/)[0];
+}
+
+function writtenInline(markdown, field) {
+  const paragraph = labelParagraph(markdown, field.label);
+  const lines = field.text.split("\n").map((line) => line.trim()).filter(Boolean);
+  return paragraph !== null && lines.length > 0 && lines.every((line) => paragraph.includes(line));
+}
+
+function fieldStatus(old, field, oldMarkdown) {
+  let status = old === field.text ? "unchanged" : "changed";
+  if (old === undefined) status = writtenInline(oldMarkdown, field) ? "unchanged" : "added";
+  return status;
+}
+
+function compareFields(before, after, oldMarkdown = "") {
   const beforeByLabel = new Map(before.map((field) => [field.label, field.text]));
   const afterLabels = new Set(after.map((field) => field.label));
   const current = after.map((field) => {
     const old = beforeByLabel.get(field.label);
-    const status = old === undefined ? "added" : old === field.text ? "unchanged" : "changed";
+    const status = fieldStatus(old, field, oldMarkdown);
     const diff = status === "changed" ? lineDiff(old, field.text) : null;
     return { label: field.label, status, text: field.text, diff };
   });
@@ -244,12 +268,16 @@ function unchangedLine(fields, images) {
   return kinds.length ? `**Unchanged** — ${kinds.map(([kind, list]) => `${kind}: ${list}`).join("; ")}.` : null;
 }
 
-function report({ browser, version, baseline, note, fields, notesText, images }) {
+function builtFromLine({ hash, dirty }) {
+  return `Built from ${hash}${dirty ? " with uncommitted changes" : ""}.`;
+}
+
+function report({ browser, version, baseline, note, commit, fields, notesText, images }) {
   const store = STORES[browser];
   return [
     note ? `> **Warning:** ${note}` : null,
     `# ${store.title} listing for ${version}`,
-    `${version} compared with ${baseline || "nothing"}.`,
+    `${version} compared with ${baseline || "nothing"}. ${builtFromLine(commit)}`,
     checklist({ browser, version, fields, images }),
     ...fields.filter(isPasted).map((field) => fieldSection(field, baseline)),
     store.releaseNotes ? `## ${store.releaseNotes} for ${version}\n\n${fenced(notesText)}` : null,
@@ -311,20 +339,32 @@ function baselineFor(version, since) {
   return { tag: note ? null : tag, note };
 }
 
+function currentCommit() {
+  const hash = (git(["rev-parse", "--short", "HEAD"]) || "an unknown commit").trim();
+  return { hash, dirty: Boolean((git(["status", "--porcelain"]) || "").trim()) };
+}
+
 function listingChanges(browser, since) {
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, "Resources", "manifest.json"), "utf8")).version;
   const { tag, note } = baselineFor(version, since);
   const listing = `${browser}/listing.md`;
   const oldListing = tag ? git(["show", `${tag}:${listing}`]) : null;
   const oldFields = renameFields(listingFields(oldListing || ""), STORES[browser].renamedFields || {});
-  const fields = compareFields(oldFields, listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")));
+  const fields = compareFields(oldFields, listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")), oldListing || "");
   const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
   const notesText = STORES[browser].releaseNotes ? releaseNotes(changelog, version) : null;
   const missingListing = tag && oldListing === null ? `${listing} did not exist at ${tag}, so every field is listed as new.` : null;
   return report({
     browser, version, baseline: tag, note: missingListing || note,
-    fields, notesText, images: compareImages(imageAssets(browser, tag)),
+    commit: currentCommit(), fields, notesText, images: compareImages(imageAssets(browser, tag)),
   });
+}
+
+function refreshListingChanges(browser, directory = path.join(ROOT, "dist", browser)) {
+  const file = path.join(directory, "listing-changes.md");
+  const built = fs.existsSync(file);
+  if (built) fs.writeFileSync(file, listingChanges(browser, process.env.LISTING_SINCE || null));
+  return built;
 }
 
 function main() {
@@ -340,4 +380,7 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, baselineTag, report, STORES };
+module.exports = {
+  listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, baselineTag, report,
+  refreshListingChanges, STORES,
+};

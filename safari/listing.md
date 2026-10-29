@@ -20,21 +20,53 @@ ONIX Viewer
 Readable ONIX XML in Safari
 ```
 
-**Bundle ID**: `io.maendeleo.ONIX-Viewer` — registered by Xcode on the
-first archive.
+**Bundle ID** (registered by Xcode on the first archive):
 
-**SKU**: `onix-viewer`
+```
+io.maendeleo.ONIX-Viewer
+```
 
-**Primary category**: Developer Tools. **Secondary**: Utilities.
+**SKU**:
 
-**Privacy policy URL**: `https://maendeleo.io/onix-viewer/privacy.html`
-(the page in `site/`, published with the rest of the site).
+```
+onix-viewer
+```
 
-**Support URL**: `https://github.com/rognlien/onix-viewer/issues`
+**Primary category**:
 
-**Marketing URL**: `https://maendeleo.io/onix-viewer/`
+```
+Developer Tools
+```
 
-**Copyright**: `2026 Bendik Rognlien Johansen`
+**Secondary**:
+
+```
+Utilities
+```
+
+**Privacy policy URL** (the page in `site/`, published with the rest of the site):
+
+```
+https://maendeleo.io/onix-viewer/privacy.html
+```
+
+**Support URL**:
+
+```
+https://github.com/rognlien/onix-viewer/issues
+```
+
+**Marketing URL**:
+
+```
+https://maendeleo.io/onix-viewer/
+```
+
+**Copyright**:
+
+```
+2026 Bendik Rognlien Johansen
+```
 
 **Age rating**: answer every question "None"; the result is 4+.
 

@@ -1,11 +1,16 @@
 // What to change in each store listing, made by tools/listing-changes.js
 // beside each store build. These hold its parts on small inputs, so they
 // do not depend on the repository's tags or history.
+const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { test, describe, assert, ROOT } = require("../harness");
 const {
-  listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, baselineTag, report, STORES,
+  listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, baselineTag, report,
+  refreshListingChanges, STORES,
 } = require(path.join(ROOT, "tools", "listing-changes.js"));
+
+const COMMIT = { hash: "abc1234", dirty: false };
 
 const LISTING = [
   "# Store listing",
@@ -54,6 +59,26 @@ describe("Listing changes", () => {
     const statuses = Object.fromEntries(compareFields(before, after).map((field) => [field.label, field.status]));
     assert(JSON.stringify(statuses) === JSON.stringify({ Name: "unchanged", Description: "changed", New: "added", Old: "removed" }), JSON.stringify(statuses));
     assert(compareFields(before, after)[1].diff === "  one\n- two\n+ 2\n  three", compareFields(before, after)[1].diff);
+  });
+
+  test("a field new since the baseline is unchanged when the baseline wrote it inline under its label", () => {
+    const old = "**Category**: `Developer Tools` (or `Productivity`)\n\n**Primary**: Books. **Secondary**: Utilities.\nMore.\n\nOther text";
+    const after = [
+      { label: "Category", text: "Developer Tools" },
+      { label: "Secondary", text: "Utilities\nMore." },
+      { label: "Primary", text: "Books" },
+      { label: "Homepage", text: "Other text" },
+      { label: "Empty", text: "" },
+    ];
+    const statuses = compareFields([], after, old).map((field) => field.status);
+    assert(JSON.stringify(statuses) === JSON.stringify(["unchanged", "unchanged", "unchanged", "added", "added"]), JSON.stringify(statuses));
+  });
+
+  test("text elsewhere in the baseline, or under another label, does not count", () => {
+    const old = "**Category**: `Productivity`\n\n**Primary**: Books. **Secondary**: Utilities.\n\nDeveloper Tools";
+    const after = [{ label: "Category", text: "Developer Tools" }, { label: "Primary", text: "Utilities" }];
+    const statuses = compareFields([], after, old).map((field) => field.status);
+    assert(JSON.stringify(statuses) === JSON.stringify(["added", "added"]), JSON.stringify(statuses));
   });
 
   test("a renamed field compares with its old label", () => {
@@ -112,12 +137,12 @@ describe("Listing changes", () => {
       { label: "Screenshot Main.png", upload: "screenshots/Main.png", before: "1", after: "2" },
       { label: "Screenshot Gone.png", upload: "screenshots/Gone.png", before: "1", after: null },
     ]);
-    return report({ browser: "firefox", version: "1.0.0", baseline: "v0.9.0", note: null, fields, notesText: "• Fixed it.", images });
+    return report({ browser: "firefox", version: "1.0.0", baseline: "v0.9.0", note: null, commit: COMMIT, fields, notesText: "• Fixed it.", images });
   };
 
   test("the report opens with the versions and a checklist of every action", () => {
     const text = firefoxReport();
-    assert(text.startsWith("# addons.mozilla.org listing for 1.0.0\n\n1.0.0 compared with v0.9.0.\n\n## Checklist\n\n"), text);
+    assert(text.startsWith("# addons.mozilla.org listing for 1.0.0\n\n1.0.0 compared with v0.9.0. Built from abc1234.\n\n## Checklist\n\n"), text);
     assert(text.includes([
       "- [ ] Upload new package: `dist/firefox/onix-viewer-1.0.0-firefox.zip`",
       "- [ ] Upload source code: `dist/firefox/onix-viewer-1.0.0-firefox-source.zip`",
@@ -146,14 +171,34 @@ describe("Listing changes", () => {
   test("a release that changes only the package says so", () => {
     const fields = compareFields([{ label: "Name", text: "A" }], [{ label: "Name", text: "A" }]);
     const images = compareImages([{ label: "Store icon", upload: "icon-128.png", before: "1", after: "1" }]);
-    const text = report({ browser: "chrome", version: "1.0.0", baseline: "v0.9.0", note: null, fields, notesText: null, images });
+    const text = report({ browser: "chrome", version: "1.0.0", baseline: "v0.9.0", note: null, commit: COMMIT, fields, notesText: null, images });
     assert(text.includes("## Checklist\n\n- [ ] Upload new package: `dist/chrome/onix-viewer-1.0.0-chrome.zip`\n\nNo listing field or image changed."), text);
   });
 
   test("a missing baseline is a warning on the first line", () => {
     const fields = compareFields([], [{ label: "Name", text: "A" }]);
-    const text = report({ browser: "safari", version: "1.0.0", baseline: null, note: "No release tag older than 1.0.0 was found.", fields, notesText: "• Fixed it.", images: [] });
-    assert(text.startsWith("> **Warning:** No release tag older than 1.0.0 was found.\n\n# App Store listing for 1.0.0\n\n1.0.0 compared with nothing."), text);
+    const text = report({ browser: "safari", version: "1.0.0", baseline: null, note: "No release tag older than 1.0.0 was found.", commit: COMMIT, fields, notesText: "• Fixed it.", images: [] });
+    assert(text.startsWith("> **Warning:** No release tag older than 1.0.0 was found.\n\n# App Store listing for 1.0.0\n\n1.0.0 compared with nothing. Built from abc1234."), text);
+  });
+
+  test("a report from a dirty tree says so beside the commit", () => {
+    const fields = compareFields([{ label: "Name", text: "A" }], [{ label: "Name", text: "A" }]);
+    const text = report({ browser: "chrome", version: "1.0.0", baseline: "v0.9.0", note: null, commit: { hash: "abc1234", dirty: true }, fields, notesText: null, images: [] });
+    assert(text.includes("\n\n1.0.0 compared with v0.9.0. Built from abc1234 with uncommitted changes.\n\n"), text);
+  });
+
+  test("a refresh rewrites the report a build left, and makes none where there is no build", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "listing-changes-"));
+    try {
+      assert(refreshListingChanges("chrome", directory) === false, "nothing to refresh");
+      assert(!fs.existsSync(path.join(directory, "listing-changes.md")), "no report made");
+      fs.writeFileSync(path.join(directory, "listing-changes.md"), "stale");
+      assert(refreshListingChanges("chrome", directory) === true, "refreshed");
+      const text = fs.readFileSync(path.join(directory, "listing-changes.md"), "utf8");
+      assert(text.includes("# Chrome Web Store listing for ") && text.includes(" Built from "), text);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   test("every store is described", () => {

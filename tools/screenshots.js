@@ -15,7 +15,8 @@
 // which is why the Chrome and Firefox sets differ only in text rendering.
 //
 // After a run the set is also copied into dist/<browser>/screenshots/, the
-// store's upload folder, so the folder never holds an older set.
+// store's upload folder, so the folder never holds an older set; when that
+// folder holds a build, its listing-changes.md is written again to match.
 //
 // The site copies in site/ are held to chrome/screenshots/ by a test, so
 // after the Chrome set tools/site-sync.js copies the three there and
@@ -336,6 +337,9 @@ function copyToDist() {
     fs.copyFileSync(path.join(OUT, `${name}.png`), path.join(dist, `${name}.png`));
   }
   console.log(`  copied to ${path.relative(ROOT, dist)}/`);
+  if (require("./listing-changes.js").refreshListingChanges(BROWSER)) {
+    console.log(`  rewrote dist/${BROWSER}/listing-changes.md`);
+  }
 }
 
 // ---- main ---------------------------------------------------------------------
