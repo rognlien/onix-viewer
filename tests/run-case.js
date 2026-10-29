@@ -5,4 +5,4 @@ const { parentPort, workerData } = require("worker_threads");
 const harness = require("./harness");
 
 require(workerData.file);
-parentPort.postMessage(harness.results());
+harness.settled().then(() => parentPort.postMessage(harness.results()));

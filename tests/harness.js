@@ -78,25 +78,49 @@ function print(line) {
 let currentLabel = "";
 let labelPending = false;
 
+// A test may return a promise. From the first one on, the tests of the file
+// run one after another, each once the one before has settled, so the output
+// keeps the order they were written in; settled() says when all have.
+let queue = null;
+
 function test(name, fn) {
   if (FILTER && !`${currentLabel} ${name}`.toLowerCase().includes(FILTER)) {
     skipped++;
     return;
   }
-  if (labelPending) {
-    print(`\n${currentLabel}`);
-    labelPending = false;
-  }
+  const label = labelPending ? currentLabel : "";
+  labelPending = false;
+  if (queue) queue = queue.then(() => runTest(name, fn, label));
+  else queue = runTest(name, fn, label);
+}
+
+function runTest(name, fn, label) {
+  if (label) print(`\n${label}`);
+  let outcome = null;
   try {
-    fn();
-    passed++;
-    print(`  \x1b[32m✓\x1b[0m ${name}`);
+    const returned = fn();
+    if (returned && typeof returned.then === "function") outcome = returned.then(() => pass(name), (err) => fail(name, err));
+    else pass(name);
   } catch (err) {
-    failed++;
-    failures.push({ name, err });
-    print(`  \x1b[31m✗\x1b[0m ${name}`);
-    print(`    ${err.message}`);
+    fail(name, err);
   }
+  return outcome;
+}
+
+function pass(name) {
+  passed++;
+  print(`  \x1b[32m✓\x1b[0m ${name}`);
+}
+
+function fail(name, err) {
+  failed++;
+  failures.push({ name, err });
+  print(`  \x1b[31m✗\x1b[0m ${name}`);
+  print(`    ${err.message}`);
+}
+
+function settled() {
+  return queue || Promise.resolve();
 }
 
 function describe(label, fn) {
@@ -258,5 +282,5 @@ module.exports = {
   findings, codes, described, findingsCoded, validationLabel, shortTwin,
   withDescriptiveDetail, ROOT, RES, FIXTURES, SAMPLES, contentModelFor,
   contentModelJs, codelistsJs, onixJs, validateJs, popupJs, viewerJs,
-  viewerCss, results,
+  viewerCss, results, settled,
 };
