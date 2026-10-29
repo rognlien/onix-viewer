@@ -30,7 +30,11 @@ review; the listed fields below are set once and edited from the add-on's
 ONIX Viewer
 ```
 
-**Add-on URL** (the slug): `onix-viewer`
+**Add-on URL** (the slug):
+
+```
+onix-viewer
+```
 
 **Summary** (max 250 chars, shown in search results and at the top of the page):
 
@@ -93,16 +97,38 @@ or endorsed by EDItEUR. The source is public at
 https://github.com/rognlien/onix-viewer.
 ```
 
-**Categories** (up to two): **Web Development**, **Other**.
+**Categories** (up to two):
 
-**Tags**: whichever of AMO's fixed list fit; `developer tools` if offered.
+```
+Web Development
+Other
+```
 
-**Support email**: none. **Support website**:
-`https://github.com/rognlien/onix-viewer/issues`
+**Tags**: whichever of AMO's fixed list fit; this one if offered:
 
-**Homepage**: `https://maendeleo.io/onix-viewer/`
+```
+developer tools
+```
 
-**Licence**: **MIT License** (in AMO's list; the repo's `LICENSE`).
+**Support email**: none.
+
+**Support website**:
+
+```
+https://github.com/rognlien/onix-viewer/issues
+```
+
+**Homepage**:
+
+```
+https://maendeleo.io/onix-viewer/
+```
+
+**Licence** (in AMO's list; the repo's `LICENSE`):
+
+```
+MIT License
+```
 
 **Privacy policy**: AMO asks whether the add-on has one. Answer yes and
 paste this, which is the published policy in one paragraph:

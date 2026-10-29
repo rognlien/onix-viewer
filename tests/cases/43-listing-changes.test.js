@@ -56,6 +56,26 @@ describe("Listing changes", () => {
     assert(compareFields(before, after)[1].diff === "  one\n- two\n+ 2\n  three", compareFields(before, after)[1].diff);
   });
 
+  test("a field new since the baseline is unchanged when the baseline wrote it inline under its label", () => {
+    const old = "**Category**: `Developer Tools` (or `Productivity`)\n\n**Primary**: Books. **Secondary**: Utilities.\nMore.\n\nOther text";
+    const after = [
+      { label: "Category", text: "Developer Tools" },
+      { label: "Secondary", text: "Utilities\nMore." },
+      { label: "Primary", text: "Books" },
+      { label: "Homepage", text: "Other text" },
+      { label: "Empty", text: "" },
+    ];
+    const statuses = compareFields([], after, old).map((field) => field.status);
+    assert(JSON.stringify(statuses) === JSON.stringify(["unchanged", "unchanged", "unchanged", "added", "added"]), JSON.stringify(statuses));
+  });
+
+  test("text elsewhere in the baseline, or under another label, does not count", () => {
+    const old = "**Category**: `Productivity`\n\n**Primary**: Books. **Secondary**: Utilities.\n\nDeveloper Tools";
+    const after = [{ label: "Category", text: "Developer Tools" }, { label: "Primary", text: "Utilities" }];
+    const statuses = compareFields([], after, old).map((field) => field.status);
+    assert(JSON.stringify(statuses) === JSON.stringify(["added", "added"]), JSON.stringify(statuses));
+  });
+
   test("the diff keeps one line of context and marks the gaps", () => {
     const before = ["a", "b", "c", "d", "e", "f", "g"].join("\n");
     const after = ["A", "b", "c", "d", "e", "f", "G"].join("\n");
