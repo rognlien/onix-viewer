@@ -90,8 +90,9 @@ tools/package-extension.sh                  # dist/chrome/onix-viewer-<v>-chrome
 tools/package-extension.sh --target=firefox # dist/firefox/onix-viewer-<v>-firefox.zip  addons.mozilla.org
 ```
 
-Beside each zip, `listing-changes.md` says which fields and images of the
-store listing changed since the previous release, with the new text.
+Beside each zip, `listing-changes.md` is a checklist of what to change in the
+store listing since the previous release, with the new text and the files to
+upload.
 
 Both drop `version_name`. The Chrome build also drops
 `browser_specific_settings`; the Firefox build drops `minimum_chrome_version`.

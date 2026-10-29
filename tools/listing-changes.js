@@ -28,6 +28,7 @@ const STORES = {
   chrome: {
     title: "Chrome Web Store",
     releaseNotes: null,
+    packageSteps: (version) => [`Upload new package: \`dist/chrome/onix-viewer-${version}-chrome.zip\``],
     images: [
       { label: "Store icon", upload: "icon-128.png", sources: ["Resources/icons/icon-128.png"] },
       { label: "Small promo tile", upload: "promo-tile-440x280.png", sources: ["chrome/promo-tile.svg", "icons/icon-original.png"] },
@@ -37,6 +38,10 @@ const STORES = {
   firefox: {
     title: "addons.mozilla.org",
     releaseNotes: "Release notes",
+    packageSteps: (version) => [
+      `Upload new package: \`dist/firefox/onix-viewer-${version}-firefox.zip\``,
+      `Upload source code: \`dist/firefox/onix-viewer-${version}-firefox-source.zip\``,
+    ],
     images: [
       { label: "Icon", upload: "icon-128.png", sources: ["Resources/icons/icon-128.png"] },
     ],
@@ -44,11 +49,13 @@ const STORES = {
   safari: {
     title: "App Store",
     releaseNotes: "What's New",
+    packageSteps: () => ["Archive and upload the new build in Xcode: `dist/safari/ONIX Viewer/ONIX Viewer.xcodeproj`"],
     images: [],
   },
 };
 
-const STATUS_WORDS = { unchanged: "unchanged", changed: "CHANGED", added: "ADDED", removed: "REMOVED" };
+const FIELD_VERBS = { changed: "Replace text", added: "Fill in new field" };
+const IMAGE_VERBS = { changed: "Replace", added: "Add" };
 
 function compareVersions(left, right) {
   const leftParts = left.split(".").map(Number);
@@ -167,51 +174,74 @@ function compareImages(images) {
   return images.map((image) => ({ ...image, status: assetStatus(image.before, image.after) }));
 }
 
-function summaryLine(heading, labels) {
-  return labels.length ? `**${heading}:** ${labels.join(", ")}.` : null;
+function isChange(item) {
+  return item.status !== "unchanged";
 }
 
-function summary(fields, notesLabel, images) {
-  const items = [...fields, ...images];
-  const named = (statuses) => items.filter((item) => statuses.includes(item.status)).map((item) => item.label);
-  const change = [...named(["changed", "added"]), ...(notesLabel ? [notesLabel] : [])];
-  return [
-    summaryLine("Change", change),
-    summaryLine("Remove", named(["removed"])),
-    summaryLine("Unchanged", named(["unchanged"])),
-  ].filter(Boolean).join("  \n");
+function isPasted(field) {
+  return field.status === "changed" || field.status === "added";
+}
+
+function task(text) {
+  return `- [ ] ${text}`;
+}
+
+function fieldStep(field) {
+  return field.status === "removed"
+    ? `Clear field: ${field.label} (no longer in the listing)`
+    : `${FIELD_VERBS[field.status]}: ${field.label} (below)`;
+}
+
+function imageStep(image, browser) {
+  const name = image.label.charAt(0).toLowerCase() + image.label.slice(1);
+  return image.status === "removed"
+    ? `Remove ${name} from the listing`
+    : `${IMAGE_VERBS[image.status]} ${name}: \`dist/${browser}/${image.upload}\``;
+}
+
+function checklist({ browser, version, fields, images }) {
+  const store = STORES[browser];
+  const listingSteps = [
+    ...fields.filter(isChange).map(fieldStep),
+    ...images.filter(isChange).map((image) => imageStep(image, browser)),
+  ];
+  const steps = [
+    ...store.packageSteps(version),
+    ...listingSteps,
+    ...(store.releaseNotes ? [`Paste ${store.releaseNotes} (below)`] : []),
+  ];
+  const quiet = listingSteps.length ? null : "No listing field or image changed.";
+  return ["## Checklist", steps.map(task).join("\n"), quiet].filter(Boolean).join("\n\n");
 }
 
 function fenced(text, language = "") {
   return ["```" + language, text, "```"].join("\n");
 }
 
-function fieldSection(field) {
-  const parts = [`### ${field.label} — ${STATUS_WORDS[field.status]}`];
-  if (field.diff) parts.push(fenced(field.diff, "diff"), "New text, to paste:");
-  if (field.status === "changed" || field.status === "added") parts.push(fenced(field.text));
+function fieldSection(field, baseline) {
+  const heading = field.status === "added" ? `## ${field.label} (new field)` : `## ${field.label}`;
+  const parts = [heading, fenced(field.text)];
+  if (field.diff) parts.push(`Reference only, what changed since ${baseline}:`, fenced(field.diff, "diff"));
   return parts.join("\n\n");
 }
 
-function imagesTable(images, browser) {
-  const rows = images.map((image) => `| ${image.label} | ${STATUS_WORDS[image.status]} | ${image.status === "removed" ? "—" : "`" + image.upload + "`"} |`);
-  return [`| Image | Status | Upload from \`dist/${browser}/\` |`, "|---|---|---|", ...rows].join("\n");
+function unchangedLine(fields, images) {
+  const names = (items) => items.filter((item) => !isChange(item)).map((item) => item.label).join(", ");
+  const kinds = [["text", names(fields)], ["images", names(images)]].filter(([, list]) => list);
+  return kinds.length ? `**Unchanged** — ${kinds.map(([kind, list]) => `${kind}: ${list}`).join("; ")}.` : null;
 }
 
 function report({ browser, version, baseline, note, fields, notesText, images }) {
   const store = STORES[browser];
-  const notesLabel = store.releaseNotes;
-  const parts = [
-    `# ${store.title} listing changes for ${version}`,
-    baseline ? `Compared with ${baseline}, the listing as of the previous store release.` : null,
-    note,
-    summary(fields, notesLabel, images),
-    "## Text fields",
-    ...fields.map(fieldSection),
-  ].filter(Boolean);
-  if (notesLabel) parts.push(`## ${notesLabel} — enter for ${version}`, fenced(notesText));
-  if (images.length) parts.push("## Images", imagesTable(images, browser));
-  return parts.join("\n\n") + "\n";
+  return [
+    note ? `> **Warning:** ${note}` : null,
+    `# ${store.title} listing for ${version}`,
+    `${version} compared with ${baseline || "nothing"}.`,
+    checklist({ browser, version, fields, images }),
+    ...fields.filter(isPasted).map((field) => fieldSection(field, baseline)),
+    store.releaseNotes ? `## ${store.releaseNotes} for ${version}\n\n${fenced(notesText)}` : null,
+    unchangedLine(fields, images),
+  ].filter(Boolean).join("\n\n") + "\n";
 }
 
 function git(args) {
@@ -263,8 +293,8 @@ function baselineFor(version, since) {
   const tags = (git(["tag", "--list", "v*"]) || "").split("\n").filter(Boolean);
   const tag = since || previousTag(tags, version);
   let note = null;
-  if (!tag) note = `No release tag older than ${version} was found, so there is nothing to compare with: every field and image is listed as added.`;
-  else if (!blobAt(tag, "Resources/manifest.json")) note = `${tag} is not a tag in this checkout, so there is nothing to compare with: every field and image is listed as added.`;
+  if (!tag) note = `No release tag older than ${version} was found, so there is nothing to compare with: every field and image is listed as new.`;
+  else if (!blobAt(tag, "Resources/manifest.json")) note = `${tag} is not a tag in this checkout, so there is nothing to compare with: every field and image is listed as new.`;
   return { tag: note ? null : tag, note };
 }
 
@@ -276,7 +306,7 @@ function listingChanges(browser, since) {
   const fields = compareFields(listingFields(oldListing || ""), listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")));
   const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
   const notesText = STORES[browser].releaseNotes ? releaseNotes(changelog, version) : null;
-  const missingListing = tag && oldListing === null ? `${listing} did not exist at ${tag}, so every field is listed as added.` : null;
+  const missingListing = tag && oldListing === null ? `${listing} did not exist at ${tag}, so every field is listed as new.` : null;
   return report({
     browser, version, baseline: tag, note: missingListing || note,
     fields, notesText, images: compareImages(imageAssets(browser, tag)),

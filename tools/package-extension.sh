@@ -43,9 +43,9 @@
 #
 # The listing copy and the screenshots are copies of the committed ones in
 # <browser>/, so the folder is complete on its own and nothing in it is the
-# original. Each store folder also gets listing-changes.md: every listing
-# field and image, changed or not since the previous release tag, with the
-# new text to paste (tools/listing-changes.js). LISTING_SINCE=v0.9.21 sets
+# original. Each store folder also gets listing-changes.md: a checklist of
+# what to change in the store since the previous release tag, with the new
+# text to paste (tools/listing-changes.js). LISTING_SINCE=v0.9.21 sets
 # the baseline instead, for when a version never reached a store.
 #
 # The copy exists for the manifest edits. The committed manifest carries
