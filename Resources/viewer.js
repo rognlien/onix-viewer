@@ -15,166 +15,6 @@
 (function () {
   "use strict";
 
-  // Named here so Collapse's ONIX-shaped steps are skipped on non-ONIX
-  // documents, where the ONIX module isn't consulted at all.
-  const isProductElement = window.OnixViewerOnix
-    ? window.OnixViewerOnix.isProductElement
-    : () => false;
-
-  // Tree row → the source DOM element it renders. Used by the per-node
-  // menu ("Copy node XML") to serialise the original, undecorated subtree.
-  const rowElements = new WeakMap();
-  // The reverse, so a validation finding can be pinned to the row that shows
-  // the element it is about. Text and CDATA rows are in here too, for the
-  // stray-text finding, which is about an element but shown on its text.
-  const elementRows = new WeakMap();
-  // The last completed validation run, so the summary label can list it.
-  // Declared up here because validation starts during setup, before the
-  // validation section further down has been reached.
-  let lastValidation = null;
-  // The pass under way, so a slice of a pass that has been superseded — the
-  // reader picked another release or applied rules mid-way — stops rather
-  // than finishing and pinning its findings over the new pass's.
-  let activeSession = null;
-  // The release the document is judged against: what it declares, unless the
-  // reader picked the other bundled one from the toolbar's selector.
-  let validationRelease = null;
-
-  // Products rendered on demand. Building rows is what a large feed spends
-  // its time on — 2.6 s of the 4.8 s to the first verdict on 1,000 products —
-  // and the reader only ever looks at a screenful, so above this many
-  // products each Product's subtree waits until it nears the viewport. Below
-  // it the whole tree is built up front, which keeps a small file simple
-  // and deterministic (jsdom has no IntersectionObserver either, so the
-  // suite always takes that path unless a test supplies one).
-  const LAZY_FROM_PRODUCTS = 20;
-  let lazy = false;
-  let pendingObserver = null;
-  // A deferred Product's children container → { el, depth } until rendered.
-  const pendingContainers = new Map();
-  // The reverse: the Product element → its container, for ensureRendered().
-  const pendingByElement = new Map();
-  // Findings inside a deferred Product, pinned when it renders.
-  const pendingFindings = new Map();
-
-  // ---- held-back features ---------------------------------------------------
-
-  // The custom-rules editor behind the toolbar's cog is built and tested but
-  // off in the shipped build until it is ready: the cog is not in the
-  // toolbar, a rules block on the page is ignored, and the manifest asks for
-  // no permission at all. Its tests turn it on through
-  // window.OnixViewerFeatures before the viewer loads; content.js carries
-  // its own copy of the switch, since it runs in the other world.
-  const FEATURES = Object.assign({ customRules: false }, window.OnixViewerFeatures);
-  window.OnixViewerFeatures = FEATURES;
-
-  // ---- icons ----------------------------------------------------------------
-
-  // Inline SVG rather than characters. ⚠ has an emoji presentation on several
-  // platforms, so it renders as a colour emoji inside a coloured chip, and
-  // glyph metrics vary enough between fonts to shift a 12px chip around.
-  // Everything is stroked in currentColor, so a chip's own colour carries.
-  const SVG_NS = "http://www.w3.org/2000/svg";
-  const ICONS = Object.assign(Object.create(null), {
-    // The conventional pair as small solid glyphs: a filled circle with a
-    // cross knocked out of it, a filled triangle with a bang. Solid shapes
-    // hold at 12px where outlines go muddy, and the glyph carries the colour
-    // itself, so the pill around it can stay the neutral chip grey.
-    error: [
-      ["circle", { cx: "8", cy: "8", r: "7", fill: "currentColor", stroke: "none" }],
-      ["path", { d: "M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8", stroke: "#fff", "stroke-width": "1.8" }],
-    ],
-    warning: [
-      ["path", { d: "M8 1.6L15.2 14.2H0.8z", fill: "currentColor", "stroke-width": "1.2" }],
-      ["path", { d: "M8 6v3.6", stroke: "#2b2100", "stroke-width": "1.7" }],
-      ["circle", { cx: "8", cy: "12", r: "0.95", fill: "#2b2100", stroke: "none" }],
-    ],
-    close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
-    // An eight-tooth cog: one outline plus the hub. Computed on the grid —
-    // teeth between radii 5.1 and 6.9, eight degrees wide at the tip — and
-    // checked at 14px, where the teeth still count.
-    settings: [
-      ["path", { d: "M6.77 3.05L7.04 1.17L8.96 1.17L9.23 3.05L10.63 3.63L12.15 2.49L13.51 3.85L12.37 5.37L12.95 6.77L14.83 7.04L14.83 8.96L12.95 9.23L12.37 10.63L13.51 12.15L12.15 13.51L10.63 12.37L9.23 12.95L8.96 14.83L7.04 14.83L6.77 12.95L5.37 12.37L3.85 13.51L2.49 12.15L3.63 10.63L3.05 9.23L1.17 8.96L1.17 7.04L3.05 6.77L3.63 5.37L2.49 3.85L3.85 2.49L5.37 3.63Z", "stroke-width": "1.4", "stroke-linejoin": "round" }],
-      ["circle", { cx: "8", cy: "8", r: "2.1", "stroke-width": "1.4" }],
-    ],
-    ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
-    file: [
-      ["path", { d: "M4.2 2.2h4.9l3 3v8.6H4.2z", "stroke-width": "1.5" }],
-      ["path", { d: "M9.1 2.2v3h3", "stroke-width": "1.5" }],
-    ],
-    search: [
-      ["circle", { cx: "7", cy: "7", r: "4.3", "stroke-width": "1.8" }],
-      ["path", { d: "M10.3 10.3l3.3 3.3", "stroke-width": "1.8" }],
-    ],
-    // Chevrons pointing apart / together — the fold direction, matching the
-    // row chevrons the buttons act on.
-    // Chevrons opening away from a rule and closing onto it, as GitHub's
-    // unfold and fold icons expand and hide lines in a diff. A boxed plus
-    // and minus said "add" and "remove" rather than "open" and "fold"; rows
-    // with ▾ and ▸, the tree's own signs, shrank to specks at 16px.
-    expand: [
-      ["path", { d: "M2 8h12", "stroke-width": "1.6" }],
-      ["path", { d: "M5.4 4.4L8 1.8l2.6 2.6M5.4 11.6L8 14.2l2.6-2.6", "stroke-width": "1.6" }],
-    ],
-    collapse: [
-      ["path", { d: "M2 8h12", "stroke-width": "1.6" }],
-      ["path", { d: "M5.4 2.6L8 5.2l2.6-2.6M5.4 13.4L8 10.8l2.6 2.6", "stroke-width": "1.6" }],
-    ],
-    // Wrap text, as the editors draw it: a full line, a line that runs to the
-    // right edge and hooks back beneath itself, and the short line it lands
-    // on. The return arrow alone said "Enter" rather than "wrap".
-    wrap: [
-      ["path", { d: "M2 3.5h12", "stroke-width": "1.5" }],
-      ["path", { d: "M2 8h9.2a2.3 2.3 0 010 4.6H7.6", "stroke-width": "1.5" }],
-      ["path", { d: "M9.4 10.8l-1.8 1.8 1.8 1.8", "stroke-width": "1.5" }],
-      ["path", { d: "M2 12.6h2.6", "stroke-width": "1.5" }],
-    ],
-    // Two sheets, one behind the other.
-    copy: [
-      ["rect", { x: "3.3", y: "5.3", width: "7.9", height: "8.4", rx: "1.2", "stroke-width": "1.5" }],
-      ["path", { d: "M5.8 5.3V3.5a1.2 1.2 0 011.2-1.2h5.7a1.2 1.2 0 011.2 1.2v6.6a1.2 1.2 0 01-1.2 1.2h-1.5", "stroke-width": "1.5" }],
-    ],
-    // An arrow down onto a tray.
-    download: [
-      ["path", { d: "M8 2.4v7.4M4.9 6.9L8 10l3.1-3.1", "stroke-width": "1.7" }],
-      ["path", { d: "M2.8 10.6v2a1.2 1.2 0 001.2 1.2h8a1.2 1.2 0 001.2-1.2v-2", "stroke-width": "1.7" }],
-    ],
-    // An open arc: three quarters of the circle, spun by CSS.
-    spinner: [["circle", {
-      cx: "8", cy: "8", r: "5.6", "stroke-width": "2",
-      "stroke-dasharray": "26 9", "stroke-linecap": "round",
-    }]],
-  });
-
-  function icon(name) {
-    const svg = document.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("viewBox", "0 0 16 16");
-    svg.setAttribute("class", "px-icon");
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-    for (const [tag, attributes] of ICONS[name] || []) {
-      const shape = document.createElementNS(SVG_NS, tag);
-      for (const key of Object.keys(attributes)) shape.setAttribute(key, attributes[key]);
-      svg.appendChild(shape);
-    }
-    return svg;
-  }
-  let activeTreeRow = null;
-
-  const DIALECT_STORAGE_KEY = "oxv-dialect";
-
-  // Up here because the first pass starts before the release selector's own
-  // section is reached.
-  const UNDECLARED_RELEASE = "3.0";
-
-  // The dialect the document is written in, and the one currently on screen.
-  // They differ once the reader flips the toolbar toggle.
-  let sourceDialect = null;
-  let displayDialect = null;
-
   // We render into a document whose contentType is still "application/xml"
   // (we only swapped documentElement; the document type is set at navigation
   // time and is read-only). In an XML document, document.createElement
@@ -185,1706 +25,1876 @@
   // produces real HTMLElements.
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const _createElementNS = document.createElementNS.bind(document);
-  document.createElement = function (tagName) {
-    return _createElementNS(HTML_NS, tagName);
-  };
-
-  // content.js stashes the source in a non-executing <script type="application/xml">
-  // data block; the test harness still sets window.__OXV_SOURCE__ directly.
-  const sourceEl = document.getElementById("__oxv-source__");
-  const SOURCE = (sourceEl && sourceEl.textContent) || window.__OXV_SOURCE__ || "";
-  const root = document.getElementById("oxv-root");
-
-  // Two enabled copies of the extension (a Web Store install alongside an
-  // unpacked one) each inject this file. The second copy's shell replaces the
-  // first one's, but the first copy's scripts still execute — removing a
-  // dynamically inserted <script> from the document doesn't cancel it — so
-  // both instances would render into the surviving #oxv-root and double up
-  // every click handler, leaving the tree drawn twice and the fold chevrons
-  // dead (two handlers toggling px-folded cancel each other out). The first
-  // instance to arrive wins; later ones bail out here.
-  if (!root || root.firstElementChild) return;
-
-  const meta = document.getElementById("oxv-meta");
-  const search = document.getElementById("oxv-search");
-  const status = document.getElementById("oxv-search-status");
-
-  // ---- parse ----------------------------------------------------------------
-
-  const parser = new DOMParser();
-
-  // DOMParser silently inserts a <parsererror> element instead of throwing.
-  // Probe both XML and (as fallback) text/xml — they're equivalent here.
-  const doc = parser.parseFromString(SOURCE, "application/xml");
-  const parserError = doc.getElementsByTagName("parsererror")[0];
-
-  if (parserError) {
-    showParseError(parserError);
-    return;
+  if (document.contentType !== "text/html") {
+    document.createElement = function (tagName) {
+      return _createElementNS(HTML_NS, tagName);
+    };
   }
 
-  const onixCtx = window.OnixViewerOnix
-    ? window.OnixViewerOnix.detect(doc)
-    : { isOnix: false, dialect: null, version: null };
-
-  // ---- render ---------------------------------------------------------------
-
-  sourceDialect = onixCtx.dialect;
-  displayDialect = preferredDialect();
-
-  const productCount = onixCtx.isOnix
-    ? window.OnixViewerOnix.productElements(doc).length
-    : 0;
-  lazy = productCount > LAZY_FROM_PRODUCTS && typeof window.IntersectionObserver === "function";
-  if (lazy) setupLazyProducts();
-
-  renderTree(doc, root, 0);
-
-
-  if (!onixCtx.isOnix) document.body.classList.add("px-no-onix");
-
-  // The tree opens fully expanded, whatever its size: a reader who opens a
-  // file expects to see it, and two presses of Collapse give one line per
-  // Product when that is what they want. (Products used to start folded on a
-  // multi-product feed, which made every file open on a list of chips.)
-  fillMetaPill(formatSize(sourceBytes()), productCount);
-
-  validationRelease = initialRelease();
-  setupToolbar();
-  setupReleaseSelect();
-  setupDialectToggle();
-  setupSearch();
-  setupKeyboard();
-  setupClickHandlers();
-  setupNodeMenu();
-  setupFindingsLabel();
-
-  // ---- rendering helpers ----------------------------------------------------
-
-  // An explicit stack rather than recursion, for the same reason the validator
-  // walks that way: one JS frame per nesting level put the whole render at the
-  // mercy of the engine's stack limit. When it blew, the throw escaped
-  // mid-render and everything after it — the meta pill, validation, the search
-  // and click handlers — never ran, leaving a silently truncated tree that
-  // looked like a complete document. Depth now costs an array entry.
+  // Renders one viewer. `env` says where and what:
   //
-  // Tasks pop LIFO, so children are pushed in reverse to come out in document
-  // order, and an element's close row is pushed *before* its children so it
-  // lands after them.
-  function renderTree(rootNode, rootParent, rootDepth) {
-    drain([{ node: rootNode, parent: rootParent, depth: rootDepth }]);
-  }
+  //   scope   the document or shadow root holding the shell's markup
+  //   frame   the element around it — <body>, or a <div> in a shadow root —
+  //           which carries the view's state classes and hosts the modals
+  //   keys    where the keyboard shortcuts listen; the scope by default
+  //   source  the XML text
+  //   bytes, models, version, browser, fileName, onValidated — optional
+  //
+  // Returns { destroy }, which lets go of everything outside the viewer's
+  // own elements: listeners on the page, the observer, a pass under way.
+  function mount(env) {
+    const { scope, frame } = env;
+    const keys = env.keys || scope;
+    const listening = new AbortController();
+    const { signal } = listening;
 
-  function drain(stack) {
-    while (stack.length) {
-      const task = stack.pop();
-      if (task.close) {
-        const closeRow = appendRow(task.parent, task.depth, false, (row) => {
-          writeCloseTag(row, task.close);
-        });
-        closeRow.classList.add("px-close-row");
-      } else {
-        renderNode(task.node, task.parent, task.depth, stack);
+    // Named here so Collapse's ONIX-shaped steps are skipped on non-ONIX
+    // documents, where the ONIX module isn't consulted at all.
+    const isProductElement = window.OnixViewerOnix
+      ? window.OnixViewerOnix.isProductElement
+      : () => false;
+
+    // Tree row → the source DOM element it renders. Used by the per-node
+    // menu ("Copy node XML") to serialise the original, undecorated subtree.
+    const rowElements = new WeakMap();
+    // The reverse, so a validation finding can be pinned to the row that shows
+    // the element it is about. Text and CDATA rows are in here too, for the
+    // stray-text finding, which is about an element but shown on its text.
+    const elementRows = new WeakMap();
+    // The last completed validation run, so the summary label can list it.
+    // Declared up here because validation starts during setup, before the
+    // validation section further down has been reached.
+    let lastValidation = null;
+    // The pass under way, so a slice of a pass that has been superseded — the
+    // reader picked another release or applied rules mid-way — stops rather
+    // than finishing and pinning its findings over the new pass's.
+    let activeSession = null;
+    // The release the document is judged against: what it declares, unless the
+    // reader picked the other bundled one from the toolbar's selector.
+    let validationRelease = null;
+
+    // Products rendered on demand. Building rows is what a large feed spends
+    // its time on — 2.6 s of the 4.8 s to the first verdict on 1,000 products —
+    // and the reader only ever looks at a screenful, so above this many
+    // products each Product's subtree waits until it nears the viewport. Below
+    // it the whole tree is built up front, which keeps a small file simple
+    // and deterministic (jsdom has no IntersectionObserver either, so the
+    // suite always takes that path unless a test supplies one).
+    const LAZY_FROM_PRODUCTS = 20;
+    let lazy = false;
+    let pendingObserver = null;
+    // A deferred Product's children container → { el, depth } until rendered.
+    const pendingContainers = new Map();
+    // The reverse: the Product element → its container, for ensureRendered().
+    const pendingByElement = new Map();
+    // Findings inside a deferred Product, pinned when it renders.
+    const pendingFindings = new Map();
+
+    // ---- held-back features ---------------------------------------------------
+
+    // The custom-rules editor behind the toolbar's cog is built and tested but
+    // off in the shipped build until it is ready: the cog is not in the
+    // toolbar, a rules block on the page is ignored, and the manifest asks for
+    // no permission at all. Its tests turn it on through
+    // window.OnixViewerFeatures before the viewer loads; content.js carries
+    // its own copy of the switch, since it runs in the other world.
+    const FEATURES = Object.assign({ customRules: false }, window.OnixViewerFeatures);
+    window.OnixViewerFeatures = FEATURES;
+
+    // ---- icons ----------------------------------------------------------------
+
+    // Inline SVG rather than characters. ⚠ has an emoji presentation on several
+    // platforms, so it renders as a colour emoji inside a coloured chip, and
+    // glyph metrics vary enough between fonts to shift a 12px chip around.
+    // Everything is stroked in currentColor, so a chip's own colour carries.
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const ICONS = Object.assign(Object.create(null), {
+      // The conventional pair as small solid glyphs: a filled circle with a
+      // cross knocked out of it, a filled triangle with a bang. Solid shapes
+      // hold at 12px where outlines go muddy, and the glyph carries the colour
+      // itself, so the pill around it can stay the neutral chip grey.
+      error: [
+        ["circle", { cx: "8", cy: "8", r: "7", fill: "currentColor", stroke: "none" }],
+        ["path", { d: "M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8", stroke: "#fff", "stroke-width": "1.8" }],
+      ],
+      warning: [
+        ["path", { d: "M8 1.6L15.2 14.2H0.8z", fill: "currentColor", "stroke-width": "1.2" }],
+        ["path", { d: "M8 6v3.6", stroke: "#2b2100", "stroke-width": "1.7" }],
+        ["circle", { cx: "8", cy: "12", r: "0.95", fill: "#2b2100", stroke: "none" }],
+      ],
+      close: [["path", { d: "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2", "stroke-width": "1.7" }]],
+      // An eight-tooth cog: one outline plus the hub. Computed on the grid —
+      // teeth between radii 5.1 and 6.9, eight degrees wide at the tip — and
+      // checked at 14px, where the teeth still count.
+      settings: [
+        ["path", { d: "M6.77 3.05L7.04 1.17L8.96 1.17L9.23 3.05L10.63 3.63L12.15 2.49L13.51 3.85L12.37 5.37L12.95 6.77L14.83 7.04L14.83 8.96L12.95 9.23L12.37 10.63L13.51 12.15L12.15 13.51L10.63 12.37L9.23 12.95L8.96 14.83L7.04 14.83L6.77 12.95L5.37 12.37L3.85 13.51L2.49 12.15L3.63 10.63L3.05 9.23L1.17 8.96L1.17 7.04L3.05 6.77L3.63 5.37L2.49 3.85L3.85 2.49L5.37 3.63Z", "stroke-width": "1.4", "stroke-linejoin": "round" }],
+        ["circle", { cx: "8", cy: "8", r: "2.1", "stroke-width": "1.4" }],
+      ],
+      ok: [["path", { d: "M3.4 8.4l3.1 3.1 6.1-6.6", "stroke-width": "2.2" }]],
+      file: [
+        ["path", { d: "M4.2 2.2h4.9l3 3v8.6H4.2z", "stroke-width": "1.5" }],
+        ["path", { d: "M9.1 2.2v3h3", "stroke-width": "1.5" }],
+      ],
+      search: [
+        ["circle", { cx: "7", cy: "7", r: "4.3", "stroke-width": "1.8" }],
+        ["path", { d: "M10.3 10.3l3.3 3.3", "stroke-width": "1.8" }],
+      ],
+      // Chevrons pointing apart / together — the fold direction, matching the
+      // row chevrons the buttons act on.
+      // Chevrons opening away from a rule and closing onto it, as GitHub's
+      // unfold and fold icons expand and hide lines in a diff. A boxed plus
+      // and minus said "add" and "remove" rather than "open" and "fold"; rows
+      // with ▾ and ▸, the tree's own signs, shrank to specks at 16px.
+      expand: [
+        ["path", { d: "M2 8h12", "stroke-width": "1.6" }],
+        ["path", { d: "M5.4 4.4L8 1.8l2.6 2.6M5.4 11.6L8 14.2l2.6-2.6", "stroke-width": "1.6" }],
+      ],
+      collapse: [
+        ["path", { d: "M2 8h12", "stroke-width": "1.6" }],
+        ["path", { d: "M5.4 2.6L8 5.2l2.6-2.6M5.4 13.4L8 10.8l2.6 2.6", "stroke-width": "1.6" }],
+      ],
+      // Wrap text, as the editors draw it: a full line, a line that runs to the
+      // right edge and hooks back beneath itself, and the short line it lands
+      // on. The return arrow alone said "Enter" rather than "wrap".
+      wrap: [
+        ["path", { d: "M2 3.5h12", "stroke-width": "1.5" }],
+        ["path", { d: "M2 8h9.2a2.3 2.3 0 010 4.6H7.6", "stroke-width": "1.5" }],
+        ["path", { d: "M9.4 10.8l-1.8 1.8 1.8 1.8", "stroke-width": "1.5" }],
+        ["path", { d: "M2 12.6h2.6", "stroke-width": "1.5" }],
+      ],
+      // Two sheets, one behind the other.
+      copy: [
+        ["rect", { x: "3.3", y: "5.3", width: "7.9", height: "8.4", rx: "1.2", "stroke-width": "1.5" }],
+        ["path", { d: "M5.8 5.3V3.5a1.2 1.2 0 011.2-1.2h5.7a1.2 1.2 0 011.2 1.2v6.6a1.2 1.2 0 01-1.2 1.2h-1.5", "stroke-width": "1.5" }],
+      ],
+      // An arrow down onto a tray.
+      download: [
+        ["path", { d: "M8 2.4v7.4M4.9 6.9L8 10l3.1-3.1", "stroke-width": "1.7" }],
+        ["path", { d: "M2.8 10.6v2a1.2 1.2 0 001.2 1.2h8a1.2 1.2 0 001.2-1.2v-2", "stroke-width": "1.7" }],
+      ],
+      // An open arc: three quarters of the circle, spun by CSS.
+      spinner: [["circle", {
+        cx: "8", cy: "8", r: "5.6", "stroke-width": "2",
+        "stroke-dasharray": "26 9", "stroke-linecap": "round",
+      }]],
+    });
+
+    function icon(name) {
+      const svg = document.createElementNS(SVG_NS, "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("class", "px-icon");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      for (const [tag, attributes] of ICONS[name] || []) {
+        const shape = document.createElementNS(SVG_NS, tag);
+        for (const key of Object.keys(attributes)) shape.setAttribute(key, attributes[key]);
+        svg.appendChild(shape);
+      }
+      return svg;
+    }
+    let activeTreeRow = null;
+
+    const DIALECT_STORAGE_KEY = "oxv-dialect";
+
+    // Up here because the first pass starts before the release selector's own
+    // section is reached.
+    const UNDECLARED_RELEASE = "3.0";
+
+    // The dialect the document is written in, and the one currently on screen.
+    // They differ once the reader flips the toolbar toggle.
+    let sourceDialect = null;
+    let displayDialect = null;
+
+    const SOURCE = env.source || "";
+    const root = scope.getElementById("oxv-root");
+
+    // Two enabled copies of the extension (a Web Store install alongside an
+    // unpacked one) each inject this file. The second copy's shell replaces the
+    // first one's, but the first copy's scripts still execute — removing a
+    // dynamically inserted <script> from the document doesn't cancel it — so
+    // both instances would render into the surviving #oxv-root and double up
+    // every click handler, leaving the tree drawn twice and the fold chevrons
+    // dead (two handlers toggling px-folded cancel each other out). The first
+    // instance to arrive wins; later ones bail out here.
+    if (!root || root.firstElementChild) return { destroy() {} };
+
+    const meta = scope.getElementById("oxv-meta");
+    const search = scope.getElementById("oxv-search");
+    const status = scope.getElementById("oxv-search-status");
+
+    // ---- parse ----------------------------------------------------------------
+
+    const parser = new DOMParser();
+
+    // DOMParser silently inserts a <parsererror> element instead of throwing.
+    // Probe both XML and (as fallback) text/xml — they're equivalent here.
+    const doc = parser.parseFromString(SOURCE, "application/xml");
+    const parserError = doc.getElementsByTagName("parsererror")[0];
+
+    if (parserError) {
+      showParseError(parserError);
+      return { destroy() {} };
+    }
+
+    const onixCtx = window.OnixViewerOnix
+      ? window.OnixViewerOnix.detect(doc)
+      : { isOnix: false, dialect: null, version: null };
+
+    // ---- render ---------------------------------------------------------------
+
+    sourceDialect = onixCtx.dialect;
+    displayDialect = preferredDialect();
+
+    const productCount = onixCtx.isOnix
+      ? window.OnixViewerOnix.productElements(doc).length
+      : 0;
+    lazy = productCount > LAZY_FROM_PRODUCTS && typeof window.IntersectionObserver === "function";
+    if (lazy) setupLazyProducts();
+
+    renderTree(doc, root, 0);
+
+
+    if (!onixCtx.isOnix) frame.classList.add("px-no-onix");
+
+    // The tree opens fully expanded, whatever its size: a reader who opens a
+    // file expects to see it, and two presses of Collapse give one line per
+    // Product when that is what they want. (Products used to start folded on a
+    // multi-product feed, which made every file open on a list of chips.)
+    fillMetaPill(formatSize(sourceBytes()), productCount);
+
+    validationRelease = initialRelease();
+    setupToolbar();
+    setupReleaseSelect();
+    setupDialectToggle();
+    setupSearch();
+    setupKeyboard();
+    setupClickHandlers();
+    setupNodeMenu();
+    setupFindingsLabel();
+
+    // ---- rendering helpers ----------------------------------------------------
+
+    // An explicit stack rather than recursion, for the same reason the validator
+    // walks that way: one JS frame per nesting level put the whole render at the
+    // mercy of the engine's stack limit. When it blew, the throw escaped
+    // mid-render and everything after it — the meta pill, validation, the search
+    // and click handlers — never ran, leaving a silently truncated tree that
+    // looked like a complete document. Depth now costs an array entry.
+    //
+    // Tasks pop LIFO, so children are pushed in reverse to come out in document
+    // order, and an element's close row is pushed *before* its children so it
+    // lands after them.
+    function renderTree(rootNode, rootParent, rootDepth) {
+      drain([{ node: rootNode, parent: rootParent, depth: rootDepth }]);
+    }
+
+    function drain(stack) {
+      while (stack.length) {
+        const task = stack.pop();
+        if (task.close) {
+          const closeRow = appendRow(task.parent, task.depth, false, (row) => {
+            writeCloseTag(row, task.close);
+          });
+          closeRow.classList.add("px-close-row");
+        } else {
+          renderNode(task.node, task.parent, task.depth, stack);
+        }
       }
     }
-  }
 
-  // Pushes onto `stack` where it used to recurse. Everything else about a row
-  // is written here and now, so the output is identical either way.
-  function renderNode(node, parent, depth, stack) {
-    switch (node.nodeType) {
-      case Node.DOCUMENT_NODE:
-        // Preserve XML declaration if present in source. The DOM doesn't expose
-        // it as a node, so sniff the source string.
-        if (/^\s*<\?xml\b/i.test(SOURCE)) {
-          const decl = SOURCE.match(/^\s*<\?xml[^?]*\?>/i);
-          if (decl) {
-            appendRow(parent, depth, false, (row) => {
-              const span = document.createElement("span");
-              span.className = "px-pi";
-              span.textContent = decl[0].trim();
-              row.appendChild(span);
-            });
+    // Pushes onto `stack` where it used to recurse. Everything else about a row
+    // is written here and now, so the output is identical either way.
+    function renderNode(node, parent, depth, stack) {
+      switch (node.nodeType) {
+        case Node.DOCUMENT_NODE:
+          // Preserve XML declaration if present in source. The DOM doesn't expose
+          // it as a node, so sniff the source string.
+          if (/^\s*<\?xml\b/i.test(SOURCE)) {
+            const decl = SOURCE.match(/^\s*<\?xml[^?]*\?>/i);
+            if (decl) {
+              appendRow(parent, depth, false, (row) => {
+                const span = document.createElement("span");
+                span.className = "px-pi";
+                span.textContent = decl[0].trim();
+                row.appendChild(span);
+              });
+            }
           }
+          // Doctype, processing instructions, comments before root, then root.
+          pushChildren(stack, node.childNodes, parent, depth);
+          break;
+
+        case Node.DOCUMENT_TYPE_NODE: {
+          appendRow(parent, depth, false, (row) => {
+            const span = document.createElement("span");
+            span.className = "px-pi";
+            // PUBLIC takes both ids; a system id on its own needs SYSTEM in
+            // front of it, which is the form every ONIX 2.1 DTD reference takes.
+            let s = `<!DOCTYPE ${node.name}`;
+            if (node.publicId) s += ` PUBLIC "${node.publicId}"`;
+            else if (node.systemId) s += " SYSTEM";
+            if (node.systemId) s += ` "${node.systemId}"`;
+            s += ">";
+            span.textContent = s;
+            row.appendChild(span);
+          });
+          break;
         }
-        // Doctype, processing instructions, comments before root, then root.
-        pushChildren(stack, node.childNodes, parent, depth);
-        break;
 
-      case Node.DOCUMENT_TYPE_NODE: {
-        appendRow(parent, depth, false, (row) => {
-          const span = document.createElement("span");
-          span.className = "px-pi";
-          // PUBLIC takes both ids; a system id on its own needs SYSTEM in
-          // front of it, which is the form every ONIX 2.1 DTD reference takes.
-          let s = `<!DOCTYPE ${node.name}`;
-          if (node.publicId) s += ` PUBLIC "${node.publicId}"`;
-          else if (node.systemId) s += " SYSTEM";
-          if (node.systemId) s += ` "${node.systemId}"`;
-          s += ">";
-          span.textContent = s;
-          row.appendChild(span);
-        });
-        break;
+        case Node.PROCESSING_INSTRUCTION_NODE:
+          elementRows.set(node, appendRow(parent, depth, false, (row) => {
+            const span = document.createElement("span");
+            span.className = "px-pi";
+            span.textContent = `<?${node.target} ${node.data}?>`;
+            row.appendChild(span);
+          }));
+          break;
+
+        case Node.COMMENT_NODE:
+          elementRows.set(node, appendRow(parent, depth, false, (row) => {
+            const span = document.createElement("span");
+            span.className = "px-comment";
+            span.textContent = `<!-- ${node.nodeValue} -->`;
+            row.appendChild(span);
+          }));
+          break;
+
+        case Node.ELEMENT_NODE:
+          renderElement(node, parent, depth, stack);
+          break;
+
+        case Node.TEXT_NODE: {
+          const txt = node.nodeValue;
+          if (!txt || !txt.trim()) return; // ignore whitespace-only text
+          // Shown trimmed: the row is already indented to its depth, and the
+          // blank lines around a text node between elements are the file's
+          // layout, not content — kept verbatim they made the row three lines
+          // tall with the finding pill stranded on the last. Copying is from
+          // the source, so nothing is lost.
+          const textRow = appendRow(parent, depth, false, (row) => {
+            const span = document.createElement("span");
+            span.className = "px-text";
+            span.textContent = txt.trim();
+            row.appendChild(span);
+          });
+          elementRows.set(node, textRow);
+          break;
+        }
+
+        case Node.CDATA_SECTION_NODE:
+          elementRows.set(node, appendRow(parent, depth, false, (row) => {
+            const open = document.createElement("span");
+            open.className = "px-cdata-marker";
+            open.textContent = "<![CDATA[";
+            const body = document.createElement("span");
+            body.className = "px-text";
+            body.textContent = node.nodeValue;
+            const close = document.createElement("span");
+            close.className = "px-cdata-marker";
+            close.textContent = "]]>";
+            row.append(open, body, close);
+          }));
+          break;
       }
+    }
 
-      case Node.PROCESSING_INSTRUCTION_NODE:
-        elementRows.set(node, appendRow(parent, depth, false, (row) => {
-          const span = document.createElement("span");
-          span.className = "px-pi";
-          span.textContent = `<?${node.target} ${node.data}?>`;
-          row.appendChild(span);
-        }));
-        break;
-
-      case Node.COMMENT_NODE:
-        elementRows.set(node, appendRow(parent, depth, false, (row) => {
-          const span = document.createElement("span");
-          span.className = "px-comment";
-          span.textContent = `<!-- ${node.nodeValue} -->`;
-          row.appendChild(span);
-        }));
-        break;
-
-      case Node.ELEMENT_NODE:
-        renderElement(node, parent, depth, stack);
-        break;
-
-      case Node.TEXT_NODE: {
-        const txt = node.nodeValue;
-        if (!txt || !txt.trim()) return; // ignore whitespace-only text
-        // Shown trimmed: the row is already indented to its depth, and the
-        // blank lines around a text node between elements are the file's
-        // layout, not content — kept verbatim they made the row three lines
-        // tall with the finding pill stranded on the last. Copying is from
-        // the source, so nothing is lost.
-        const textRow = appendRow(parent, depth, false, (row) => {
-          const span = document.createElement("span");
-          span.className = "px-text";
-          span.textContent = txt.trim();
-          row.appendChild(span);
-        });
-        elementRows.set(node, textRow);
-        break;
+    // An element takes one of three shapes, decided by what its children are:
+    // empty, text-only, or element-bearing. This classifies and delegates; the
+    // three renderers below own the DOM each shape produces.
+    function renderElement(el, parent, depth, stack) {
+      const children = Array.from(el.childNodes).filter(
+        (n) => n.nodeType !== Node.TEXT_NODE || n.nodeValue.trim().length > 0
+      );
+      const textOnly = children.length > 0 && children.every(
+        (n) => n.nodeType === Node.TEXT_NODE || n.nodeType === Node.CDATA_SECTION_NODE
+      );
+      if (children.length === 0) {
+        renderEmptyElement(el, parent, depth);
+      } else if (textOnly) {
+        renderTextElement(el, parent, depth, children);
+      } else {
+        renderParentElement(el, parent, depth, stack);
       }
-
-      case Node.CDATA_SECTION_NODE:
-        elementRows.set(node, appendRow(parent, depth, false, (row) => {
-          const open = document.createElement("span");
-          open.className = "px-cdata-marker";
-          open.textContent = "<![CDATA[";
-          const body = document.createElement("span");
-          body.className = "px-text";
-          body.textContent = node.nodeValue;
-          const close = document.createElement("span");
-          close.className = "px-cdata-marker";
-          close.textContent = "]]>";
-          row.append(open, body, close);
-        }));
-        break;
     }
-  }
 
-  // An element takes one of three shapes, decided by what its children are:
-  // empty, text-only, or element-bearing. This classifies and delegates; the
-  // three renderers below own the DOM each shape produces.
-  function renderElement(el, parent, depth, stack) {
-    const children = Array.from(el.childNodes).filter(
-      (n) => n.nodeType !== Node.TEXT_NODE || n.nodeValue.trim().length > 0
-    );
-    const textOnly = children.length > 0 && children.every(
-      (n) => n.nodeType === Node.TEXT_NODE || n.nodeType === Node.CDATA_SECTION_NODE
-    );
-    if (children.length === 0) {
-      renderEmptyElement(el, parent, depth);
-    } else if (textOnly) {
-      renderTextElement(el, parent, depth, children);
-    } else {
-      renderParentElement(el, parent, depth, stack);
+    // <Tag attr="val"/> — one self-closing row.
+    function renderEmptyElement(el, parent, depth) {
+      const row = appendRow(parent, depth, false, (r) => {
+        writeOpenTag(r, el, /* selfClose */ true);
+      });
+      attachNodeMenu(row, el);
     }
-  }
 
-  // <Tag attr="val"/> — one self-closing row.
-  function renderEmptyElement(el, parent, depth) {
-    const row = appendRow(parent, depth, false, (r) => {
-      writeOpenTag(r, el, /* selfClose */ true);
-    });
-    attachNodeMenu(row, el);
-  }
-
-  // <Tag>text</Tag> — one row, with a code-list badge when the value resolves.
-  // A value that does not resolve but is bound to a list all the same — a
-  // code the list lacks — still gets the list chip, so the reader can open
-  // the list the code should have come from.
-  function renderTextElement(el, parent, depth, children) {
-    const onix = window.OnixViewerOnix;
-    const resolved = onix ? onix.resolveCodelist(el, onixCtx) : null;
-    const bound = !resolved && onix ? onix.codelistFor(el, onixCtx) : null;
-    const textClass = resolved ? "px-text px-codelist-value" : "px-text";
-    const row = appendRow(parent, depth, false, (r) => {
-      writeOpenTag(r, el, false);
-      for (const child of children) appendTextContent(r, child, textClass);
-      writeCloseTag(r, el);
-      if (resolved) appendCodelistBadge(r, el, resolved);
-      else if (bound && bound.url) r.appendChild(buildListLink(bound));
-    });
-    attachNodeMenu(row, el);
-  }
-
-  // CDATA keeps its markers so the copy and the display agree about what the
-  // source said.
-  function appendTextContent(row, child, textClass) {
-    const body = document.createElement("span");
-    body.className = textClass;
-    body.textContent = child.nodeValue;
-    if (child.nodeType === Node.CDATA_SECTION_NODE) {
-      const open = document.createElement("span");
-      open.className = "px-cdata-marker";
-      open.textContent = "<![CDATA[";
-      const close = document.createElement("span");
-      close.className = "px-cdata-marker";
-      close.textContent = "]]>";
-      row.append(open, body, close);
-    } else {
-      row.appendChild(body);
+    // <Tag>text</Tag> — one row, with a code-list badge when the value resolves.
+    // A value that does not resolve but is bound to a list all the same — a
+    // code the list lacks — still gets the list chip, so the reader can open
+    // the list the code should have come from.
+    function renderTextElement(el, parent, depth, children) {
+      const onix = window.OnixViewerOnix;
+      const resolved = onix ? onix.resolveCodelist(el, onixCtx) : null;
+      const bound = !resolved && onix ? onix.codelistFor(el, onixCtx) : null;
+      const textClass = resolved ? "px-text px-codelist-value" : "px-text";
+      const row = appendRow(parent, depth, false, (r) => {
+        writeOpenTag(r, el, false);
+        for (const child of children) appendTextContent(r, child, textClass);
+        writeCloseTag(r, el);
+        if (resolved) appendCodelistBadge(r, el, resolved);
+        else if (bound && bound.url) r.appendChild(buildListLink(bound));
+      });
+      attachNodeMenu(row, el);
     }
-  }
 
-  function appendCodelistBadge(row, el, resolved) {
-    const badge = document.createElement("span");
-    badge.className = "px-codelist";
-    badge.textContent = `\u2192 ${resolved.label}`;
-    badge.title = resolved.context
-      ? `${resolved.context}: code resolved via ${resolved.source}`
-      : `${el.localName || el.nodeName}: code resolved via ONIX code list`;
-    row.appendChild(badge);
-    if (resolved.url) row.appendChild(buildListLink(resolved));
-  }
-
-  // Element children: a collapsible open row, a children container, and a
-  // close row queued behind them.
-  function renderParentElement(el, parent, depth, stack) {
-    const openRow = appendRow(parent, depth, true, (row) => {
-      const toggle = document.createElement("span");
-      toggle.className = "px-toggle";
-      toggle.setAttribute("aria-hidden", "true");
-      row.appendChild(toggle);
-      writeOpenTag(row, el, false);
-      appendFoldedTail(row, el);
-      appendBlockBadge(row, el);
-      appendSummary(row, el);
-    });
-    attachNodeMenu(openRow, el);
-
-    const childrenContainer = document.createElement("div");
-    childrenContainer.className = "px-children";
-    parent.appendChild(childrenContainer);
-    // The close row belongs to `parent`, after the container — pushed first so
-    // it is handled once every child has been.
-    stack.push({ close: el, parent, depth });
-    if (isDeferred(el)) deferChildren(el, childrenContainer, depth + 1);
-    else pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
-
-    // Folding is delegated on #oxv-root in setupClickHandlers: the chevron
-    // toggles, a click anywhere else makes the row active.
-  }
-
-  // While the row is folded, show "…</Tag>" inline so the structure reads as
-  // <Tag>…</Tag> at a glance. Hidden by CSS when expanded.
-  function appendFoldedTail(row, el) {
-    const ellipsis = document.createElement("span");
-    ellipsis.className = "px-fold-ellipsis";
-    ellipsis.textContent = "\u2026";
-    row.appendChild(ellipsis);
-
-    const closeInline = document.createElement("span");
-    closeInline.className = "px-tag px-fold-close";
-    const foldDialectClass = displayedTagClass();
-    if (foldDialectClass) closeInline.classList.add(foldDialectClass);
-    closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
-    closeInline.classList.add("px-tag-name");
-    row.appendChild(closeInline);
-  }
-
-  // "Block N" on the ONIX 3.x block elements, visible folded or not.
-  function appendBlockBadge(row, el) {
-    if (!window.OnixViewerOnix) return;
-    const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
-    if (!block) return;
-    const label = document.createElement("span");
-    label.className = "px-block-label";
-    label.textContent = `Block ${block}`;
-    row.appendChild(label);
-  }
-
-  // onix.js decides which composites have a one-line essence worth showing
-  // and returns null for the rest.
-  function appendSummary(row, el) {
-    if (!window.OnixViewerOnix) return;
-    const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
-    if (!summary) return;
-    const span = document.createElement("span");
-    span.className = "px-summary";
-    span.textContent = summary;
-    row.appendChild(span);
-  }
-
-  function pushChildren(stack, childNodes, parent, depth) {
-    for (let i = childNodes.length - 1; i >= 0; i--) {
-      stack.push({ node: childNodes[i], parent, depth });
-    }
-  }
-
-  // ---- lazy products --------------------------------------------------------
-
-  // A deferred Product keeps its open row — the summary chip, the block
-  // badge, the fold chevron — and its close row; only what sits between them
-  // waits. The container is empty, held to a placeholder height by CSS so the
-  // scrollbar has a shape, and rendered when the observer says it is within
-  // two screens of the viewport. A folded Product's container is display:none
-  // and never intersects, so it renders when unfolded, not before.
-  function isDeferred(el) {
-    return lazy && isProductElement(el) && el.parentNode === doc.documentElement;
-  }
-
-  function deferChildren(el, container, depth) {
-    container.classList.add("px-pending");
-    pendingContainers.set(container, { el, depth });
-    pendingByElement.set(el, container);
-    pendingObserver.observe(container);
-  }
-
-  function setupLazyProducts() {
-    pendingObserver = new window.IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) renderPending(entry.target);
+    // CDATA keeps its markers so the copy and the display agree about what the
+    // source said.
+    function appendTextContent(row, child, textClass) {
+      const body = document.createElement("span");
+      body.className = textClass;
+      body.textContent = child.nodeValue;
+      if (child.nodeType === Node.CDATA_SECTION_NODE) {
+        const open = document.createElement("span");
+        open.className = "px-cdata-marker";
+        open.textContent = "<![CDATA[";
+        const close = document.createElement("span");
+        close.className = "px-cdata-marker";
+        close.textContent = "]]>";
+        row.append(open, body, close);
+      } else {
+        row.appendChild(body);
       }
-    }, { rootMargin: "2000px 0px" });
-  }
-
-  function renderPending(container) {
-    const pending = pendingContainers.get(container);
-    if (!pending) return;
-    pendingContainers.delete(container);
-    pendingByElement.delete(pending.el);
-    pendingObserver.unobserve(container);
-    container.classList.remove("px-pending");
-    const stack = [];
-    pushChildren(stack, pending.el.childNodes, container, pending.depth);
-    drain(stack);
-    const queued = pendingFindings.get(pending.el);
-    if (queued) {
-      pendingFindings.delete(pending.el);
-      for (const finding of queued) pinFinding(finding);
     }
-    const waiting = hitsByProduct.get(pending.el);
-    if (waiting) {
-      hitsByProduct.delete(pending.el);
-      for (const hit of waiting) highlight(hit);
+
+    function appendCodelistBadge(row, el, resolved) {
+      const badge = document.createElement("span");
+      badge.className = "px-codelist";
+      badge.textContent = `\u2192 ${resolved.label}`;
+      badge.title = resolved.context
+        ? `${resolved.context}: code resolved via ${resolved.source}`
+        : `${el.localName || el.nodeName}: code resolved via ONIX code list`;
+      row.appendChild(badge);
+      if (resolved.url) row.appendChild(buildListLink(resolved));
     }
-  }
 
-  // The deferred Product a source node sits inside, or null.
-  function pendingProductOf(node) {
-    if (!pendingByElement.size) return null;
-    let current = node;
-    while (current && current.parentNode !== doc.documentElement) current = current.parentNode;
-    return current && pendingByElement.has(current) ? current : null;
-  }
+    // Element children: a collapsible open row, a children container, and a
+    // close row queued behind them.
+    function renderParentElement(el, parent, depth, stack) {
+      const openRow = appendRow(parent, depth, true, (row) => {
+        const toggle = document.createElement("span");
+        toggle.className = "px-toggle";
+        toggle.setAttribute("aria-hidden", "true");
+        row.appendChild(toggle);
+        writeOpenTag(row, el, false);
+        appendFoldedTail(row, el);
+        appendBlockBadge(row, el);
+        appendSummary(row, el);
+      });
+      attachNodeMenu(openRow, el);
 
-  // Everything that needs a row for a source node goes through here first.
-  function ensureRendered(node) {
-    const product = pendingProductOf(node);
-    if (product) renderPending(pendingByElement.get(product));
-  }
+      const childrenContainer = document.createElement("div");
+      childrenContainer.className = "px-children";
+      parent.appendChild(childrenContainer);
+      // The close row belongs to `parent`, after the container — pushed first so
+      // it is handled once every child has been.
+      stack.push({ close: el, parent, depth });
+      if (isDeferred(el)) deferChildren(el, childrenContainer, depth + 1);
+      else pushChildren(stack, el.childNodes, childrenContainer, depth + 1);
 
-  function writeOpenTag(row, el, selfClose) {
-    const lt = document.createElement("span");
-    lt.className = "px-tag";
-    lt.textContent = "<";
-    row.appendChild(lt);
+      // Folding is delegated on #oxv-root in setupClickHandlers: the chevron
+      // toggles, a click anywhere else makes the row active.
+    }
 
-    const name = document.createElement("span");
-    name.className = "px-tag px-tag-name";
-    const dialectClass = displayedTagClass();
-    if (dialectClass) name.classList.add(dialectClass);
-    name.textContent = displayedTagName(el.nodeName);
-    row.appendChild(name);
+    // While the row is folded, show "…</Tag>" inline so the structure reads as
+    // <Tag>…</Tag> at a glance. Hidden by CSS when expanded.
+    function appendFoldedTail(row, el) {
+      const ellipsis = document.createElement("span");
+      ellipsis.className = "px-fold-ellipsis";
+      ellipsis.textContent = "\u2026";
+      row.appendChild(ellipsis);
 
-    for (const attr of el.attributes) {
-      const sp = document.createTextNode(" ");
-      row.appendChild(sp);
+      const closeInline = document.createElement("span");
+      closeInline.className = "px-tag px-fold-close";
+      const foldDialectClass = displayedTagClass();
+      if (foldDialectClass) closeInline.classList.add(foldDialectClass);
+      closeInline.textContent = `</${displayedTagName(el.nodeName)}>`;
+      closeInline.classList.add("px-tag-name");
+      row.appendChild(closeInline);
+    }
+
+    // "Block N" on the ONIX 3.x block elements, visible folded or not.
+    function appendBlockBadge(row, el) {
+      if (!window.OnixViewerOnix) return;
+      const block = window.OnixViewerOnix.blockNumber(el, onixCtx);
+      if (!block) return;
+      const label = document.createElement("span");
+      label.className = "px-block-label";
+      label.textContent = `Block ${block}`;
+      row.appendChild(label);
+    }
+
+    // onix.js decides which composites have a one-line essence worth showing
+    // and returns null for the rest.
+    function appendSummary(row, el) {
+      if (!window.OnixViewerOnix) return;
+      const summary = window.OnixViewerOnix.nodeSummary(el, onixCtx);
+      if (!summary) return;
       const span = document.createElement("span");
-      span.className = "px-attr";
-      const an = document.createElement("span");
-      an.className = "px-attr-name";
-      an.textContent = attr.name;
-      const eq = document.createTextNode("=");
-      const av = document.createElement("span");
-      av.className = "px-attr-value";
-      // textContent neutralises the inner string; no HTML escaping needed.
-      av.textContent = `"${attr.value}"`;
-      let resolvedAttr = null;
-      if (window.OnixViewerOnix && onixCtx.isOnix) {
-        resolvedAttr = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
-        if (resolvedAttr) {
-          av.classList.add("px-codelist-value");
-          av.title = `${attr.name}: ${resolvedAttr.label}`;
-        }
-      }
-      span.append(an, eq, av);
-      if (resolvedAttr) span.appendChild(buildAttributeBadge(attr.name, resolvedAttr));
+      span.className = "px-summary";
+      span.textContent = summary;
       row.appendChild(span);
     }
 
-    const gt = document.createElement("span");
-    gt.className = "px-tag";
-    gt.textContent = selfClose ? "/>" : ">";
-    row.appendChild(gt);
-  }
-
-  // "→ XHTML" chip right after a code-list attribute value, e.g.
-  // <Text textformat="06" → XHTML>. Lives inside the .px-attr span, so it
-  // belongs to the attribute it explains.
-  function buildAttributeBadge(attributeName, resolved) {
-    const badge = document.createElement("span");
-    badge.className = "px-codelist px-attr-codelist";
-    badge.textContent = `→ ${resolved.label}`;
-    badge.title = `${attributeName}: code resolved via ONIX List ${resolved.listNumber}`;
-    return badge;
-  }
-
-  function writeCloseTag(row, el) {
-    const close = document.createElement("span");
-    close.className = "px-tag px-tag-name";
-    const dialectClass = displayedTagClass();
-    if (dialectClass) close.classList.add(dialectClass);
-    close.textContent = `</${displayedTagName(el.nodeName)}>`;
-    row.appendChild(close);
-  }
-
-  // ---- dialect toggle (reference names ↔ short tags) ------------------------
-
-  // The tree is built in the dialect currently on display, so a reader whose
-  // stored preference differs from the document pays no rewrite at load. Names
-  // with no translation render as they are.
-  function displayedTagName(nodeName) {
-    let name = nodeName;
-    if (translating()) {
-      name = window.OnixViewerOnix.translatedName(nodeName, displayDialect) || nodeName;
-    }
-    return name;
-  }
-
-  // Short tags render italic, reference names don't, so the class follows the
-  // displayed dialect rather than the document's own.
-  function displayedTagClass() {
-    let className = "";
-    if (onixCtx.isOnix) {
-      className = displayDialect === "short" ? "px-onix-short" : "px-onix-ref";
-    }
-    return className;
-  }
-
-  function otherDialect(dialect) {
-    return dialect === "short" ? "reference" : "short";
-  }
-
-  // The Acknowledgement schema is not bundled, so its own elements have no
-  // short tags to translate between and a conversion would mix the dialects.
-  function translatable() {
-    return onixCtx.isOnix && !!onixCtx.dialect && onixCtx.messageType !== "acknowledgement";
-  }
-
-  function preferredDialect() {
-    let preferred = onixCtx.dialect;
-    if (translatable()) {
-      let stored = null;
-      try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); }
-      catch { /* storage may be blocked; the document's own dialect stands */ }
-      if (stored === "reference" || stored === "short") preferred = stored;
-    }
-    return preferred;
-  }
-
-  // Hidden unless the document is ONIX in a known dialect — there's nothing
-  // to translate between otherwise. The tree is already rendered in the
-  // preferred dialect by this point, so there is nothing to rewrite: this
-  // only lights up the right button.
-  function setupDialectToggle() {
-    if (!translatable()) {
-      document.body.classList.add("px-no-dialect-toggle");
-      return;
-    }
-    // The label names the translation and never changes, so the document's
-    // own dialect is always the unpressed state: "View as reference names"
-    // can only appear over a short-tag file.
-    const button = document.querySelector('#oxv-toolbar [data-action="dialect-toggle"]');
-    if (button) {
-      const target = dialectLabel(otherDialect(sourceDialect));
-      button.textContent = `View as ${target}`;
-      button.title = `Show this ${dialectLabel(sourceDialect)} document as ${target} (T). ` +
-        "Copying follows the view.";
-    }
-    markPressedDialect();
-  }
-
-  // EDItEUR's own terms: the schemas are the "reference tag version" and the
-  // "short tag version", and every element declares a refname and a shortname.
-  function dialectLabel(dialect) {
-    return dialect === "short" ? "short tags" : "reference names";
-  }
-
-  function applyDialect(target) {
-    if (target !== "reference" && target !== "short") return;
-    if (!translatable()) return;
-
-    if (target !== displayDialect) {
-      // Each name is re-derived from the one on screen rather than from a
-      // counterpart stashed per span — nothing to store, and translatedName
-      // returns null for a name already in the target dialect, so repeating a
-      // switch is harmless.
-      const translate = window.OnixViewerOnix.translatedName;
-      for (const span of root.querySelectorAll(".px-tag-name")) {
-        const text = span.textContent;
-        const closing = text.startsWith("</");
-        const current = closing ? text.slice(2, -1) : text;
-        const translated = translate(current, target);
-        if (translated) span.textContent = closing ? `</${translated}>` : translated;
-        // Short tags render italic, reference names don't — follow the names.
-        if (span.classList.contains("px-onix-short") || span.classList.contains("px-onix-ref")) {
-          span.classList.toggle("px-onix-short", target === "short");
-          span.classList.toggle("px-onix-ref", target !== "short");
-        }
+    function pushChildren(stack, childNodes, parent, depth) {
+      for (let i = childNodes.length - 1; i >= 0; i--) {
+        stack.push({ node: childNodes[i], parent, depth });
       }
-      displayDialect = target;
-      try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); }
-      catch { /* storage may be blocked; the choice then lasts the page */ }
-      // A name hit depends on the dialect on screen, so the hits are found
-      // again — without moving the reader.
-      if (search.value.trim()) runSearch(false);
     }
 
-    markPressedDialect();
-  }
+    // ---- lazy products --------------------------------------------------------
 
-  // Pressed means "you are looking at the translation", not the source.
-  function markPressedDialect() {
-    const button = document.querySelector('#oxv-toolbar [data-action="dialect-toggle"]');
-    if (button) button.setAttribute("aria-pressed", displayDialect === sourceDialect ? "false" : "true");
-  }
-
-  function buildListLink(resolved) {
-    const a = document.createElement("a");
-    a.className = "px-codelist-link";
-    a.href = resolved.url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.title = `Open ${resolved.listName}`;
-    a.textContent = resolved.listName;
-    if (window.OnixViewerOnix && window.OnixViewerOnix.externalLinkIcon) {
-      a.appendChild(window.OnixViewerOnix.externalLinkIcon());
+    // A deferred Product keeps its open row — the summary chip, the block
+    // badge, the fold chevron — and its close row; only what sits between them
+    // waits. The container is empty, held to a placeholder height by CSS so the
+    // scrollbar has a shape, and rendered when the observer says it is within
+    // two screens of the viewport. A folded Product's container is display:none
+    // and never intersects, so it renders when unfolded, not before.
+    function isDeferred(el) {
+      return lazy && isProductElement(el) && el.parentNode === doc.documentElement;
     }
-    a.addEventListener("click", (ev) => {
-      // Plain clicks open the in-page popup. Cmd/Ctrl/Shift-click still hits
-      // the href as a normal anchor (open in new tab/window).
-      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
-      if (!window.OnixViewerPopup) return;
-      ev.preventDefault();
-      window.OnixViewerPopup.show(resolved.codelistKey, resolved.value, resolved.context);
-    });
-    return a;
-  }
 
-  function appendRow(parent, depth, collapsible, fill) {
-    const row = document.createElement("div");
-    row.className = "px-row" + (collapsible ? " px-collapsible" : "");
-    row.style.setProperty("--depth", String(depth));
-    fill(row);
-    parent.appendChild(row);
-    return row;
-  }
+    function deferChildren(el, container, depth) {
+      container.classList.add("px-pending");
+      pendingContainers.set(container, { el, depth });
+      pendingByElement.set(el, container);
+      pendingObserver.observe(container);
+    }
 
-  // Prepend the small "⋮" gutter button that opens the per-node menu. Only
-  // element rows get one (open rows, leaf rows, self-closing rows) — close
-  // rows, comments, PIs and text rows have nothing meaningful to copy.
-  function attachNodeMenu(row, element) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "px-node-menu-btn";
-    button.title = "Node actions";
-    button.setAttribute("aria-label", `Actions for ${element.nodeName}`);
-    button.setAttribute("aria-haspopup", "menu");
-    button.setAttribute("aria-expanded", "false");
-    button.textContent = "⋮";
-    row.prepend(button);
-    rowElements.set(row, element);
-    if (!elementRows.has(element)) elementRows.set(element, row);
-  }
+    function setupLazyProducts() {
+      pendingObserver = new window.IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) renderPending(entry.target);
+        }
+      }, { rootMargin: "2000px 0px" });
+    }
 
-  // ---- toolbar --------------------------------------------------------------
+    function renderPending(container) {
+      const pending = pendingContainers.get(container);
+      if (!pending) return;
+      pendingContainers.delete(container);
+      pendingByElement.delete(pending.el);
+      pendingObserver.unobserve(container);
+      container.classList.remove("px-pending");
+      const stack = [];
+      pushChildren(stack, pending.el.childNodes, container, pending.depth);
+      drain(stack);
+      const queued = pendingFindings.get(pending.el);
+      if (queued) {
+        pendingFindings.delete(pending.el);
+        for (const finding of queued) pinFinding(finding);
+      }
+      const waiting = hitsByProduct.get(pending.el);
+      if (waiting) {
+        hitsByProduct.delete(pending.el);
+        for (const hit of waiting) highlight(hit);
+      }
+    }
 
-  function setupToolbar() {
-    // A page with a restrictive img-src CSP can refuse a chrome-extension://
-    // image even though the stylesheet loaded — they are separate directives.
-    // Drop the mark rather than leave a broken-image glyph next to the buttons.
-    // The button around it stays, with the name in it, so About is still a
-    // click away.
-    const logo = document.getElementById("oxv-logo");
-    if (logo) logo.addEventListener("error", () => {
+    // The deferred Product a source node sits inside, or null.
+    function pendingProductOf(node) {
+      if (!pendingByElement.size) return null;
+      let current = node;
+      while (current && current.parentNode !== doc.documentElement) current = current.parentNode;
+      return current && pendingByElement.has(current) ? current : null;
+    }
+
+    // Everything that needs a row for a source node goes through here first.
+    function ensureRendered(node) {
+      const product = pendingProductOf(node);
+      if (product) renderPending(pendingByElement.get(product));
+    }
+
+    function writeOpenTag(row, el, selfClose) {
+      const lt = document.createElement("span");
+      lt.className = "px-tag";
+      lt.textContent = "<";
+      row.appendChild(lt);
+
       const name = document.createElement("span");
-      name.textContent = "ONIX Viewer";
-      logo.replaceWith(name);
-    });
+      name.className = "px-tag px-tag-name";
+      const dialectClass = displayedTagClass();
+      if (dialectClass) name.classList.add(dialectClass);
+      name.textContent = displayedTagName(el.nodeName);
+      row.appendChild(name);
 
-    // Icons are prepended here rather than written into the shell: content.js
-    // builds that shell as a string, and these come from the same table the
-    // severity chips and the spinner use, so they stay one set.
-    for (const [action, name] of [["expand", "expand"], ["collapse", "collapse"],
-                                  ["toggle-wrap", "wrap"], ["copy-xml", "copy"],
-                                  ["download-xml", "download"]]) {
-      const button = document.querySelector(`#oxv-toolbar [data-action="${action}"]`);
-      if (button && !button.querySelector("svg")) button.prepend(icon(name));
-    }
-    const rulesButton = document.querySelector('#oxv-toolbar [data-action="rules"]');
-    if (rulesButton && !FEATURES.customRules) rulesButton.remove();
-    else if (rulesButton && !rulesButton.firstChild) rulesButton.appendChild(icon("settings"));
-
-    document.getElementById("oxv-toolbar").addEventListener("click", (ev) => {
-      const btn = ev.target.closest("button[data-action]");
-      if (!btn) return;
-      switch (btn.dataset.action) {
-        case "expand":
-          expandStep();
-          break;
-        case "collapse":
-          collapseStep();
-          break;
-        case "dialect-toggle":
-          applyDialect(otherDialect(displayDialect));
-          break;
-        case "search":
-          toggleSearch();
-          break;
-        case "toggle-wrap": {
-          // Wrap is the default; pressing the button turns it OFF.
-          const off = document.body.classList.toggle("px-no-wrap");
-          btn.setAttribute("aria-pressed", off ? "false" : "true");
-          break;
+      for (const attr of el.attributes) {
+        const sp = document.createTextNode(" ");
+        row.appendChild(sp);
+        const span = document.createElement("span");
+        span.className = "px-attr";
+        const an = document.createElement("span");
+        an.className = "px-attr-name";
+        an.textContent = attr.name;
+        const eq = document.createTextNode("=");
+        const av = document.createElement("span");
+        av.className = "px-attr-value";
+        // textContent neutralises the inner string; no HTML escaping needed.
+        av.textContent = `"${attr.value}"`;
+        let resolvedAttr = null;
+        if (window.OnixViewerOnix && onixCtx.isOnix) {
+          resolvedAttr = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
+          if (resolvedAttr) {
+            av.classList.add("px-codelist-value");
+            av.title = `${attr.name}: ${resolvedAttr.label}`;
+          }
         }
-        case "copy-xml":
-          copyRawXml(btn);
-          break;
-        case "download-xml":
-          downloadXml(btn);
-          break;
-        case "rules":
-          showRules();
-          break;
-        case "about":
-          showAbout();
-          break;
+        span.append(an, eq, av);
+        if (resolvedAttr) span.appendChild(buildAttributeBadge(attr.name, resolvedAttr));
+        row.appendChild(span);
       }
-    });
-  }
 
-  // ---- block list pill ------------------------------------------------------
+      const gt = document.createElement("span");
+      gt.className = "px-tag";
+      gt.textContent = selfClose ? "/>" : ">";
+      row.appendChild(gt);
+    }
 
-  // "Blocks: 1, 4, 6" in the toolbar — only meaningful for a document with
-  // exactly one Product, so it stays empty (and hidden) otherwise.
-  // The size as the Finder gives it: bytes in decimal units, whole
-  // kilobytes, megabytes and gigabytes to one decimal, in the browser's own
-  // number format — 512 bytes, 18 KB, 373.3 MB (373,3 MB in Norwegian).
-  function formatSize(bytes) {
-    const units = [["KB", 1e3, 0], ["MB", 1e6, 1], ["GB", 1e9, 1]];
-    let text = bytes === 1 ? "1 byte" : `${bytes} bytes`;
-    for (const [unit, scale, digits] of units) {
-      const value = Math.round((bytes / scale) * 10 ** digits) / 10 ** digits;
-      if (bytes >= 1000 && value >= 1) {
-        text = `${new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)} ${unit}`;
+    // "→ XHTML" chip right after a code-list attribute value, e.g.
+    // <Text textformat="06" → XHTML>. Lives inside the .px-attr span, so it
+    // belongs to the attribute it explains.
+    function buildAttributeBadge(attributeName, resolved) {
+      const badge = document.createElement("span");
+      badge.className = "px-codelist px-attr-codelist";
+      badge.textContent = `→ ${resolved.label}`;
+      badge.title = `${attributeName}: code resolved via ONIX List ${resolved.listNumber}`;
+      return badge;
+    }
+
+    function writeCloseTag(row, el) {
+      const close = document.createElement("span");
+      close.className = "px-tag px-tag-name";
+      const dialectClass = displayedTagClass();
+      if (dialectClass) close.classList.add(dialectClass);
+      close.textContent = `</${displayedTagName(el.nodeName)}>`;
+      row.appendChild(close);
+    }
+
+    // ---- dialect toggle (reference names ↔ short tags) ------------------------
+
+    // The tree is built in the dialect currently on display, so a reader whose
+    // stored preference differs from the document pays no rewrite at load. Names
+    // with no translation render as they are.
+    function displayedTagName(nodeName) {
+      let name = nodeName;
+      if (translating()) {
+        name = window.OnixViewerOnix.translatedName(nodeName, displayDialect) || nodeName;
       }
-      if (value < 1000) break;
-    }
-    return text;
-  }
-
-  // content.js counts the bytes as it reads the file and stamps the total on
-  // the shell. A source read from the DOM has no count, so its UTF-8 length
-  // is worked out here.
-  function sourceBytes() {
-    const stamped = Number(document.documentElement.getAttribute("data-oxv-bytes"));
-    return stamped > 0 ? stamped : utf8Length(SOURCE);
-  }
-
-  // One byte per ASCII character, two up to U+07FF, three above; a
-  // surrogate pair, four bytes in UTF-8, is two characters at two each.
-  function utf8Length(text) {
-    let bytes = text.length;
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i);
-      if (code > 0x7f) bytes += code > 0x7ff && (code < 0xd800 || code > 0xdfff) ? 2 : 1;
-    }
-    return bytes;
-  }
-
-  // One pill describing the document: a file icon, then what it is, which
-  // blocks it carries, and how big it is, "·"-separated —
-  //
-  //   [icon] ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 18 KB
-  //
-  // The blocks segment used to be a pill of its own; it says something about
-  // this document rather than about the viewer, so it reads better as part of
-  // the same sentence. It stays a separate element so #oxv-block-list keeps
-  // its id, and #oxv-block-list:empty hides it when there are none.
-  function fillMetaPill(size, productCount) {
-    const blockList = document.getElementById("oxv-block-list");
-    const blocks = blockListText();
-    if (blockList) {
-      blockList.textContent = blocks;
-      if (blocks) blockList.title = "ONIX blocks present in this Product";
+      return name;
     }
 
-    const segments = [];
-    const documentLabel = onixDocumentLabel(productCount);
-    if (documentLabel) segments.push(document.createTextNode(documentLabel));
-    if (blockList && blocks) segments.push(blockList);
-    segments.push(document.createTextNode(size));
-
-    // The segments go in one inline wrapper rather than straight into the
-    // pill: #oxv-meta is a flex row, and flex turns each bare text node into
-    // an item, so the gap that spaces the icon would also stretch every "·".
-    const label = document.createElement("span");
-    label.className = "px-meta-label";
-    segments.forEach((segment, index) => {
-      if (index) label.append(document.createTextNode(" · "));
-      label.append(segment);
-    });
-    // Keep the element in the document even with nothing to say, so callers
-    // can always find it; :empty keeps it out of sight.
-    if (blockList && !blocks) label.append(blockList);
-
-    meta.textContent = "";
-    meta.append(icon("file"), label);
-  }
-
-  // "ONIX 3.1 short tags (2 products)", or "" for non-ONIX XML, where the
-  // size alone is all the pill can honestly claim.
-  function onixDocumentLabel(productCount) {
-    if (!onixCtx.isOnix) return "";
-    // Version is unknown for un-namespaced standalone <Product> records (there's
-    // no namespace to read it from) — omit it rather than show "ONIX ?".
-    const versionPart = onixCtx.version ? ` ${onixCtx.version}` : "";
-    if (onixCtx.messageType === "acknowledgement") {
-      // Acknowledgement <Product> blocks are record statuses, not product
-      // records — label the count "records" to match.
-      return `ONIX Acknowledgement${versionPart} (${countLabel(productCount, "record")})`;
-    }
-    const productsLabel = countLabel(productCount, "product");
-    const dialectPart = onixCtx.dialect === "short" ? " short tags" : "";
-    return `ONIX${versionPart}${dialectPart} (${productsLabel})`;
-  }
-
-  // "1 product", "20,868 products": the number grouped in the browser's own
-  // format, as the size beside it is (20 868 in Norwegian).
-  function countLabel(count, noun) {
-    const number = new Intl.NumberFormat().format(count);
-    return count === 1 ? `1 ${noun}` : `${number} ${noun}s`;
-  }
-
-  function blockListText() {
-    const numbers = window.OnixViewerOnix
-      ? window.OnixViewerOnix.singleProductBlocks(doc, onixCtx)
-      : null;
-    return numbers && numbers.length ? `Blocks: ${numbers.join(", ")}` : "";
-  }
-
-  // ---- stepped expand / collapse --------------------------------------------
-
-  // Both buttons work a level at a time, and both read the tree rather than
-  // counting clicks — so they still do the sensible thing after the reader has
-  // folded or unfolded rows by hand, and there is no counter to get out of
-  // step with what is on screen.
-
-  // Reveal one more level: unfold every folded row at the shallowest depth
-  // that still has one.
-  function expandStep() {
-    const folded = collapsibleRows().filter(isFolded);
-    if (!folded.length) return;
-    const shallowest = Math.min(...folded.map(rowDepth));
-    for (const row of folded) {
-      if (rowDepth(row) === shallowest) row.classList.remove("px-folded");
-    }
-  }
-
-  // Hide one more layer. For ONIX the first two steps follow the shape of a
-  // message rather than raw depth, because that is how the document is read:
-  //
-  //   1. everything inside each <Product>, plus the message's other children
-  //      (<Header>) — each record reads as one line per composite;
-  //   2. the <Product> rows themselves — the message reads as one line per
-  //      top-level element;
-  //   3. and from there, the deepest level still on screen, which is the root.
-  //
-  // Non-ONIX XML has no such shape, so it uses step 3 throughout and zips up
-  // from the leaves — the mirror of what Expand does.
-  function collapseStep() {
-    if (onixCtx.isOnix) {
-      if (foldRows(unfolded(collapsibleRows().filter(isOutlineRow)), { reveal: true })) return;
-      if (foldRows(unfolded(collapsibleRows().filter(isProductRow)))) return;
-    }
-    foldDeepestVisibleLevel();
-  }
-
-  // Only rows the reader can actually see are candidates, so no press is spent
-  // folding something hidden inside an already-folded ancestor.
-  function foldDeepestVisibleLevel() {
-    const open = unfolded(collapsibleRows()).filter(isRowVisible);
-    if (!open.length) return false;
-    const deepest = Math.max(...open.map(rowDepth));
-    return foldRows(open.filter((row) => rowDepth(row) === deepest));
-  }
-
-  // `reveal` unfolds each row's ancestors as it goes, which is what makes step
-  // 1 read as "one line per composite" on a feed the reader has already
-  // folded by hand. The later steps must not do it — they are folding things
-  // up, and reopening an ancestor would undo the step before.
-  function foldRows(rows, options) {
-    for (const row of rows) {
-      if (options && options.reveal) unfoldAncestors(row);
-      row.classList.add("px-folded");
-    }
-    return rows.length > 0;
-  }
-
-  function collapsibleRows() {
-    return [...root.querySelectorAll(".px-row.px-collapsible")];
-  }
-
-  function unfolded(rows) {
-    return rows.filter((row) => !isFolded(row));
-  }
-
-  function isFolded(row) {
-    return row.classList.contains("px-folded");
-  }
-
-  // On screen, i.e. no folded row above it. The shallowest *folded* row is
-  // always visible by definition, which is why Expand needs no such check.
-  function isRowVisible(row) {
-    let parent = row.parentElement;
-    while (parent && parent !== root) {
-      if (parent.classList.contains("px-children")) {
-        const opener = parent.previousElementSibling;
-        if (opener && isFolded(opener)) return false;
+    // Short tags render italic, reference names don't, so the class follows the
+    // displayed dialect rather than the document's own.
+    function displayedTagClass() {
+      let className = "";
+      if (onixCtx.isOnix) {
+        className = displayDialect === "short" ? "px-onix-short" : "px-onix-ref";
       }
-      parent = parent.parentElement;
+      return className;
     }
-    return true;
-  }
 
-  function rowDepth(row) {
-    return Number(row.style.getPropertyValue("--depth")) || 0;
-  }
+    function otherDialect(dialect) {
+      return dialect === "short" ? "reference" : "short";
+    }
 
-  function isProductRow(row) {
-    return isProductElement(rowElements.get(row));
-  }
+    // The Acknowledgement schema is not bundled, so its own elements have no
+    // short tags to translate between and a conversion would mix the dialects.
+    function translatable() {
+      return onixCtx.isOnix && !!onixCtx.dialect && onixCtx.messageType !== "acknowledgement";
+    }
 
-  // Step 1 of Collapse: the rows whose folding leaves each record readable as
-  // one line per composite.
-  //
-  //   1. Everything sitting directly inside a <Product> — the seven ONIX
-  //      blocks plus the block-0 composites (ProductIdentifier,
-  //      RecordSourceIdentifier, Barcode), which would otherwise sprawl.
-  //   2. The message's own children other than <Product> — <Header> above
-  //      all. It is a sibling of the products, so rule 1 never reached it.
-  //
-  // The <Product> rows themselves are step 2, not this one: seeing one line
-  // per block inside each record is the point of stopping here.
-  //
-  // Keying on the parent rather than a list of names covers both dialects and
-  // needs no upkeep as ONIX gains elements — BLOCK_NUMBERS stays behind to
-  // drive the Block N badge only.
-  function isOutlineRow(row) {
-    const element = rowElements.get(row);
-    if (!element || !onixCtx.isOnix) return false;
-    if (isProductElement(element.parentNode)) return true;
-    return element.parentNode === doc.documentElement && !isProductElement(element);
-  }
-
-  // Unfold every folded open-row above `node` so it becomes visible. Works
-  // for any node inside the tree, not just rows.
-  function unfoldAncestors(node) {
-    let parent = node.parentElement;
-    while (parent && parent !== root) {
-      if (parent.classList.contains("px-children")) {
-        const opener = parent.previousElementSibling;
-        if (opener) opener.classList.remove("px-folded");
+    function preferredDialect() {
+      let preferred = onixCtx.dialect;
+      if (translatable()) {
+        let stored = null;
+        try { stored = window.localStorage && localStorage.getItem(DIALECT_STORAGE_KEY); }
+        catch { /* storage may be blocked; the document's own dialect stands */ }
+        if (stored === "reference" || stored === "short") preferred = stored;
       }
-      parent = parent.parentElement;
+      return preferred;
     }
-  }
 
-  // ---- validation -----------------------------------------------------------
-
-  // Runs on load, in slices. The first slice is generous, so a normal document
-  // is finished before the reader sees anything and there's no spinner flash;
-  // a large feed spends its first 12ms, then continues during idle time, which
-  // keeps scrolling and folding responsive while it works.
-  function startValidation() {
-    const status = document.getElementById("oxv-validation");
-    if (!window.OnixViewerValidation || !onixCtx.isOnix) {
-      if (status) status.textContent = "";
-      return;
+    // Hidden unless the document is ONIX in a known dialect — there's nothing
+    // to translate between otherwise. The tree is already rendered in the
+    // preferred dialect by this point, so there is nothing to rewrite: this
+    // only lights up the right button.
+    function setupDialectToggle() {
+      if (!translatable()) {
+        frame.classList.add("px-no-dialect-toggle");
+        return;
+      }
+      // The label names the translation and never changes, so the document's
+      // own dialect is always the unpressed state: "View as reference names"
+      // can only appear over a short-tag file.
+      const button = scope.querySelector('#oxv-toolbar [data-action="dialect-toggle"]');
+      if (button) {
+        const target = dialectLabel(otherDialect(sourceDialect));
+        button.textContent = `View as ${target}`;
+        button.title = `Show this ${dialectLabel(sourceDialect)} document as ${target} (T). ` +
+          "Copying follows the view.";
+      }
+      markPressedDialect();
     }
-    clearFindings();
-    const session = window.OnixViewerValidation.start(doc, onixCtx, { version: validationRelease });
-    activeSession = session;
-    session.step(FIRST_SLICE_MS);
-    if (session.done) {
-      finishValidation(session);
-      return;
+
+    // EDItEUR's own terms: the schemas are the "reference tag version" and the
+    // "short tag version", and every element declares a refname and a shortname.
+    function dialectLabel(dialect) {
+      return dialect === "short" ? "short tags" : "reference names";
     }
-    renderValidationStatus("validating");
-    pumpValidation(session);
-  }
 
-  function pumpValidation(session) {
-    afterYield(() => {
-      if (session !== activeSession) return;
-      session.step(SLICE_MS);
-      if (session.done) finishValidation(session);
-      else pumpValidation(session);
-    });
-  }
+    function applyDialect(target) {
+      if (target !== "reference" && target !== "short") return;
+      if (!translatable()) return;
 
-  // Slices are pumped through a MessageChannel, not a timer or an idle
-  // callback. In a hidden tab Chrome clamps setTimeout to about a second and
-  // suspends requestIdleCallback outright — its `timeout` argument does not
-  // rescue it — so either one leaves a large feed stuck at "Validating…"
-  // until someone looks at the tab. A channel message is an ordinary task:
-  // neither clamped nor suspended, and yielding between slices still lets
-  // input, scrolling and rendering through.
-  // Validation and search both slice through here, so the slices queue: one
-  // message per callback, run in the order they were asked for. A single
-  // slot would let one job's next slice overwrite the other's.
-  const SLICE_MS = 8;
-  const FIRST_SLICE_MS = 12;
-  const pumpChannel = window.MessageChannel ? new window.MessageChannel() : null;
-  const pendingSlices = [];
+      if (target !== displayDialect) {
+        // Each name is re-derived from the one on screen rather than from a
+        // counterpart stashed per span — nothing to store, and translatedName
+        // returns null for a name already in the target dialect, so repeating a
+        // switch is harmless.
+        const translate = window.OnixViewerOnix.translatedName;
+        for (const span of root.querySelectorAll(".px-tag-name")) {
+          const text = span.textContent;
+          const closing = text.startsWith("</");
+          const current = closing ? text.slice(2, -1) : text;
+          const translated = translate(current, target);
+          if (translated) span.textContent = closing ? `</${translated}>` : translated;
+          // Short tags render italic, reference names don't — follow the names.
+          if (span.classList.contains("px-onix-short") || span.classList.contains("px-onix-ref")) {
+            span.classList.toggle("px-onix-short", target === "short");
+            span.classList.toggle("px-onix-ref", target !== "short");
+          }
+        }
+        displayDialect = target;
+        try { localStorage.setItem(DIALECT_STORAGE_KEY, displayDialect); }
+        catch { /* storage may be blocked; the choice then lasts the page */ }
+        // A name hit depends on the dialect on screen, so the hits are found
+        // again — without moving the reader.
+        if (search.value.trim()) runSearch(false);
+      }
 
-  if (pumpChannel) {
-    pumpChannel.port1.onmessage = () => {
-      const slice = pendingSlices.shift();
-      if (slice) slice();
-    };
-  }
+      markPressedDialect();
+    }
 
-  function afterYield(callback) {
+    // Pressed means "you are looking at the translation", not the source.
+    function markPressedDialect() {
+      const button = scope.querySelector('#oxv-toolbar [data-action="dialect-toggle"]');
+      if (button) button.setAttribute("aria-pressed", displayDialect === sourceDialect ? "false" : "true");
+    }
+
+    function buildListLink(resolved) {
+      const a = document.createElement("a");
+      a.className = "px-codelist-link";
+      a.href = resolved.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.title = `Open ${resolved.listName}`;
+      a.textContent = resolved.listName;
+      if (window.OnixViewerOnix && window.OnixViewerOnix.externalLinkIcon) {
+        a.appendChild(window.OnixViewerOnix.externalLinkIcon());
+      }
+      a.addEventListener("click", (ev) => {
+        // Plain clicks open the in-page popup. Cmd/Ctrl/Shift-click still hits
+        // the href as a normal anchor (open in new tab/window).
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+        if (!window.OnixViewerPopup) return;
+        ev.preventDefault();
+        window.OnixViewerPopup.show(resolved.codelistKey, resolved.value, resolved.context, { frame, scope });
+      });
+      return a;
+    }
+
+    function appendRow(parent, depth, collapsible, fill) {
+      const row = document.createElement("div");
+      row.className = "px-row" + (collapsible ? " px-collapsible" : "");
+      row.style.setProperty("--depth", String(depth));
+      fill(row);
+      parent.appendChild(row);
+      return row;
+    }
+
+    // Prepend the small "⋮" gutter button that opens the per-node menu. Only
+    // element rows get one (open rows, leaf rows, self-closing rows) — close
+    // rows, comments, PIs and text rows have nothing meaningful to copy.
+    function attachNodeMenu(row, element) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "px-node-menu-btn";
+      button.title = "Node actions";
+      button.setAttribute("aria-label", `Actions for ${element.nodeName}`);
+      button.setAttribute("aria-haspopup", "menu");
+      button.setAttribute("aria-expanded", "false");
+      button.textContent = "⋮";
+      row.prepend(button);
+      rowElements.set(row, element);
+      if (!elementRows.has(element)) elementRows.set(element, row);
+    }
+
+    // ---- toolbar --------------------------------------------------------------
+
+    function setupToolbar() {
+      // A page with a restrictive img-src CSP can refuse a chrome-extension://
+      // image even though the stylesheet loaded — they are separate directives.
+      // Drop the mark rather than leave a broken-image glyph next to the buttons.
+      // The button around it stays, with the name in it, so About is still a
+      // click away.
+      const logo = scope.getElementById("oxv-logo");
+      if (logo) logo.addEventListener("error", () => {
+        const name = document.createElement("span");
+        name.textContent = "ONIX Viewer";
+        logo.replaceWith(name);
+      });
+
+      // Icons are prepended here rather than written into the shell: content.js
+      // builds that shell as a string, and these come from the same table the
+      // severity chips and the spinner use, so they stay one set.
+      for (const [action, name] of [["expand", "expand"], ["collapse", "collapse"],
+                                    ["toggle-wrap", "wrap"], ["copy-xml", "copy"],
+                                    ["download-xml", "download"]]) {
+        const button = scope.querySelector(`#oxv-toolbar [data-action="${action}"]`);
+        if (button && !button.querySelector("svg")) button.prepend(icon(name));
+      }
+      const rulesButton = scope.querySelector('#oxv-toolbar [data-action="rules"]');
+      if (rulesButton && !FEATURES.customRules) rulesButton.remove();
+      else if (rulesButton && !rulesButton.firstChild) rulesButton.appendChild(icon("settings"));
+
+      scope.getElementById("oxv-toolbar").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("button[data-action]");
+        if (!btn) return;
+        switch (btn.dataset.action) {
+          case "expand":
+            expandStep();
+            break;
+          case "collapse":
+            collapseStep();
+            break;
+          case "dialect-toggle":
+            applyDialect(otherDialect(displayDialect));
+            break;
+          case "search":
+            toggleSearch();
+            break;
+          case "toggle-wrap": {
+            // Wrap is the default; pressing the button turns it OFF.
+            const off = frame.classList.toggle("px-no-wrap");
+            btn.setAttribute("aria-pressed", off ? "false" : "true");
+            break;
+          }
+          case "copy-xml":
+            copyRawXml(btn);
+            break;
+          case "download-xml":
+            downloadXml(btn);
+            break;
+          case "rules":
+            showRules();
+            break;
+          case "about":
+            showAbout();
+            break;
+        }
+      });
+    }
+
+    // ---- block list pill ------------------------------------------------------
+
+    // "Blocks: 1, 4, 6" in the toolbar — only meaningful for a document with
+    // exactly one Product, so it stays empty (and hidden) otherwise.
+    // The size as the Finder gives it: bytes in decimal units, whole
+    // kilobytes, megabytes and gigabytes to one decimal, in the browser's own
+    // number format — 512 bytes, 18 KB, 373.3 MB (373,3 MB in Norwegian).
+    function formatSize(bytes) {
+      const units = [["KB", 1e3, 0], ["MB", 1e6, 1], ["GB", 1e9, 1]];
+      let text = bytes === 1 ? "1 byte" : `${bytes} bytes`;
+      for (const [unit, scale, digits] of units) {
+        const value = Math.round((bytes / scale) * 10 ** digits) / 10 ** digits;
+        if (bytes >= 1000 && value >= 1) {
+          text = `${new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)} ${unit}`;
+        }
+        if (value < 1000) break;
+      }
+      return text;
+    }
+
+    // content.js counts the bytes as it reads the file and stamps the total on
+    // the shell. A source read from the DOM has no count, so its UTF-8 length
+    // is worked out here.
+    function sourceBytes() {
+      return env.bytes > 0 ? env.bytes : utf8Length(SOURCE);
+    }
+
+    // One byte per ASCII character, two up to U+07FF, three above; a
+    // surrogate pair, four bytes in UTF-8, is two characters at two each.
+    function utf8Length(text) {
+      let bytes = text.length;
+      for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (code > 0x7f) bytes += code > 0x7ff && (code < 0xd800 || code > 0xdfff) ? 2 : 1;
+      }
+      return bytes;
+    }
+
+    // One pill describing the document: a file icon, then what it is, which
+    // blocks it carries, and how big it is, "·"-separated —
+    //
+    //   [icon] ONIX 3.1 (1 product) · Blocks: 1, 2, 4, 5, 6 · 18 KB
+    //
+    // The blocks segment used to be a pill of its own; it says something about
+    // this document rather than about the viewer, so it reads better as part of
+    // the same sentence. It stays a separate element so #oxv-block-list keeps
+    // its id, and #oxv-block-list:empty hides it when there are none.
+    function fillMetaPill(size, productCount) {
+      const blockList = scope.getElementById("oxv-block-list");
+      const blocks = blockListText();
+      if (blockList) {
+        blockList.textContent = blocks;
+        if (blocks) blockList.title = "ONIX blocks present in this Product";
+      }
+
+      const segments = [];
+      const documentLabel = onixDocumentLabel(productCount);
+      if (documentLabel) segments.push(document.createTextNode(documentLabel));
+      if (blockList && blocks) segments.push(blockList);
+      segments.push(document.createTextNode(size));
+
+      // The segments go in one inline wrapper rather than straight into the
+      // pill: #oxv-meta is a flex row, and flex turns each bare text node into
+      // an item, so the gap that spaces the icon would also stretch every "·".
+      const label = document.createElement("span");
+      label.className = "px-meta-label";
+      segments.forEach((segment, index) => {
+        if (index) label.append(document.createTextNode(" · "));
+        label.append(segment);
+      });
+      // Keep the element in the document even with nothing to say, so callers
+      // can always find it; :empty keeps it out of sight.
+      if (blockList && !blocks) label.append(blockList);
+
+      meta.textContent = "";
+      meta.append(icon("file"), label);
+    }
+
+    // "ONIX 3.1 short tags (2 products)", or "" for non-ONIX XML, where the
+    // size alone is all the pill can honestly claim.
+    function onixDocumentLabel(productCount) {
+      if (!onixCtx.isOnix) return "";
+      // Version is unknown for un-namespaced standalone <Product> records (there's
+      // no namespace to read it from) — omit it rather than show "ONIX ?".
+      const versionPart = onixCtx.version ? ` ${onixCtx.version}` : "";
+      if (onixCtx.messageType === "acknowledgement") {
+        // Acknowledgement <Product> blocks are record statuses, not product
+        // records — label the count "records" to match.
+        return `ONIX Acknowledgement${versionPart} (${countLabel(productCount, "record")})`;
+      }
+      const productsLabel = countLabel(productCount, "product");
+      const dialectPart = onixCtx.dialect === "short" ? " short tags" : "";
+      return `ONIX${versionPart}${dialectPart} (${productsLabel})`;
+    }
+
+    // "1 product", "20,868 products": the number grouped in the browser's own
+    // format, as the size beside it is (20 868 in Norwegian).
+    function countLabel(count, noun) {
+      const number = new Intl.NumberFormat().format(count);
+      return count === 1 ? `1 ${noun}` : `${number} ${noun}s`;
+    }
+
+    function blockListText() {
+      const numbers = window.OnixViewerOnix
+        ? window.OnixViewerOnix.singleProductBlocks(doc, onixCtx)
+        : null;
+      return numbers && numbers.length ? `Blocks: ${numbers.join(", ")}` : "";
+    }
+
+    // ---- stepped expand / collapse --------------------------------------------
+
+    // Both buttons work a level at a time, and both read the tree rather than
+    // counting clicks — so they still do the sensible thing after the reader has
+    // folded or unfolded rows by hand, and there is no counter to get out of
+    // step with what is on screen.
+
+    // Reveal one more level: unfold every folded row at the shallowest depth
+    // that still has one.
+    function expandStep() {
+      const folded = collapsibleRows().filter(isFolded);
+      if (!folded.length) return;
+      const shallowest = Math.min(...folded.map(rowDepth));
+      for (const row of folded) {
+        if (rowDepth(row) === shallowest) row.classList.remove("px-folded");
+      }
+    }
+
+    // Hide one more layer. For ONIX the first two steps follow the shape of a
+    // message rather than raw depth, because that is how the document is read:
+    //
+    //   1. everything inside each <Product>, plus the message's other children
+    //      (<Header>) — each record reads as one line per composite;
+    //   2. the <Product> rows themselves — the message reads as one line per
+    //      top-level element;
+    //   3. and from there, the deepest level still on screen, which is the root.
+    //
+    // Non-ONIX XML has no such shape, so it uses step 3 throughout and zips up
+    // from the leaves — the mirror of what Expand does.
+    function collapseStep() {
+      if (onixCtx.isOnix) {
+        if (foldRows(unfolded(collapsibleRows().filter(isOutlineRow)), { reveal: true })) return;
+        if (foldRows(unfolded(collapsibleRows().filter(isProductRow)))) return;
+      }
+      foldDeepestVisibleLevel();
+    }
+
+    // Only rows the reader can actually see are candidates, so no press is spent
+    // folding something hidden inside an already-folded ancestor.
+    function foldDeepestVisibleLevel() {
+      const open = unfolded(collapsibleRows()).filter(isRowVisible);
+      if (!open.length) return false;
+      const deepest = Math.max(...open.map(rowDepth));
+      return foldRows(open.filter((row) => rowDepth(row) === deepest));
+    }
+
+    // `reveal` unfolds each row's ancestors as it goes, which is what makes step
+    // 1 read as "one line per composite" on a feed the reader has already
+    // folded by hand. The later steps must not do it — they are folding things
+    // up, and reopening an ancestor would undo the step before.
+    function foldRows(rows, options) {
+      for (const row of rows) {
+        if (options && options.reveal) unfoldAncestors(row);
+        row.classList.add("px-folded");
+      }
+      return rows.length > 0;
+    }
+
+    function collapsibleRows() {
+      return [...root.querySelectorAll(".px-row.px-collapsible")];
+    }
+
+    function unfolded(rows) {
+      return rows.filter((row) => !isFolded(row));
+    }
+
+    function isFolded(row) {
+      return row.classList.contains("px-folded");
+    }
+
+    // On screen, i.e. no folded row above it. The shallowest *folded* row is
+    // always visible by definition, which is why Expand needs no such check.
+    function isRowVisible(row) {
+      let parent = row.parentElement;
+      while (parent && parent !== root) {
+        if (parent.classList.contains("px-children")) {
+          const opener = parent.previousElementSibling;
+          if (opener && isFolded(opener)) return false;
+        }
+        parent = parent.parentElement;
+      }
+      return true;
+    }
+
+    function rowDepth(row) {
+      return Number(row.style.getPropertyValue("--depth")) || 0;
+    }
+
+    function isProductRow(row) {
+      return isProductElement(rowElements.get(row));
+    }
+
+    // Step 1 of Collapse: the rows whose folding leaves each record readable as
+    // one line per composite.
+    //
+    //   1. Everything sitting directly inside a <Product> — the seven ONIX
+    //      blocks plus the block-0 composites (ProductIdentifier,
+    //      RecordSourceIdentifier, Barcode), which would otherwise sprawl.
+    //   2. The message's own children other than <Product> — <Header> above
+    //      all. It is a sibling of the products, so rule 1 never reached it.
+    //
+    // The <Product> rows themselves are step 2, not this one: seeing one line
+    // per block inside each record is the point of stopping here.
+    //
+    // Keying on the parent rather than a list of names covers both dialects and
+    // needs no upkeep as ONIX gains elements — BLOCK_NUMBERS stays behind to
+    // drive the Block N badge only.
+    function isOutlineRow(row) {
+      const element = rowElements.get(row);
+      if (!element || !onixCtx.isOnix) return false;
+      if (isProductElement(element.parentNode)) return true;
+      return element.parentNode === doc.documentElement && !isProductElement(element);
+    }
+
+    // Unfold every folded open-row above `node` so it becomes visible. Works
+    // for any node inside the tree, not just rows.
+    function unfoldAncestors(node) {
+      let parent = node.parentElement;
+      while (parent && parent !== root) {
+        if (parent.classList.contains("px-children")) {
+          const opener = parent.previousElementSibling;
+          if (opener) opener.classList.remove("px-folded");
+        }
+        parent = parent.parentElement;
+      }
+    }
+
+    // ---- validation -----------------------------------------------------------
+
+    // Runs on load, in slices. The first slice is generous, so a normal document
+    // is finished before the reader sees anything and there's no spinner flash;
+    // a large feed spends its first 12ms, then continues during idle time, which
+    // keeps scrolling and folding responsive while it works.
+    function startValidation() {
+      const status = scope.getElementById("oxv-validation");
+      if (!window.OnixViewerValidation || !onixCtx.isOnix) {
+        if (status) status.textContent = "";
+        return;
+      }
+      clearFindings();
+      const session = window.OnixViewerValidation.start(doc, onixCtx, { version: validationRelease });
+      activeSession = session;
+      session.step(FIRST_SLICE_MS);
+      if (session.done) {
+        finishValidation(session);
+        return;
+      }
+      renderValidationStatus("validating");
+      pumpValidation(session);
+    }
+
+    function pumpValidation(session) {
+      afterYield(() => {
+        if (session !== activeSession) return;
+        session.step(SLICE_MS);
+        if (session.done) finishValidation(session);
+        else pumpValidation(session);
+      });
+    }
+
+    // Slices are pumped through a MessageChannel, not a timer or an idle
+    // callback. In a hidden tab Chrome clamps setTimeout to about a second and
+    // suspends requestIdleCallback outright — its `timeout` argument does not
+    // rescue it — so either one leaves a large feed stuck at "Validating…"
+    // until someone looks at the tab. A channel message is an ordinary task:
+    // neither clamped nor suspended, and yielding between slices still lets
+    // input, scrolling and rendering through.
+    // Validation and search both slice through here, so the slices queue: one
+    // message per callback, run in the order they were asked for. A single
+    // slot would let one job's next slice overwrite the other's.
+    const SLICE_MS = 8;
+    const FIRST_SLICE_MS = 12;
+    const pumpChannel = window.MessageChannel ? new window.MessageChannel() : null;
+    const pendingSlices = [];
+
     if (pumpChannel) {
-      pendingSlices.push(callback);
-      pumpChannel.port2.postMessage(0);
-    } else {
-      setTimeout(callback, 0);
+      pumpChannel.port1.onmessage = () => {
+        const slice = pendingSlices.shift();
+        if (slice) slice();
+      };
     }
-  }
 
-  function finishValidation(session) {
-    lastValidation = session.result();
-    for (const finding of lastValidation.findings) pinFinding(finding);
-    renderValidationStatus(lastValidation.total ? "invalid" : "valid", lastValidation);
-  }
-
-  // The label is icon-led: a spinner while working, a green tick when clean,
-  // the counts when not. It deliberately never scrolls the page — validation
-  // starts on its own, and yanking the view on load would be hostile.
-  function renderValidationStatus(state, result) {
-    const status = document.getElementById("oxv-validation");
-    if (!status) return;
-    status.textContent = "";
-    status.className = `px-${state}`;
-
-    if (state === "validating") {
-      const spinner = icon("spinner");
-      spinner.classList.add("px-icon-spin");
-      status.append(spinner, document.createTextNode("Validating…"));
-      status.title = "Checking this document against the ONIX schema";
-      status.setAttribute("role", "status");
-      status.removeAttribute("tabindex");
-      return;
-    }
-    if (state === "valid") {
-      status.append(icon("ok"), document.createTextNode("Valid"));
-      status.title = validationScopeNote(result);
-      status.setAttribute("role", "status");
-      status.removeAttribute("tabindex");
-      return;
-    }
-    // The glyph follows the worst severity present: a document with only
-    // warnings gets the triangle, not the cross.
-    const worst = result.errors ? "error" : "warning";
-    status.classList.add(`px-worst-${worst}`);
-    status.append(icon(worst), document.createTextNode(summariseValidation(result)));
-    status.title = "Click for the full list";
-    status.setAttribute("role", "button");
-    status.setAttribute("tabindex", "0");
-  }
-
-  function validationScopeNote(result) {
-    if (!result.checkedStructure) {
-      return `No content model bundled for ONIX ${validationRelease || "?"} — code lists were still checked`;
-    }
-    const note = `Checked against the bundled ONIX ${result.version} content model`;
-    return result.version === onixCtx.version ? note : `${note}; ${declaredReleaseNote()}`;
-  }
-
-  function declaredReleaseNote() {
-    return onixCtx.version ? `the document declares ONIX ${onixCtx.version}` : "the document declares no release";
-  }
-
-  // ---- release selector -----------------------------------------------------
-
-  // Which release the verdict is against, and the code-list issue it rests
-  // on — "ONIX 3.1, Issue 75", the two things the labels and the findings
-  // come from. The document's own release is the default and the norm; the
-  // other bundled release is a choice, for a feed about to move from 3.0 to
-  // 3.1 — where <TitleText> becomes a deprecation and the Conference
-  // composites unknown elements — or for a standalone <Product> with no
-  // namespace, which declares nothing and can be checked no other way. The
-  // choice is not remembered: a document says which release it is, and an
-  // override carried to the next file would judge it against the wrong
-  // schema in silence. An Acknowledgement is never checked structurally, so
-  // its select names its release and the issue and offers nothing else; a
-  // non-ONIX document validates nothing, and its empty select stays hidden.
-  function setupReleaseSelect() {
-    const select = document.getElementById("oxv-release");
-    if (!select || !onixCtx.isOnix) return;
-    const declared = onixCtx.version;
-    if (onixCtx.messageType === "acknowledgement") {
-      addReleaseOption(select, declared || "", releaseLabel(declared));
-      select.disabled = true;
-      select.title = "Acknowledgement messages have their own schema, which isn't bundled; code lists are still checked";
-      return;
-    }
-    const releases = bundledReleases();
-    if (declared && !releases.includes(declared)) addReleaseOption(select, declared, releaseLabel(declared));
-    for (const release of releases) addReleaseOption(select, release, releaseLabel(release));
-    select.value = validationRelease || "";
-    markReleaseSelect();
-    select.addEventListener("change", () => selectRelease(select.value || null));
-    quietPointerFocus(select);
-  }
-
-  // Chrome draws its focus ring on a <select> after a mouse click, where a
-  // button gets one from the keyboard alone, so the selector sat outlined
-  // after every choice. A press marks the element and the mark is what the
-  // stylesheet mutes; a key press or a blur clears it, so keyboard focus
-  // keeps its ring. And a choice made by mouse is finished: the control is
-  // left, so no ring can settle on it afterwards however the platform's
-  // popup shuffled focus on the way — it came back blue now and then
-  // otherwise. A choice made by key keeps focus, since the next arrow
-  // press is the natural way to change it again.
-  function quietPointerFocus(element) {
-    let pointer = false;
-    element.addEventListener("mousedown", () => {
-      pointer = true;
-      element.classList.add("px-pointer");
-    });
-    element.addEventListener("keydown", () => {
-      pointer = false;
-      element.classList.remove("px-pointer");
-    });
-    element.addEventListener("blur", () => element.classList.remove("px-pointer"));
-    element.addEventListener("change", () => {
-      if (pointer) element.blur();
-    });
-  }
-
-  // The issue is one for every release: code lists are release-independent,
-  // and OnixViewerCodeListSchema is baked into onix-codelists.js at
-  // generation time.
-  function releaseLabel(release) {
-    const schema = window.OnixViewerCodeListSchema;
-    const issue = schema && schema.issue != null ? `, Issue ${schema.issue}` : "";
-    return `ONIX ${release}${issue}`;
-  }
-
-  // A document that declares no release — a standalone <Product> with no
-  // namespace — is judged against a real one rather than none: 3.0, the
-  // release such exports most often come from. The selector offers the
-  // other, and the verdict's note says the document declared nothing.
-  function initialRelease() {
-    const undeclared = onixCtx.isOnix && !onixCtx.version && onixCtx.messageType !== "acknowledgement";
-    return undeclared ? UNDECLARED_RELEASE : onixCtx.version;
-  }
-
-  function selectorTitle() {
-    const schema = window.OnixViewerCodeListSchema;
-    const released = schema && schema.releaseDate ? `; code lists released ${schema.releaseDate}` : "";
-    return `Validate against this ONIX release${released}`;
-  }
-
-  function addReleaseOption(select, value, label) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    select.appendChild(option);
-  }
-
-  // The releases with a model: loaded already, or fetchable from the URLs
-  // content.js stamped on the shell.
-  function bundledReleases() {
-    const validation = window.OnixViewerValidation;
-    const loaded = validation ? validation.availableVersions() : [];
-    return [...new Set([...loaded, ...Object.keys(modelURLs())])].sort();
-  }
-
-  function modelURLs() {
-    let urls = {};
-    try {
-      urls = JSON.parse(document.documentElement.getAttribute("data-oxv-models") || "{}");
-    } catch {
-      urls = {};
-    }
-    return urls;
-  }
-
-  function selectRelease(release) {
-    validationRelease = release;
-    markReleaseSelect();
-    ensureModel(release, startValidation);
-  }
-
-  // The title names both releases while the choice differs from what the
-  // document declares; the control itself shows nothing of it — the
-  // document pill says what the file is, and a fill or a badge read as a
-  // control stuck down.
-  function markReleaseSelect() {
-    const select = document.getElementById("oxv-release");
-    if (!select) return;
-    const overridden = validationRelease !== onixCtx.version;
-    select.title = overridden
-      ? `Validating as ONIX ${validationRelease}; ${declaredReleaseNote()}`
-      : selectorTitle();
-  }
-
-  // content.js sends only the model matching the document's release (its
-  // contentModelURLs); the other is fetched the first time it is asked for,
-  // appended the way content.js appends the rest. Either outcome continues:
-  // without the model the pass reports model.missing, which is the truth.
-  function ensureModel(release, done) {
-    if (!modelLoaded(release)) renderValidationStatus("validating");
-    loadModel(release, done);
-  }
-
-  function modelLoaded(release) {
-    const validation = window.OnixViewerValidation;
-    return !validation || !!validation.modelFor(release) || !(release && modelURLs()[release]);
-  }
-
-  function loadModel(release, done) {
-    if (modelLoaded(release)) done();
-    else loadScript(modelURLs()[release], done);
-  }
-
-  function loadScript(url, done) {
-    const script = document.createElement("script");
-    script.src = url;
-    script.addEventListener("load", done);
-    script.addEventListener("error", done);
-    document.body.appendChild(script);
-  }
-
-  // "3 errors, 2 warnings" says more than "5 problems": the two counts are
-  // what a reader acts on differently.
-  function summariseValidation(result) {
-    if (!result.total) return "No problems found";
-    const parts = [];
-    if (result.errors) parts.push(countOf(result.errors, "error"));
-    if (result.warnings) parts.push(countOf(result.warnings, "warning"));
-    return parts.join(", ");
-  }
-
-  function countOf(n, noun) {
-    return `${n} ${noun}${n === 1 ? "" : "s"}`;
-  }
-
-  function revealRow(row) {
-    unfoldAncestors(row);
-    setActiveTreeRow(row);
-    jumpTo(row);
-  }
-
-  // Jumps are instant, not smooth. Products off screen are laid out only as
-  // they approach the viewport (content-visibility: auto, in viewer.css), so
-  // a smooth scroll that passes a hundred of them watches each grow from its
-  // placeholder height to its real one, and the target it was heading for
-  // has moved by the time it arrives — measured landing 30,000px short on a
-  // 300-product feed. An instant scroll reads the layout once and lands.
-  function jumpTo(row) {
-    if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
-  }
-
-  function clearFindings() {
-    pendingFindings.clear();
-    for (const marker of root.querySelectorAll(".px-finding")) marker.remove();
-    for (const row of root.querySelectorAll(".px-has-finding, .px-has-error")) {
-      row.classList.remove("px-has-finding", "px-has-error");
-    }
-  }
-
-  // Findings carry the element they are about; the marker lands on that
-  // element's row, or on the root row when the element isn't rendered. A
-  // finding inside a deferred Product waits with it — pinning it now would
-  // mean rendering every Product with a finding, which on a feed with a
-  // warning per record is the whole feed.
-  function pinFinding(finding) {
-    const product = pendingProductOf(finding.at || finding.node);
-    if (product) {
-      if (!pendingFindings.has(product)) pendingFindings.set(product, []);
-      pendingFindings.get(product).push(finding);
-      return;
-    }
-    const row = rowFor(finding) || root.querySelector(".px-row");
-    if (!row) return;
-    const isError = finding.severity === "error";
-    row.classList.add("px-has-finding");
-    if (isError) row.classList.add("px-has-error");
-
-    const text = window.OnixViewerValidation.message(finding);
-    const existing = row.querySelector(".px-finding");
-    if (existing) {
-      // A row can collect several findings: the pill takes the worst
-      // severity, keeps the first message and says how many more there are,
-      // and its tooltip lists them all. Clicking it shows the full set.
-      existing.title += `\n${text}`;
-      const seen = Number(existing.dataset.oxvCount || 1) + 1;
-      existing.dataset.oxvCount = String(seen);
-      if (isError && !existing.classList.contains("px-sev-error")) {
-        existing.classList.remove("px-sev-warning");
-        existing.classList.add("px-sev-error");
-        const previous = existing.querySelector("svg");
-        if (previous) previous.replaceWith(icon("error"));
+    function afterYield(callback) {
+      if (pumpChannel) {
+        pendingSlices.push(callback);
+        pumpChannel.port2.postMessage(0);
+      } else {
+        setTimeout(callback, 0);
       }
-      let counter = existing.querySelector(".px-finding-count");
-      if (!counter) {
-        counter = document.createElement("span");
-        counter.className = "px-finding-count";
-        existing.appendChild(counter);
-      }
-      counter.textContent = `+${seen - 1} more`;
-      existing.setAttribute("aria-label", `${seen} problems on this row: ${existing.title}`);
-      return;
     }
-    // A button, not a badge: clicking it opens the findings list at this
-    // row's entries. The first message is read in place; the tooltip still
-    // carries everything in full for when the pill has been clipped.
-    const marker = document.createElement("button");
-    marker.type = "button";
-    marker.className = `px-finding px-sev-${finding.severity}`;
-    marker.appendChild(icon(isError ? "error" : "warning"));
-    const inline = document.createElement("span");
-    inline.className = "px-finding-text";
-    inline.textContent = text;
-    marker.appendChild(inline);
-    marker.title = text;
-    marker.setAttribute("aria-label", `${isError ? "Error" : "Warning"}: ${text}`);
-    marker.dataset.oxvCode = finding.code;
-    marker.addEventListener("click", (event) => {
-      event.stopPropagation();
-      // Not every platform focuses a button on click (macOS doesn't outside
-      // Chrome), and the list hands focus back to whatever had it on close —
-      // so take it here, and closing returns the reader to this pill.
-      marker.focus();
-      showFindings(finding.node);
-    });
-    row.appendChild(marker);
-  }
 
-  // ---- findings list --------------------------------------------------------
+    function finishValidation(session) {
+      lastValidation = session.result();
+      for (const finding of lastValidation.findings) pinFinding(finding);
+      renderValidationStatus(lastValidation.total ? "invalid" : "valid", lastValidation);
+      if (env.onValidated) env.onValidated(lastValidation);
+    }
 
-  // Reuses the code-list popup's shell styling; the behaviour is its own,
-  // because these entries link back into the tree.
-  let findingsModal = null;
-  // Where focus was before the findings list took it, so closing puts the
-  // reader back where they were rather than at the top of a 17,000-row tree.
-  // onix-popup.js does the same for the code-list modal.
-  let findingsLastFocus = null;
-  // "all", "error" or "warning". Kept while the page is open, so a release
-  // switch re-validates into the same view; never carried to another page.
-  let findingsFilter = "all";
+    // The label is icon-led: a spinner while working, a green tick when clean,
+    // the counts when not. It deliberately never scrolls the page — validation
+    // starts on its own, and yanking the view on load would be hostile.
+    function renderValidationStatus(state, result) {
+      const status = scope.getElementById("oxv-validation");
+      if (!status) return;
+      status.textContent = "";
+      status.className = `px-${state}`;
 
-  function setupFindingsLabel() {
-    const status = document.getElementById("oxv-validation");
-    if (!status) return;
-    status.addEventListener("click", () => showFindings());
-    status.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
+      if (state === "validating") {
+        const spinner = icon("spinner");
+        spinner.classList.add("px-icon-spin");
+        status.append(spinner, document.createTextNode("Validating…"));
+        status.title = "Checking this document against the ONIX schema";
+        status.setAttribute("role", "status");
+        status.removeAttribute("tabindex");
+        return;
+      }
+      if (state === "valid") {
+        status.append(icon("ok"), document.createTextNode("Valid"));
+        status.title = validationScopeNote(result);
+        status.setAttribute("role", "status");
+        status.removeAttribute("tabindex");
+        return;
+      }
+      // The glyph follows the worst severity present: a document with only
+      // warnings gets the triangle, not the cross.
+      const worst = result.errors ? "error" : "warning";
+      status.classList.add(`px-worst-${worst}`);
+      status.append(icon(worst), document.createTextNode(summariseValidation(result)));
+      status.title = "Click for the full list";
+      status.setAttribute("role", "button");
+      status.setAttribute("tabindex", "0");
+    }
+
+    function validationScopeNote(result) {
+      if (!result.checkedStructure) {
+        return `No content model bundled for ONIX ${validationRelease || "?"} — code lists were still checked`;
+      }
+      const note = `Checked against the bundled ONIX ${result.version} content model`;
+      return result.version === onixCtx.version ? note : `${note}; ${declaredReleaseNote()}`;
+    }
+
+    function declaredReleaseNote() {
+      return onixCtx.version ? `the document declares ONIX ${onixCtx.version}` : "the document declares no release";
+    }
+
+    // ---- release selector -----------------------------------------------------
+
+    // Which release the verdict is against, and the code-list issue it rests
+    // on — "ONIX 3.1, Issue 75", the two things the labels and the findings
+    // come from. The document's own release is the default and the norm; the
+    // other bundled release is a choice, for a feed about to move from 3.0 to
+    // 3.1 — where <TitleText> becomes a deprecation and the Conference
+    // composites unknown elements — or for a standalone <Product> with no
+    // namespace, which declares nothing and can be checked no other way. The
+    // choice is not remembered: a document says which release it is, and an
+    // override carried to the next file would judge it against the wrong
+    // schema in silence. An Acknowledgement is never checked structurally, so
+    // its select names its release and the issue and offers nothing else; a
+    // non-ONIX document validates nothing, and its empty select stays hidden.
+    function setupReleaseSelect() {
+      const select = scope.getElementById("oxv-release");
+      if (!select || !onixCtx.isOnix) return;
+      const declared = onixCtx.version;
+      if (onixCtx.messageType === "acknowledgement") {
+        addReleaseOption(select, declared || "", releaseLabel(declared));
+        select.disabled = true;
+        select.title = "Acknowledgement messages have their own schema, which isn't bundled; code lists are still checked";
+        return;
+      }
+      const releases = bundledReleases();
+      if (declared && !releases.includes(declared)) addReleaseOption(select, declared, releaseLabel(declared));
+      for (const release of releases) addReleaseOption(select, release, releaseLabel(release));
+      select.value = validationRelease || "";
+      markReleaseSelect();
+      select.addEventListener("change", () => selectRelease(select.value || null));
+      quietPointerFocus(select);
+    }
+
+    // Chrome draws its focus ring on a <select> after a mouse click, where a
+    // button gets one from the keyboard alone, so the selector sat outlined
+    // after every choice. A press marks the element and the mark is what the
+    // stylesheet mutes; a key press or a blur clears it, so keyboard focus
+    // keeps its ring. And a choice made by mouse is finished: the control is
+    // left, so no ring can settle on it afterwards however the platform's
+    // popup shuffled focus on the way — it came back blue now and then
+    // otherwise. A choice made by key keeps focus, since the next arrow
+    // press is the natural way to change it again.
+    function quietPointerFocus(element) {
+      let pointer = false;
+      element.addEventListener("mousedown", () => {
+        pointer = true;
+        element.classList.add("px-pointer");
+      });
+      element.addEventListener("keydown", () => {
+        pointer = false;
+        element.classList.remove("px-pointer");
+      });
+      element.addEventListener("blur", () => element.classList.remove("px-pointer"));
+      element.addEventListener("change", () => {
+        if (pointer) element.blur();
+      });
+    }
+
+    // The issue is one for every release: code lists are release-independent,
+    // and OnixViewerCodeListSchema is baked into onix-codelists.js at
+    // generation time.
+    function releaseLabel(release) {
+      const schema = window.OnixViewerCodeListSchema;
+      const issue = schema && schema.issue != null ? `, Issue ${schema.issue}` : "";
+      return `ONIX ${release}${issue}`;
+    }
+
+    // A document that declares no release — a standalone <Product> with no
+    // namespace — is judged against a real one rather than none: 3.0, the
+    // release such exports most often come from. The selector offers the
+    // other, and the verdict's note says the document declared nothing.
+    function initialRelease() {
+      const undeclared = onixCtx.isOnix && !onixCtx.version && onixCtx.messageType !== "acknowledgement";
+      return undeclared ? UNDECLARED_RELEASE : onixCtx.version;
+    }
+
+    function selectorTitle() {
+      const schema = window.OnixViewerCodeListSchema;
+      const released = schema && schema.releaseDate ? `; code lists released ${schema.releaseDate}` : "";
+      return `Validate against this ONIX release${released}`;
+    }
+
+    function addReleaseOption(select, value, label) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    }
+
+    // The releases with a model: loaded already, or fetchable from the URLs
+    // content.js stamped on the shell.
+    function bundledReleases() {
+      const validation = window.OnixViewerValidation;
+      const loaded = validation ? validation.availableVersions() : [];
+      return [...new Set([...loaded, ...Object.keys(modelURLs())])].sort();
+    }
+
+    function modelURLs() {
+      return env.models || {};
+    }
+
+    function selectRelease(release) {
+      validationRelease = release;
+      markReleaseSelect();
+      ensureModel(release, startValidation);
+    }
+
+    // The title names both releases while the choice differs from what the
+    // document declares; the control itself shows nothing of it — the
+    // document pill says what the file is, and a fill or a badge read as a
+    // control stuck down.
+    function markReleaseSelect() {
+      const select = scope.getElementById("oxv-release");
+      if (!select) return;
+      const overridden = validationRelease !== onixCtx.version;
+      select.title = overridden
+        ? `Validating as ONIX ${validationRelease}; ${declaredReleaseNote()}`
+        : selectorTitle();
+    }
+
+    // content.js sends only the model matching the document's release (its
+    // contentModelURLs); the other is fetched the first time it is asked for,
+    // appended the way content.js appends the rest. Either outcome continues:
+    // without the model the pass reports model.missing, which is the truth.
+    function ensureModel(release, done) {
+      if (!modelLoaded(release)) renderValidationStatus("validating");
+      loadModel(release, done);
+    }
+
+    function modelLoaded(release) {
+      const validation = window.OnixViewerValidation;
+      return !validation || !!validation.modelFor(release) || !(release && modelURLs()[release]);
+    }
+
+    function loadModel(release, done) {
+      if (modelLoaded(release)) done();
+      else loadScript(modelURLs()[release], done);
+    }
+
+    function loadScript(url, done) {
+      const script = document.createElement("script");
+      script.src = url;
+      script.addEventListener("load", done);
+      script.addEventListener("error", done);
+      document.body.appendChild(script);
+    }
+
+    // "3 errors, 2 warnings" says more than "5 problems": the two counts are
+    // what a reader acts on differently.
+    function summariseValidation(result) {
+      if (!result.total) return "No problems found";
+      const parts = [];
+      if (result.errors) parts.push(countOf(result.errors, "error"));
+      if (result.warnings) parts.push(countOf(result.warnings, "warning"));
+      return parts.join(", ");
+    }
+
+    function countOf(n, noun) {
+      return `${n} ${noun}${n === 1 ? "" : "s"}`;
+    }
+
+    function revealRow(row) {
+      unfoldAncestors(row);
+      setActiveTreeRow(row);
+      jumpTo(row);
+    }
+
+    // Jumps are instant, not smooth. Products off screen are laid out only as
+    // they approach the viewport (content-visibility: auto, in viewer.css), so
+    // a smooth scroll that passes a hundred of them watches each grow from its
+    // placeholder height to its real one, and the target it was heading for
+    // has moved by the time it arrives — measured landing 30,000px short on a
+    // 300-product feed. An instant scroll reads the layout once and lands.
+    function jumpTo(row) {
+      if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
+    }
+
+    function clearFindings() {
+      pendingFindings.clear();
+      for (const marker of root.querySelectorAll(".px-finding")) marker.remove();
+      for (const row of root.querySelectorAll(".px-has-finding, .px-has-error")) {
+        row.classList.remove("px-has-finding", "px-has-error");
+      }
+    }
+
+    // Findings carry the element they are about; the marker lands on that
+    // element's row, or on the root row when the element isn't rendered. A
+    // finding inside a deferred Product waits with it — pinning it now would
+    // mean rendering every Product with a finding, which on a feed with a
+    // warning per record is the whole feed.
+    function pinFinding(finding) {
+      const product = pendingProductOf(finding.at || finding.node);
+      if (product) {
+        if (!pendingFindings.has(product)) pendingFindings.set(product, []);
+        pendingFindings.get(product).push(finding);
+        return;
+      }
+      const row = rowFor(finding) || root.querySelector(".px-row");
+      if (!row) return;
+      const isError = finding.severity === "error";
+      row.classList.add("px-has-finding");
+      if (isError) row.classList.add("px-has-error");
+
+      const text = window.OnixViewerValidation.message(finding);
+      const existing = row.querySelector(".px-finding");
+      if (existing) {
+        // A row can collect several findings: the pill takes the worst
+        // severity, keeps the first message and says how many more there are,
+        // and its tooltip lists them all. Clicking it shows the full set.
+        existing.title += `\n${text}`;
+        const seen = Number(existing.dataset.oxvCount || 1) + 1;
+        existing.dataset.oxvCount = String(seen);
+        if (isError && !existing.classList.contains("px-sev-error")) {
+          existing.classList.remove("px-sev-warning");
+          existing.classList.add("px-sev-error");
+          const previous = existing.querySelector("svg");
+          if (previous) previous.replaceWith(icon("error"));
+        }
+        let counter = existing.querySelector(".px-finding-count");
+        if (!counter) {
+          counter = document.createElement("span");
+          counter.className = "px-finding-count";
+          existing.appendChild(counter);
+        }
+        counter.textContent = `+${seen - 1} more`;
+        existing.setAttribute("aria-label", `${seen} problems on this row: ${existing.title}`);
+        return;
+      }
+      // A button, not a badge: clicking it opens the findings list at this
+      // row's entries. The first message is read in place; the tooltip still
+      // carries everything in full for when the pill has been clipped.
+      const marker = document.createElement("button");
+      marker.type = "button";
+      marker.className = `px-finding px-sev-${finding.severity}`;
+      marker.appendChild(icon(isError ? "error" : "warning"));
+      const inline = document.createElement("span");
+      inline.className = "px-finding-text";
+      inline.textContent = text;
+      marker.appendChild(inline);
+      marker.title = text;
+      marker.setAttribute("aria-label", `${isError ? "Error" : "Warning"}: ${text}`);
+      marker.dataset.oxvCode = finding.code;
+      marker.addEventListener("click", (event) => {
+        event.stopPropagation();
+        // Not every platform focuses a button on click (macOS doesn't outside
+        // Chrome), and the list hands focus back to whatever had it on close —
+        // so take it here, and closing returns the reader to this pill.
+        marker.focus();
+        showFindings(finding.node);
+      });
+      row.appendChild(marker);
+    }
+
+    // ---- findings list --------------------------------------------------------
+
+    // Reuses the code-list popup's shell styling; the behaviour is its own,
+    // because these entries link back into the tree.
+    let findingsModal = null;
+    // Where focus was before the findings list took it, so closing puts the
+    // reader back where they were rather than at the top of a 17,000-row tree.
+    // onix-popup.js does the same for the code-list modal.
+    let findingsLastFocus = null;
+    // "all", "error" or "warning". Kept while the page is open, so a release
+    // switch re-validates into the same view; never carried to another page.
+    let findingsFilter = "all";
+
+    function setupFindingsLabel() {
+      const status = scope.getElementById("oxv-validation");
+      if (!status) return;
+      status.addEventListener("click", () => showFindings());
+      status.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          showFindings();
+        }
+      });
+      keys.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && findingsModal && !findingsModal.hidden) closeFindings();
+        if (event.key === "Escape" && rulesModal && !rulesModal.hidden) closeRules();
+        if (event.key === "Escape" && aboutModal && !aboutModal.hidden) closeAbout();
+      }, { signal });
+    }
+
+    // `about` is the source element a row's pill was clicked on: its entries
+    // are highlighted, the first of them scrolled into view and given focus, so
+    // the list opens on the thing the reader asked about rather than at the top.
+    function showFindings(about) {
+      if (!lastValidation || !lastValidation.total) return;
+      const overlay = ensureFindingsModal();
+      // A pill opens on its own entries, so a filter that would hide any of
+      // them gives way to All.
+      if (about && lastValidation.findings.some((f) => f.node === about && !passesFilter(f))) {
+        findingsFilter = "all";
+      }
+      overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
+      overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
+      const first = renderFindingsList(about);
+      findingsLastFocus = scope.activeElement;
+      overlay.hidden = false;
+      const target = first || overlay.querySelector(".px-popup-close");
+      if (target) target.focus();
+      if (first && first.scrollIntoView) first.scrollIntoView({ block: "center" });
+    }
+
+    // Fills the list with the findings the filter lets through and returns the
+    // first entry about `about`, if any.
+    function renderFindingsList(about) {
+      const list = findingsModal.querySelector(".px-findings-list");
+      list.textContent = "";
+      let first = null;
+      for (const finding of lastValidation.findings) {
+        if (!passesFilter(finding)) continue;
+        const entry = findingEntry(finding);
+        if (about && finding.node === about) {
+          entry.classList.add("px-findings-item-current");
+          if (!first) first = entry;
+        }
+        list.appendChild(entry);
+      }
+      updateFindingsFilter();
+      findingsModal.querySelector(".px-popup-footer").textContent = findingsFooter(list.children.length);
+      return first;
+    }
+
+    function passesFilter(finding) {
+      return effectiveFilter() === "all" || finding.severity === effectiveFilter();
+    }
+
+    // With only one severity present, every option would show the same list,
+    // so the filter is hidden and All applies.
+    function effectiveFilter() {
+      return hasBothSeverities() ? findingsFilter : "all";
+    }
+
+    function hasBothSeverities() {
+      return lastValidation.errors > 0 && lastValidation.warnings > 0;
+    }
+
+    function findingsFooter(shown) {
+      const counted = {
+        all: lastValidation.total,
+        error: lastValidation.errors,
+        warning: lastValidation.warnings,
+      }[effectiveFilter()];
+      const noun = { all: "", error: " errors", warning: " warnings" }[effectiveFilter()];
+      return shown < counted ? `Showing ${shown} of ${counted}${noun}.` : "";
+    }
+
+    function updateFindingsFilter() {
+      const group = findingsModal.querySelector(".px-findings-filter");
+      group.hidden = !hasBothSeverities();
+      const counts = {
+        all: lastValidation.total,
+        error: lastValidation.errors,
+        warning: lastValidation.warnings,
+      };
+      for (const option of group.querySelectorAll("[role=radio]")) {
+        const value = option.dataset.oxvFilter;
+        const checked = value === effectiveFilter();
+        option.setAttribute("aria-checked", checked ? "true" : "false");
+        option.tabIndex = checked && !group.hidden ? 0 : -1;
+        option.querySelector(".px-findings-filter-count").textContent = String(counts[value]);
+      }
+    }
+
+    function selectFindingsFilter(value) {
+      findingsFilter = value;
+      renderFindingsList(null);
+      const checked = findingsModal.querySelector(".px-findings-filter [aria-checked=true]");
+      if (checked) checked.focus();
+    }
+
+    // A radio group: one tab stop, arrow keys move the selection.
+    function buildFindingsFilter() {
+      const group = document.createElement("div");
+      group.className = "px-findings-filter";
+      group.setAttribute("role", "radiogroup");
+      group.setAttribute("aria-label", "Show");
+      const options = [["all", "All"], ["error", "Errors"], ["warning", "Warnings"]];
+      for (const [value, label] of options) {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.setAttribute("role", "radio");
+        option.dataset.oxvFilter = value;
+        const name = document.createElement("span");
+        name.textContent = label;
+        const count = document.createElement("span");
+        count.className = "px-findings-filter-count";
+        option.append(name, count);
+        option.addEventListener("click", () => selectFindingsFilter(value));
+        group.appendChild(option);
+      }
+      group.addEventListener("keydown", (event) => {
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        if (!step) return;
         event.preventDefault();
-        showFindings();
+        const values = options.map(([value]) => value);
+        const next = (values.indexOf(findingsFilter) + step + values.length) % values.length;
+        selectFindingsFilter(values[next]);
+      });
+      return group;
+    }
+
+    function findingEntry(finding) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "px-findings-item";
+      item.dataset.oxvSeverity = finding.severity;
+
+      // Icon only, so every badge is the same width and the columns line up
+      // down the list. Colour and shape both carry the severity; the word lives
+      // in the label for anyone who can't see either.
+      const label = finding.severity === "error" ? "Error" : "Warning";
+      const badge = document.createElement("span");
+      badge.className = `px-findings-severity px-sev-${finding.severity}`;
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", label);
+      badge.title = label;
+      badge.appendChild(icon(finding.severity === "error" ? "error" : "warning"));
+
+      const where = document.createElement("span");
+      where.className = "px-findings-where";
+      where.textContent = finding.node ? `<${finding.node.nodeName}>` : "";
+
+      const text = document.createElement("span");
+      text.className = "px-findings-message";
+      text.textContent = window.OnixViewerValidation.message(finding);
+
+      item.append(badge, where, text);
+      item.addEventListener("click", () => {
+        // Dragging across the message to copy it ends in a click on this button,
+        // which would otherwise close the list and jump the page out from under
+        // the selection. Keyboard activation leaves the selection collapsed, so
+        // Enter and Space still navigate.
+        if (hasSelectionInside(item)) return;
+        ensureRendered(finding.at || finding.node);
+        const row = rowFor(finding);
+        closeFindings();
+        if (row) revealRow(row);
+      });
+      return item;
+    }
+
+    // The row a finding is shown on: the one for the node it names as `at`
+    // when that has a row of its own (stray text inside a composite), else the
+    // element's. A text node inside a text-only element has no row of its own —
+    // its text sits in the element's row — so the fallback covers it.
+    function rowFor(finding) {
+      let row = finding.at ? elementRows.get(finding.at) : null;
+      if (!row && finding.node) row = elementRows.get(finding.node);
+      return row || null;
+    }
+
+    function hasSelectionInside(element) {
+      const selection = currentSelection();
+      return !!selection && !selection.isCollapsed && selection.toString().trim() !== "" &&
+        !!selection.anchorNode && element.contains(selection.anchorNode);
+    }
+
+    function ensureFindingsModal() {
+      if (findingsModal) return findingsModal;
+      const overlay = document.createElement("div");
+      overlay.className = "px-popup-overlay";
+      overlay.id = "oxv-findings";
+      overlay.hidden = true;
+
+      const dialog = document.createElement("div");
+      dialog.className = "px-popup";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      // Its own id, not the code-list popup's — both live in this document, and
+      // aria-labelledby resolves by id.
+      dialog.setAttribute("aria-labelledby", "oxv-findings-title");
+
+      const header = document.createElement("div");
+      header.className = "px-popup-header";
+      const titleWrap = document.createElement("div");
+      titleWrap.className = "px-popup-title-wrap";
+      const eyebrow = document.createElement("div");
+      eyebrow.className = "px-popup-eyebrow";
+      const title = document.createElement("div");
+      title.id = "oxv-findings-title";
+      title.className = "px-popup-title";
+      titleWrap.append(eyebrow, title, buildFindingsFilter());
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "px-popup-close";
+      closeButton.setAttribute("aria-label", "Close");
+      closeButton.appendChild(icon("close"));
+      closeButton.addEventListener("click", closeFindings);
+      header.append(titleWrap, closeButton);
+
+      const body = document.createElement("div");
+      body.className = "px-popup-body";
+      const list = document.createElement("div");
+      list.className = "px-findings-list";
+      body.appendChild(list);
+
+      const footer = document.createElement("div");
+      footer.className = "px-popup-footer";
+
+      dialog.append(header, body, footer);
+      overlay.appendChild(dialog);
+      keepTabInside(dialog, "button:not([disabled]):not([tabindex='-1'])");
+      closeOnBackdrop(overlay, closeFindings);
+      frame.appendChild(overlay);
+      findingsModal = overlay;
+      return overlay;
+    }
+
+    // aria-modal="true" tells assistive tech nothing outside is reachable, so
+    // Tab must actually stay inside. A list can be long, hence querying the
+    // focusables on each Tab rather than caching them.
+    function keepTabInside(dialog, selector) {
+      dialog.addEventListener("keydown", (event) => {
+        if (event.key !== "Tab") return;
+        const focusable = [...dialog.querySelectorAll(selector)];
+        if (!focusable.length) return;
+        const edge = event.shiftKey ? focusable[0] : focusable[focusable.length - 1];
+        if (scope.activeElement === edge) {
+          event.preventDefault();
+          (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
+        }
+      });
+    }
+
+    // A press inside that is released outside is not a click on the backdrop,
+    // though the browser fires one there: a drag of a modal's corner handle
+    // ends outside — the modal is centred, so its corner moves at half the
+    // cursor's speed — and so does a text selection dragged out of it. Only a
+    // press that began on the backdrop closes the modal.
+    function closeOnBackdrop(overlay, close) {
+      let pressedBackdrop = false;
+      overlay.addEventListener("mousedown", (event) => {
+        pressedBackdrop = event.target === overlay;
+      });
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay && pressedBackdrop) close();
+      });
+    }
+
+    function closeFindings() {
+      if (!findingsModal || findingsModal.hidden) return;
+      findingsModal.hidden = true;
+      if (findingsLastFocus && typeof findingsLastFocus.focus === "function") {
+        try { findingsLastFocus.focus(); } catch { /* it may have left the document */ }
       }
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && findingsModal && !findingsModal.hidden) closeFindings();
-      if (event.key === "Escape" && rulesModal && !rulesModal.hidden) closeRules();
-      if (event.key === "Escape" && aboutModal && !aboutModal.hidden) closeAbout();
-    });
-  }
-
-  // `about` is the source element a row's pill was clicked on: its entries
-  // are highlighted, the first of them scrolled into view and given focus, so
-  // the list opens on the thing the reader asked about rather than at the top.
-  function showFindings(about) {
-    if (!lastValidation || !lastValidation.total) return;
-    const overlay = ensureFindingsModal();
-    // A pill opens on its own entries, so a filter that would hide any of
-    // them gives way to All.
-    if (about && lastValidation.findings.some((f) => f.node === about && !passesFilter(f))) {
-      findingsFilter = "all";
+      findingsLastFocus = null;
     }
-    overlay.querySelector(".px-popup-eyebrow").textContent = validationScopeNote(lastValidation);
-    overlay.querySelector(".px-popup-title").textContent = summariseValidation(lastValidation);
-    const first = renderFindingsList(about);
-    findingsLastFocus = document.activeElement;
-    overlay.hidden = false;
-    const target = first || overlay.querySelector(".px-popup-close");
-    if (target) target.focus();
-    if (first && first.scrollIntoView) first.scrollIntoView({ block: "center" });
-  }
 
-  // Fills the list with the findings the filter lets through and returns the
-  // first entry about `about`, if any.
-  function renderFindingsList(about) {
-    const list = findingsModal.querySelector(".px-findings-list");
-    list.textContent = "";
-    let first = null;
-    for (const finding of lastValidation.findings) {
-      if (!passesFilter(finding)) continue;
-      const entry = findingEntry(finding);
-      if (about && finding.node === about) {
-        entry.classList.add("px-findings-item-current");
-        if (!first) first = entry;
-      }
-      list.appendChild(entry);
+    // ---- custom rules ---------------------------------------------------------
+
+    // The reader's own rules: a Schematron rule set (see onix-schematron.js),
+    // pasted into a modal behind the toolbar's cog. Applying it installs the
+    // rules, re-validates, and hands the text to content.js — the one script
+    // with storage access — to keep for the next page. The text arrives on
+    // load the way the source does, in the inert #__oxv-rules__ block.
+    let rulesModal = null;
+    let rulesLastFocus = null;
+    let customRules = "";
+    // What the last install returned, so the editor opens already applied:
+    // the status of the rules in force, problems included, before anything is
+    // pressed.
+    let rulesInstalled = null;
+
+    function ensureRulesModal() {
+      if (rulesModal) return rulesModal;
+      window.addEventListener("message", (event) => {
+        if (event.source === window && event.data && event.data.type === "oxv-rules-kept") markRulesKept();
+      }, { signal });
+      const overlay = document.createElement("div");
+      overlay.className = "px-popup-overlay";
+      overlay.id = "oxv-rules";
+      overlay.hidden = true;
+
+      const dialog = document.createElement("div");
+      dialog.className = "px-popup px-rules";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "oxv-rules-title");
+      dialog.append(rulesHeader(), rulesBody(), rulesFooter());
+      keepTabInside(dialog, "button:not([disabled]), textarea");
+
+      closeOnBackdrop(overlay, closeRules);
+      overlay.appendChild(dialog);
+      frame.appendChild(overlay);
+      rulesModal = overlay;
+      return overlay;
     }
-    updateFindingsFilter();
-    findingsModal.querySelector(".px-popup-footer").textContent = findingsFooter(list.children.length);
-    return first;
-  }
 
-  function passesFilter(finding) {
-    return effectiveFilter() === "all" || finding.severity === effectiveFilter();
-  }
-
-  // With only one severity present, every option would show the same list,
-  // so the filter is hidden and All applies.
-  function effectiveFilter() {
-    return hasBothSeverities() ? findingsFilter : "all";
-  }
-
-  function hasBothSeverities() {
-    return lastValidation.errors > 0 && lastValidation.warnings > 0;
-  }
-
-  function findingsFooter(shown) {
-    const counted = {
-      all: lastValidation.total,
-      error: lastValidation.errors,
-      warning: lastValidation.warnings,
-    }[effectiveFilter()];
-    const noun = { all: "", error: " errors", warning: " warnings" }[effectiveFilter()];
-    return shown < counted ? `Showing ${shown} of ${counted}${noun}.` : "";
-  }
-
-  function updateFindingsFilter() {
-    const group = findingsModal.querySelector(".px-findings-filter");
-    group.hidden = !hasBothSeverities();
-    const counts = {
-      all: lastValidation.total,
-      error: lastValidation.errors,
-      warning: lastValidation.warnings,
-    };
-    for (const option of group.querySelectorAll("[role=radio]")) {
-      const value = option.dataset.oxvFilter;
-      const checked = value === effectiveFilter();
-      option.setAttribute("aria-checked", checked ? "true" : "false");
-      option.tabIndex = checked && !group.hidden ? 0 : -1;
-      option.querySelector(".px-findings-filter-count").textContent = String(counts[value]);
+    function rulesHeader() {
+      const header = document.createElement("div");
+      header.className = "px-popup-header";
+      const titleWrap = document.createElement("div");
+      titleWrap.className = "px-popup-title-wrap";
+      const eyebrow = document.createElement("div");
+      eyebrow.className = "px-popup-eyebrow";
+      eyebrow.textContent = "Schematron · XPath 1.0 · reference names";
+      const title = document.createElement("div");
+      title.id = "oxv-rules-title";
+      title.className = "px-popup-title";
+      title.textContent = "Custom rules";
+      titleWrap.append(eyebrow, title);
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "px-popup-close";
+      closeButton.setAttribute("aria-label", "Close");
+      closeButton.appendChild(icon("close"));
+      closeButton.addEventListener("click", closeRules);
+      header.append(titleWrap, closeButton);
+      return header;
     }
-  }
 
-  function selectFindingsFilter(value) {
-    findingsFilter = value;
-    renderFindingsList(null);
-    const checked = findingsModal.querySelector(".px-findings-filter [aria-checked=true]");
-    if (checked) checked.focus();
-  }
-
-  // A radio group: one tab stop, arrow keys move the selection.
-  function buildFindingsFilter() {
-    const group = document.createElement("div");
-    group.className = "px-findings-filter";
-    group.setAttribute("role", "radiogroup");
-    group.setAttribute("aria-label", "Show");
-    const options = [["all", "All"], ["error", "Errors"], ["warning", "Warnings"]];
-    for (const [value, label] of options) {
-      const option = document.createElement("button");
-      option.type = "button";
-      option.setAttribute("role", "radio");
-      option.dataset.oxvFilter = value;
-      const name = document.createElement("span");
-      name.textContent = label;
-      const count = document.createElement("span");
-      count.className = "px-findings-filter-count";
-      option.append(name, count);
-      option.addEventListener("click", () => selectFindingsFilter(value));
-      group.appendChild(option);
+    function rulesBody() {
+      const body = document.createElement("div");
+      body.className = "px-popup-body";
+      const hint = document.createElement("p");
+      hint.className = "px-rules-hint";
+      hint.textContent = "Rules checked on every ONIX document you open, alongside the schema. " +
+        "Write element names as reference names without a prefix; they apply to short-tag files too. " +
+        "An <assert> fires when its test is false, a <report> when it is true; " +
+        "role=\"warning\" makes a warning.";
+      const text = document.createElement("textarea");
+      text.id = "oxv-rules-text";
+      text.className = "px-rules-text";
+      text.setAttribute("spellcheck", "false");
+      text.setAttribute("aria-label", "Schematron rule set");
+      text.placeholder = RULES_EXAMPLE;
+      const status = document.createElement("div");
+      status.id = "oxv-rules-status";
+      status.className = "px-rules-status";
+      status.setAttribute("aria-live", "polite");
+      body.append(hint, text, status);
+      return body;
     }
-    group.addEventListener("keydown", (event) => {
-      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
-      if (!step) return;
-      event.preventDefault();
-      const values = options.map(([value]) => value);
-      const next = (values.indexOf(findingsFilter) + step + values.length) % values.length;
-      selectFindingsFilter(values[next]);
-    });
-    return group;
-  }
 
-  function findingEntry(finding) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "px-findings-item";
-    item.dataset.oxvSeverity = finding.severity;
-
-    // Icon only, so every badge is the same width and the columns line up
-    // down the list. Colour and shape both carry the severity; the word lives
-    // in the label for anyone who can't see either.
-    const label = finding.severity === "error" ? "Error" : "Warning";
-    const badge = document.createElement("span");
-    badge.className = `px-findings-severity px-sev-${finding.severity}`;
-    badge.setAttribute("role", "img");
-    badge.setAttribute("aria-label", label);
-    badge.title = label;
-    badge.appendChild(icon(finding.severity === "error" ? "error" : "warning"));
-
-    const where = document.createElement("span");
-    where.className = "px-findings-where";
-    where.textContent = finding.node ? `<${finding.node.nodeName}>` : "";
-
-    const text = document.createElement("span");
-    text.className = "px-findings-message";
-    text.textContent = window.OnixViewerValidation.message(finding);
-
-    item.append(badge, where, text);
-    item.addEventListener("click", () => {
-      // Dragging across the message to copy it ends in a click on this button,
-      // which would otherwise close the list and jump the page out from under
-      // the selection. Keyboard activation leaves the selection collapsed, so
-      // Enter and Space still navigate.
-      if (hasSelectionInside(item)) return;
-      ensureRendered(finding.at || finding.node);
-      const row = rowFor(finding);
-      closeFindings();
-      if (row) revealRow(row);
-    });
-    return item;
-  }
-
-  // The row a finding is shown on: the one for the node it names as `at`
-  // when that has a row of its own (stray text inside a composite), else the
-  // element's. A text node inside a text-only element has no row of its own —
-  // its text sits in the element's row — so the fallback covers it.
-  function rowFor(finding) {
-    let row = finding.at ? elementRows.get(finding.at) : null;
-    if (!row && finding.node) row = elementRows.get(finding.node);
-    return row || null;
-  }
-
-  function hasSelectionInside(element) {
-    const selection = window.getSelection ? window.getSelection() : null;
-    return !!selection && !selection.isCollapsed && selection.toString().trim() !== "" &&
-      !!selection.anchorNode && element.contains(selection.anchorNode);
-  }
-
-  function ensureFindingsModal() {
-    if (findingsModal) return findingsModal;
-    const overlay = document.createElement("div");
-    overlay.className = "px-popup-overlay";
-    overlay.id = "oxv-findings";
-    overlay.hidden = true;
-
-    const dialog = document.createElement("div");
-    dialog.className = "px-popup";
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
-    // Its own id, not the code-list popup's — both live in this document, and
-    // aria-labelledby resolves by id.
-    dialog.setAttribute("aria-labelledby", "oxv-findings-title");
-
-    const header = document.createElement("div");
-    header.className = "px-popup-header";
-    const titleWrap = document.createElement("div");
-    titleWrap.className = "px-popup-title-wrap";
-    const eyebrow = document.createElement("div");
-    eyebrow.className = "px-popup-eyebrow";
-    const title = document.createElement("div");
-    title.id = "oxv-findings-title";
-    title.className = "px-popup-title";
-    titleWrap.append(eyebrow, title, buildFindingsFilter());
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.className = "px-popup-close";
-    closeButton.setAttribute("aria-label", "Close");
-    closeButton.appendChild(icon("close"));
-    closeButton.addEventListener("click", closeFindings);
-    header.append(titleWrap, closeButton);
-
-    const body = document.createElement("div");
-    body.className = "px-popup-body";
-    const list = document.createElement("div");
-    list.className = "px-findings-list";
-    body.appendChild(list);
-
-    const footer = document.createElement("div");
-    footer.className = "px-popup-footer";
-
-    dialog.append(header, body, footer);
-    overlay.appendChild(dialog);
-    keepTabInside(dialog, "button:not([disabled]):not([tabindex='-1'])");
-    closeOnBackdrop(overlay, closeFindings);
-    document.body.appendChild(overlay);
-    findingsModal = overlay;
-    return overlay;
-  }
-
-  // aria-modal="true" tells assistive tech nothing outside is reachable, so
-  // Tab must actually stay inside. A list can be long, hence querying the
-  // focusables on each Tab rather than caching them.
-  function keepTabInside(dialog, selector) {
-    dialog.addEventListener("keydown", (event) => {
-      if (event.key !== "Tab") return;
-      const focusable = [...dialog.querySelectorAll(selector)];
-      if (!focusable.length) return;
-      const edge = event.shiftKey ? focusable[0] : focusable[focusable.length - 1];
-      if (document.activeElement === edge) {
-        event.preventDefault();
-        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
-      }
-    });
-  }
-
-  // A press inside that is released outside is not a click on the backdrop,
-  // though the browser fires one there: a drag of a modal's corner handle
-  // ends outside — the modal is centred, so its corner moves at half the
-  // cursor's speed — and so does a text selection dragged out of it. Only a
-  // press that began on the backdrop closes the modal.
-  function closeOnBackdrop(overlay, close) {
-    let pressedBackdrop = false;
-    overlay.addEventListener("mousedown", (event) => {
-      pressedBackdrop = event.target === overlay;
-    });
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay && pressedBackdrop) close();
-    });
-  }
-
-  function closeFindings() {
-    if (!findingsModal || findingsModal.hidden) return;
-    findingsModal.hidden = true;
-    if (findingsLastFocus && typeof findingsLastFocus.focus === "function") {
-      try { findingsLastFocus.focus(); } catch { /* it may have left the document */ }
-    }
-    findingsLastFocus = null;
-  }
-
-  // ---- custom rules ---------------------------------------------------------
-
-  // The reader's own rules: a Schematron rule set (see onix-schematron.js),
-  // pasted into a modal behind the toolbar's cog. Applying it installs the
-  // rules, re-validates, and hands the text to content.js — the one script
-  // with storage access — to keep for the next page. The text arrives on
-  // load the way the source does, in the inert #__oxv-rules__ block.
-  let rulesModal = null;
-  let rulesLastFocus = null;
-  let customRules = "";
-  // What the last install returned, so the editor opens already applied:
-  // the status of the rules in force, problems included, before anything is
-  // pressed.
-  let rulesInstalled = null;
-
-  function ensureRulesModal() {
-    if (rulesModal) return rulesModal;
-    window.addEventListener("message", (event) => {
-      if (event.source === window && event.data && event.data.type === "oxv-rules-kept") markRulesKept();
-    });
-    const overlay = document.createElement("div");
-    overlay.className = "px-popup-overlay";
-    overlay.id = "oxv-rules";
-    overlay.hidden = true;
-
-    const dialog = document.createElement("div");
-    dialog.className = "px-popup px-rules";
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
-    dialog.setAttribute("aria-labelledby", "oxv-rules-title");
-    dialog.append(rulesHeader(), rulesBody(), rulesFooter());
-    keepTabInside(dialog, "button:not([disabled]), textarea");
-
-    closeOnBackdrop(overlay, closeRules);
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    rulesModal = overlay;
-    return overlay;
-  }
-
-  function rulesHeader() {
-    const header = document.createElement("div");
-    header.className = "px-popup-header";
-    const titleWrap = document.createElement("div");
-    titleWrap.className = "px-popup-title-wrap";
-    const eyebrow = document.createElement("div");
-    eyebrow.className = "px-popup-eyebrow";
-    eyebrow.textContent = "Schematron · XPath 1.0 · reference names";
-    const title = document.createElement("div");
-    title.id = "oxv-rules-title";
-    title.className = "px-popup-title";
-    title.textContent = "Custom rules";
-    titleWrap.append(eyebrow, title);
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.className = "px-popup-close";
-    closeButton.setAttribute("aria-label", "Close");
-    closeButton.appendChild(icon("close"));
-    closeButton.addEventListener("click", closeRules);
-    header.append(titleWrap, closeButton);
-    return header;
-  }
-
-  function rulesBody() {
-    const body = document.createElement("div");
-    body.className = "px-popup-body";
-    const hint = document.createElement("p");
-    hint.className = "px-rules-hint";
-    hint.textContent = "Rules checked on every ONIX document you open, alongside the schema. " +
-      "Write element names as reference names without a prefix; they apply to short-tag files too. " +
-      "An <assert> fires when its test is false, a <report> when it is true; " +
-      "role=\"warning\" makes a warning.";
-    const text = document.createElement("textarea");
-    text.id = "oxv-rules-text";
-    text.className = "px-rules-text";
-    text.setAttribute("spellcheck", "false");
-    text.setAttribute("aria-label", "Schematron rule set");
-    text.placeholder = RULES_EXAMPLE;
-    const status = document.createElement("div");
-    status.id = "oxv-rules-status";
-    status.className = "px-rules-status";
-    status.setAttribute("aria-live", "polite");
-    body.append(hint, text, status);
-    return body;
-  }
-
-  const RULES_EXAMPLE = `<schema xmlns="http://purl.oclc.org/dsdl/schematron">
+    const RULES_EXAMPLE = `<schema xmlns="http://purl.oclc.org/dsdl/schematron">
   <pattern>
     <rule context="ProductIdentifier[ProductIDType = '15']">
       <assert id="isbn-prefix" test="starts-with(IDValue, '97882')" role="warning">
@@ -1894,1019 +1904,1078 @@
   </pattern>
 </schema>`;
 
-  function rulesFooter() {
-    const footer = document.createElement("div");
-    footer.className = "px-popup-footer px-rules-footer";
-    const apply = document.createElement("button");
-    apply.type = "button";
-    apply.className = "px-rules-apply";
-    apply.textContent = "Apply";
-    apply.addEventListener("click", () => applyRules(rulesText().value));
-    const clear = document.createElement("button");
-    clear.type = "button";
-    clear.className = "px-rules-clear";
-    clear.textContent = "Clear";
-    clear.addEventListener("click", () => {
-      rulesText().value = "";
-      applyRules("");
-    });
-    footer.append(apply, clear);
-    return footer;
-  }
-
-  function rulesText() {
-    return ensureRulesModal().querySelector("#oxv-rules-text");
-  }
-
-  function showRules() {
-    if (!FEATURES.customRules) return;
-    const overlay = ensureRulesModal();
-    rulesText().value = customRules;
-    showRulesStatus(rulesInstalled);
-    rulesLastFocus = document.activeElement;
-    overlay.hidden = false;
-    rulesText().focus();
-  }
-
-  function closeRules() {
-    if (!rulesModal || rulesModal.hidden) return;
-    rulesModal.hidden = true;
-    if (rulesLastFocus && typeof rulesLastFocus.focus === "function") {
-      try { rulesLastFocus.focus(); } catch { /* it may have left the document */ }
-    }
-    rulesLastFocus = null;
-  }
-
-  // Install the rules, tell content.js to keep them, and judge the document
-  // again. Problems with the rule set go in the status line as well as into
-  // the findings, since the reader is looking here.
-  function applyRules(text) {
-    const installed = installRules(text);
-    window.postMessage({ type: "oxv-rules", rules: customRules }, "*");
-    showRulesStatus(installed);
-    if (onixCtx.isOnix) startValidation();
-  }
-
-  function installRules(text) {
-    const schematron = window.OnixViewerSchematron;
-    customRules = text.trim() ? text : "";
-    let installed = null;
-    if (schematron) {
-      schematron.reset();
-      if (customRules) installed = schematron.install(customRules);
-    }
-    const button = document.querySelector('#oxv-toolbar [data-action="rules"]');
-    if (button) {
-      button.setAttribute("aria-pressed", installed ? "true" : "false");
-      button.title = installed ? `Custom rules (${installed.assertions} active)` : "Custom rules";
-    }
-    rulesInstalled = installed;
-    return installed;
-  }
-
-  function showRulesStatus(installed) {
-    const status = ensureRulesModal().querySelector("#oxv-rules-status");
-    status.textContent = "";
-    status.classList.toggle("px-rules-status-problems", !!(installed && installed.problems.length));
-    if (!installed) {
-      status.textContent = "No custom rules.";
-    } else if (installed.problems.length === 0) {
-      status.textContent = `${installed.patterns} ${plural(installed.patterns, "pattern")}, ` +
-        `${installed.assertions} ${plural(installed.assertions, "assertion")}, applied.`;
-    } else {
-      const list = document.createElement("ul");
-      for (const problem of installed.problems) {
-        const item = document.createElement("li");
-        item.textContent = problem;
-        list.appendChild(item);
-      }
-      status.append(document.createTextNode(`${installed.assertions} applied; ` +
-        `${installed.problems.length} ${plural(installed.problems.length, "problem")}:`), list);
-    }
-  }
-
-  // content.js has written the rules to storage: say so where the reader is
-  // looking. Without storage (a test, another browser) the line stays as it
-  // was, which is honest — nothing was kept.
-  function markRulesKept() {
-    const status = ensureRulesModal().querySelector("#oxv-rules-status");
-    const line = status.firstChild;
-    if (line && line.nodeType === Node.TEXT_NODE && !line.data.includes("Kept")) {
-      line.data = `${line.data} Kept for the next document.`;
-    }
-  }
-
-  function plural(count, word) {
-    return count === 1 ? word : `${word}s`;
-  }
-
-  // ---- about ----------------------------------------------------------------
-
-  // Behind the mark: what took the page over, which version, which code
-  // lists, the keys, and where the source lives. The version is stamped on
-  // <html> by content.js, the one script that can read the manifest.
-  let aboutModal = null;
-  let aboutLastFocus = null;
-
-  const SHORTCUTS = [
-    ["/", "Search; Enter and Shift+Enter step through matches, Esc closes"],
-    ["e", "Expand one level"],
-    ["c", "Collapse one level (also b)"],
-    ["t", "Switch between reference names and short tags"],
-    ["v", "Open the findings list"],
-    ["w", "Toggle soft wrap"],
-    ["?", "This window"],
-  ];
-
-  // The middle link is the place to install from, which depends on the
-  // browser content.js stamped on the shell: Chrome and its relatives have
-  // the Web Store listing, Firefox the AMO one; Safari gets the web page,
-  // which carries its install link, until it has a listing of its own.
-  function aboutLinkList() {
-    const stores = {
-      chrome: ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"],
-      firefox: ["Firefox Add-ons", "https://addons.mozilla.org/firefox/addon/onix-viewer/"],
-    };
-    const store = stores[extensionBrowser()] || ["Web page", "https://maendeleo.io/onix-viewer/"];
-    return [
-      ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
-      store,
-      ["ONIX at EDItEUR", "https://www.editeur.org/8/ONIX/"],
-    ];
-  }
-
-  function ensureAboutModal() {
-    if (aboutModal) return aboutModal;
-    const overlay = document.createElement("div");
-    overlay.className = "px-popup-overlay";
-    overlay.id = "oxv-about";
-    overlay.hidden = true;
-
-    const dialog = document.createElement("div");
-    dialog.className = "px-popup px-about";
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
-    dialog.setAttribute("aria-labelledby", "oxv-about-title");
-    dialog.append(aboutHeader(), aboutBody());
-    keepTabInside(dialog, "button:not([disabled]), a[href]");
-
-    closeOnBackdrop(overlay, closeAbout);
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    aboutModal = overlay;
-    return overlay;
-  }
-
-  function extensionVersion() {
-    return document.documentElement.getAttribute("data-oxv-version") || "";
-  }
-
-  // "chrome", "firefox" or "safari", as content.js stamped it; "chrome" when
-  // nothing did, since that is where the viewer began.
-  function extensionBrowser() {
-    return document.documentElement.getAttribute("data-oxv-browser") || "chrome";
-  }
-
-  function aboutHeader() {
-    const header = document.createElement("div");
-    header.className = "px-popup-header";
-    const titleWrap = document.createElement("div");
-    titleWrap.className = "px-popup-title-wrap";
-    const eyebrow = document.createElement("div");
-    eyebrow.className = "px-popup-eyebrow";
-    eyebrow.id = "oxv-about-version";
-    eyebrow.textContent = extensionVersion() ? `Version ${extensionVersion()}` : "";
-    const title = document.createElement("div");
-    title.id = "oxv-about-title";
-    title.className = "px-popup-title";
-    title.textContent = "About ONIX Viewer";
-    titleWrap.append(eyebrow, title);
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.className = "px-popup-close";
-    closeButton.setAttribute("aria-label", "Close");
-    closeButton.appendChild(icon("close"));
-    closeButton.addEventListener("click", closeAbout);
-    header.append(titleWrap, closeButton);
-    return header;
-  }
-
-  function aboutBody() {
-    const body = document.createElement("div");
-    body.className = "px-popup-body";
-    const text = document.createElement("p");
-    text.className = "px-about-text";
-    text.textContent = "Readable ONIX XML: a collapsible tree, short tags or reference names " +
-      "at one click, product summaries, EDItEUR code-list labels in place, and automatic " +
-      "validation against the ONIX 3.0 and 3.1 content models.";
-    const credit = document.createElement("p");
-    credit.className = "px-about-credit";
-    credit.textContent = "ONIX for Books and its code lists are developed and maintained by EDItEUR, " +
-      "which holds the copyright and makes them freely available. ONIX Viewer is an " +
-      "independent tool, not affiliated with or endorsed by EDItEUR.";
-    body.append(text, aboutFacts(), aboutKeys(), aboutLinks(), credit);
-    return body;
-  }
-
-  function aboutFacts() {
-    const facts = document.createElement("dl");
-    facts.className = "px-about-facts";
-    for (const [term, detail] of aboutFactRows()) {
-      const dt = document.createElement("dt");
-      dt.textContent = term;
-      const dd = document.createElement("dd");
-      dd.textContent = detail;
-      facts.append(dt, dd);
-    }
-    return facts;
-  }
-
-  function aboutFactRows() {
-    const rows = [["Version", extensionVersion() || "unknown"]];
-    const versions = window.OnixViewerVersions;
-    if (versions) rows.push(...dataVersionRows(versions));
-    return rows;
-  }
-
-  function dataVersionRows(versions) {
-    const releases = Object.entries(versions.releases)
-      .map(([release, { revision }]) => [`ONIX ${release}`, revision]);
-    return [
-      ["Code lists", `EDItEUR Issue ${versions.codeLists.issue}`],
-      ["Thema", versions.thema.version],
-      ...releases,
-    ];
-  }
-
-  function aboutKeys() {
-    const table = document.createElement("table");
-    table.className = "px-about-keys";
-    table.setAttribute("aria-label", "Keyboard shortcuts");
-    for (const [key, action] of SHORTCUTS) {
-      const row = document.createElement("tr");
-      const keyCell = document.createElement("td");
-      const kbd = document.createElement("kbd");
-      kbd.textContent = key;
-      keyCell.appendChild(kbd);
-      const actionCell = document.createElement("td");
-      actionCell.textContent = action;
-      row.append(keyCell, actionCell);
-      table.appendChild(row);
-    }
-    return table;
-  }
-
-  function aboutLinks() {
-    const links = document.createElement("div");
-    links.className = "px-about-links";
-    for (const [label, href] of aboutLinkList()) {
-      const a = document.createElement("a");
-      a.className = "px-popup-link";
-      a.href = href;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = label;
-      links.appendChild(a);
-    }
-    return links;
-  }
-
-  function showAbout() {
-    const overlay = ensureAboutModal();
-    aboutLastFocus = document.activeElement;
-    overlay.hidden = false;
-    overlay.querySelector(".px-popup-close").focus();
-  }
-
-  function closeAbout() {
-    if (!aboutModal || aboutModal.hidden) return;
-    aboutModal.hidden = true;
-    if (aboutLastFocus && typeof aboutLastFocus.focus === "function") {
-      try { aboutLastFocus.focus(); } catch { /* it may have left the document */ }
-    }
-    aboutLastFocus = null;
-  }
-
-  // ---- copy raw XML ---------------------------------------------------------
-
-  // The "Copy XML" toolbar button hands the user the unannotated source.
-  // SOURCE is the full original XML the viewer parsed — no codelist badges,
-  // no List-N chips, no folding markers. navigator.clipboard.writeText is
-  // the modern API; we keep a document.execCommand fallback for the rare
-  // environments where the modern API isn't available (some file:// pages,
-  // older browsers).
-  function copyRawXml(btn) {
-    const text = displayedXml();
-    if (!text) {
-      flashButton(btn, "Empty", false);
-      return;
-    }
-    writeClipboard(text, () => flashButton(btn, "Copied", true), () => flashButton(btn, "Failed", false));
-  }
-
-  // What the reader is actually looking at. Untranslated, that's the source
-  // byte for byte. Translated, it's rebuilt from the parsed document — which
-  // still holds every whitespace node, so the indentation, comments and CDATA
-  // of the original survive; only the element names and the EDItEUR namespace
-  // change. The XML declaration isn't a DOM node, so it's carried across from
-  // the source text.
-  function displayedXml() {
-    let xml = SOURCE || "";
-    if (translating() && xml) xml = documentXml(window.OnixViewerOnix.translateNode(doc, displayDialect));
-    return xml;
-  }
-
-  function documentXml(document) {
-    const serializer = new XMLSerializer();
-    let body = "";
-    for (const child of document.childNodes) body += serializer.serializeToString(child);
-    const declaration = SOURCE.match(/^\s*<\?xml[^?]*\?>\s*/i);
-    return (declaration ? declaration[0] : "") + body;
-  }
-
-  // ---- download XML ---------------------------------------------------------
-
-  // What Copy XML puts on the clipboard, saved as a file. Nothing is served,
-  // so there is no response to carry a Content-Disposition header; an anchor
-  // with a download attribute over a blob URL does the same job. The URL is
-  // revoked a little later, since revoking it in the same tick can cancel
-  // the download in Firefox.
-  function downloadXml(btn) {
-    const text = displayedXml();
-    if (text) saveXml(text, downloadName());
-    else flashButton(btn, "Empty", false);
-  }
-
-  function saveXml(text, name) {
-    const url = URL.createObjectURL(new Blob([text], { type: "application/xml" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  // The file's own name, marked with the dialect when the view translates
-  // it: feed.xml becomes feed-short-tags.xml. A blob: URL or a path ending
-  // in "/" has no name to offer, so those are called onix.xml.
-  function downloadName() {
-    const suffix = translating()
-      ? (displayDialect === "short" ? "-short-tags" : "-reference-names")
-      : "";
-    return `${downloadBase()}${suffix}.xml`;
-  }
-
-  function downloadBase() {
-    const last = location.protocol === "blob:" ? "" : location.pathname.split("/").pop();
-    return safeDecode(last).replace(/\.xml$/i, "") || "onix";
-  }
-
-  function safeDecode(text) {
-    let decoded = text;
-    try {
-      decoded = decodeURIComponent(text);
-    } catch {
-      // A stray "%" in the path: keep it as written.
-    }
-    return decoded;
-  }
-
-  function translating() {
-    return !!(window.OnixViewerOnix && sourceDialect && displayDialect !== sourceDialect);
-  }
-
-  // Prefer the async clipboard API; fall back to execCommand. Exactly one of
-  // done() / failed() is called.
-  function writeClipboard(text, done, failed) {
-    const fallback = () => (execCopyFallback(text) ? done() : failed());
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fallback);
-    } else {
-      fallback();
-    }
-  }
-
-  function execCopyFallback(text) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    let ok = false;
-    try { ok = document.execCommand("copy"); } catch { /* refused: ok stays false */ }
-    document.body.removeChild(ta);
-    return ok;
-  }
-
-  // How a copy went, for a moment: in the words of a labelled control, or,
-  // on an icon-only button, by its icon and tooltip — a tick for done, a
-  // cross for anything else.
-  function flashButton(btn, msg, ok) {
-    const restore = btn.classList.contains("px-icon-btn") ? flashIcon(btn, msg, ok) : flashLabel(btn, msg);
-    btn.setAttribute("disabled", "");
-    setTimeout(() => {
-      restore();
-      btn.removeAttribute("disabled");
-    }, 1200);
-  }
-
-  function flashIcon(btn, msg, ok) {
-    const glyph = btn.querySelector("svg");
-    const title = btn.title;
-    const flash = icon(ok ? "ok" : "close");
-    glyph.replaceWith(flash);
-    btn.title = msg;
-    return () => {
-      flash.replaceWith(glyph);
-      btn.title = title;
-    };
-  }
-
-  function flashLabel(btn, msg) {
-    const label = labelNode(btn);
-    const original = label.nodeValue;
-    label.nodeValue = msg;
-    return () => {
-      label.nodeValue = original;
-    };
-  }
-
-  // The control's own text, as a node, so writing it leaves anything else in
-  // the control alone: the text inside a .px-label span, or a bare text node,
-  // which gets wrapped on first use.
-  function labelNode(btn) {
-    let span = btn.querySelector(".px-label");
-    if (!span) {
-      span = document.createElement("span");
-      span.className = "px-label";
-      for (const child of [...btn.childNodes]) {
-        if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) span.appendChild(child);
-      }
-      btn.appendChild(span);
-    }
-    let node = span.firstChild;
-    if (!node) {
-      node = document.createTextNode("");
-      span.appendChild(node);
-    }
-    return node;
-  }
-
-  // ---- per-node menu --------------------------------------------------------
-
-  // One shared dropdown, moved next to whichever gutter button opened it.
-  // Menu items act on the source element of the row (via rowElements), so
-  // what gets copied is the original XML subtree — no badges, list chips,
-  // fold markers or other viewer decoration.
-  let nodeMenu = null;
-  let nodeMenuButton = null;
-
-  function setupNodeMenu() {
-    root.addEventListener("click", (event) => {
-      const button = event.target.closest(".px-node-menu-btn");
-      if (button) openNodeMenu(button);
-    });
-    document.addEventListener("click", (event) => {
-      const insideMenu = event.target.closest(".px-node-menu, .px-node-menu-btn");
-      if (nodeMenuButton && !insideMenu) closeNodeMenu();
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && nodeMenuButton) {
-        const button = nodeMenuButton;
-        closeNodeMenu();
-        button.focus();
-      }
-    });
-    // A fixed-position menu would drift away from its row on scroll.
-    document.addEventListener("scroll", () => { if (nodeMenuButton) closeNodeMenu(); }, true);
-  }
-
-  function ensureNodeMenu() {
-    if (!nodeMenu) {
-      nodeMenu = document.createElement("div");
-      nodeMenu.id = "oxv-node-menu";
-      nodeMenu.className = "px-node-menu";
-      nodeMenu.setAttribute("role", "menu");
-      nodeMenu.hidden = true;
-
-      const copyItem = document.createElement("button");
-      copyItem.type = "button";
-      copyItem.className = "px-node-menu-item";
-      copyItem.setAttribute("role", "menuitem");
-      copyItem.dataset.nodeAction = "copy-xml";
-      copyItem.textContent = "Copy node XML";
-      nodeMenu.appendChild(copyItem);
-
-      nodeMenu.addEventListener("click", (event) => {
-        const item = event.target.closest("[data-node-action]");
-        if (item) runNodeAction(item.dataset.nodeAction, item);
+    function rulesFooter() {
+      const footer = document.createElement("div");
+      footer.className = "px-popup-footer px-rules-footer";
+      const apply = document.createElement("button");
+      apply.type = "button";
+      apply.className = "px-rules-apply";
+      apply.textContent = "Apply";
+      apply.addEventListener("click", () => applyRules(rulesText().value));
+      const clear = document.createElement("button");
+      clear.type = "button";
+      clear.className = "px-rules-clear";
+      clear.textContent = "Clear";
+      clear.addEventListener("click", () => {
+        rulesText().value = "";
+        applyRules("");
       });
-      document.body.appendChild(nodeMenu);
+      footer.append(apply, clear);
+      return footer;
     }
-    return nodeMenu;
-  }
 
-  function openNodeMenu(button) {
-    const menu = ensureNodeMenu();
-    if (nodeMenuButton && nodeMenuButton !== button) closeNodeMenu();
-    nodeMenuButton = button;
-    button.classList.add("px-open");
-    button.setAttribute("aria-expanded", "true");
-    menu.hidden = false;
-    positionNodeMenu(menu, button);
-    const firstItem = menu.querySelector(".px-node-menu-item");
-    if (firstItem) firstItem.focus();
-  }
-
-  function positionNodeMenu(menu, button) {
-    const anchor = button.getBoundingClientRect();
-    const menuRect = menu.getBoundingClientRect();
-    let left = anchor.left;
-    let top = anchor.bottom + 2;
-    if (top + menuRect.height > window.innerHeight) top = anchor.top - menuRect.height - 2;
-    if (left + menuRect.width > window.innerWidth) left = window.innerWidth - menuRect.width - 4;
-    menu.style.left = `${Math.max(0, left)}px`;
-    menu.style.top = `${Math.max(0, top)}px`;
-  }
-
-  function closeNodeMenu() {
-    if (nodeMenu) nodeMenu.hidden = true;
-    if (nodeMenuButton) {
-      nodeMenuButton.classList.remove("px-open");
-      nodeMenuButton.setAttribute("aria-expanded", "false");
+    function rulesText() {
+      return ensureRulesModal().querySelector("#oxv-rules-text");
     }
-    nodeMenuButton = null;
-  }
 
-  function runNodeAction(action, item) {
-    const row = nodeMenuButton && nodeMenuButton.closest(".px-row");
-    const element = row && rowElements.get(row);
-    if (!element) {
-      closeNodeMenu();
-    } else if (action === "copy-xml") {
-      copyNodeXml(element, item);
+    function showRules() {
+      if (!FEATURES.customRules) return;
+      const overlay = ensureRulesModal();
+      rulesText().value = customRules;
+      showRulesStatus(rulesInstalled);
+      rulesLastFocus = scope.activeElement;
+      overlay.hidden = false;
+      rulesText().focus();
     }
-  }
 
-  function copyNodeXml(element, item) {
-    const finish = (message, ok) => {
-      flashButton(item, message, ok);
-      setTimeout(closeNodeMenu, 900);
-    };
-    writeClipboard(nodeXml(element), () => finish("Copied", true), () => finish("Failed", false));
-  }
-
-  // Serialise an element the way it appears in the source: XMLSerializer
-  // re-declares the element's namespace on the subtree root (correct for a
-  // standalone fragment, but noise when the original element inherited it),
-  // and inner lines keep their absolute indentation from the file, so the
-  // result is de-indented to the element's own column.
-  function nodeXml(element) {
-    const copied = translating()
-      ? window.OnixViewerOnix.translateNode(element, displayDialect)
-      : element;
-    let xml = new XMLSerializer().serializeToString(copied);
-    // The "did the source declare it?" question is asked of the original; the
-    // declaration to strip is the one the serialiser wrote for the copy.
-    xml = stripSynthesizedNamespace(xml, element, copied.namespaceURI);
-    return dedent(xml, leadingIndent(element));
-  }
-
-  function stripSynthesizedNamespace(xml, element, namespaceURI) {
-    let result = xml;
-    const namespace = namespaceURI || element.namespaceURI;
-    const attributeName = element.prefix ? `xmlns:${element.prefix}` : "xmlns";
-    if (namespace && !element.hasAttribute(attributeName)) {
-      const declaration = ` ${attributeName}="${namespace}"`;
-      const openTagEnd = xml.indexOf(">");
-      const openTag = xml.slice(0, openTagEnd);
-      result = openTag.replace(declaration, "") + xml.slice(openTagEnd);
-    }
-    return result;
-  }
-
-  // Whitespace between the last newline and the element's start tag.
-  function leadingIndent(element) {
-    let indent = "";
-    const previous = element.previousSibling;
-    if (previous && previous.nodeType === Node.TEXT_NODE) {
-      const text = previous.nodeValue;
-      const candidate = text.slice(text.lastIndexOf("\n") + 1);
-      if (text.includes("\n") && /^[ \t]*$/.test(candidate)) indent = candidate;
-    }
-    return indent;
-  }
-
-  function dedent(xml, indent) {
-    let result = xml;
-    if (indent) {
-      result = xml
-        .split("\n")
-        .map((line, i) => (i > 0 && line.startsWith(indent) ? line.slice(indent.length) : line))
-        .join("\n");
-    }
-    return result;
-  }
-
-  // ---- search ---------------------------------------------------------------
-
-  // A hit is a place in the parsed document, not a span on screen: an
-  // element's name as displayed, one of its attributes (name, value or
-  // code-list label), a text value, an element's code-list label, or a
-  // comment or processing instruction. Searching the document needs nothing
-  // rendered, so a deferred Product is built only when the reader goes to a
-  // hit inside it. The old search read the rendered tree and so built every
-  // Product first, which on a large feed hung the browser.
-  let hits = [];
-  let hitIndex = -1;
-  let currentHit = null;
-  let highlighted = [];
-  let searchTimer = null;
-  let searchSession = null;
-  // Hits inside deferred Products, highlighted when the Product renders.
-  const hitsByProduct = new Map();
-
-  // The field is collapsed to its icon until wanted, so it costs a button's
-  // width in the toolbar instead of 420px. Browser find is not a substitute:
-  // it cannot see folded rows, nor a deferred Product, which has no rows
-  // until it nears the viewport — so on a large feed it sees a screenful.
-  function setupSearch() {
-    const button = document.querySelector('#oxv-toolbar [data-action="search"]');
-    if (button && !button.firstChild) button.appendChild(icon("search"));
-
-    search.addEventListener("input", () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(runSearch, 120);
-    });
-    search.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        if (ev.shiftKey) gotoMatch(hitIndex - 1);
-        else gotoMatch(hitIndex + 1);
-      } else if (ev.key === "Escape") {
-        closeSearch();
+    function closeRules() {
+      if (!rulesModal || rulesModal.hidden) return;
+      rulesModal.hidden = true;
+      if (rulesLastFocus && typeof rulesLastFocus.focus === "function") {
+        try { rulesLastFocus.focus(); } catch { /* it may have left the document */ }
       }
-    });
-    search.addEventListener("blur", (event) => {
-      // Leave it open while it holds a query, so the match counter and the
-      // highlights stay put when focus moves to the tree. And leave the state
-      // alone when focus is heading for the toggle: that button's own click is
-      // what decides, and closing here first would make it reopen.
-      if (event.relatedTarget === button) return;
-      if (!search.value.trim()) closeSearch();
-    });
-
-    // The same problem via the mouse, where relatedTarget can't help because
-    // the sequence is blur-then-click: mousedown on the toggle blurred the
-    // field, blur closed the search, and the click that followed found it
-    // closed and opened it straight back up — so pressing the button while
-    // the field was open and empty appeared to do nothing. Keeping focus in
-    // the field means no blur fires and the click is the only decision.
-    if (button) button.addEventListener("mousedown", (event) => event.preventDefault());
-  }
-
-  function toggleSearch() {
-    if (document.body.classList.contains("px-search-open")) closeSearch();
-    else openSearch();
-  }
-
-  function openSearch() {
-    document.body.classList.add("px-search-open");
-    setSearchExpanded(true);
-    search.removeAttribute("tabindex");
-    search.focus();
-    search.select();
-  }
-
-  function closeSearch() {
-    const wasFocused = document.activeElement === search;
-    search.value = "";
-    runSearch();
-    document.body.classList.remove("px-search-open");
-    setSearchExpanded(false);
-    // Out of the tab order while collapsed: the button is the way in.
-    search.setAttribute("tabindex", "-1");
-    search.blur();
-    // Hand focus to the toggle rather than dropping it on <body>: the field
-    // is now zero-width and untabbable, and a bare blur would send the next
-    // Tab back to the top of the document. The button is where the reader
-    // just was, and where they would go to reopen.
-    if (wasFocused) {
-      const button = document.querySelector('#oxv-toolbar [data-action="search"]');
-      if (button) button.focus();
+      rulesLastFocus = null;
     }
-  }
 
-  function setSearchExpanded(open) {
-    const button = document.querySelector('#oxv-toolbar [data-action="search"]');
-    if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
-  }
+    // Install the rules, tell content.js to keep them, and judge the document
+    // again. Problems with the rule set go in the status line as well as into
+    // the findings, since the reader is looking here.
+    function applyRules(text) {
+      const installed = installRules(text);
+      window.postMessage({ type: "oxv-rules", rules: customRules }, "*");
+      showRulesStatus(installed);
+      if (onixCtx.isOnix) startValidation();
+    }
 
-  // The walk runs in slices, like validation: a 176 MB feed takes seconds to
-  // search, and the tab stays responsive meanwhile. A new query, or closing
-  // the field, supersedes a search still running; it stops at its next slice.
-  // `jump` is false when the hits are refreshed under the reader — the
-  // dialect switch renames what a name hit matches — rather than asked for.
-  function runSearch(jump = true) {
-    clearMatches();
-    const query = search.value.trim().toLowerCase();
-    searchSession = query ? { query, jump, walk: hitWalk(query) } : null;
-    status.textContent = query ? "Searching…" : "";
-    if (searchSession) stepSearch(searchSession, FIRST_SLICE_MS);
-  }
+    function installRules(text) {
+      const schematron = window.OnixViewerSchematron;
+      customRules = text.trim() ? text : "";
+      let installed = null;
+      if (schematron) {
+        schematron.reset();
+        if (customRules) installed = schematron.install(customRules);
+      }
+      const button = scope.querySelector('#oxv-toolbar [data-action="rules"]');
+      if (button) {
+        button.setAttribute("aria-pressed", installed ? "true" : "false");
+        button.title = installed ? `Custom rules (${installed.assertions} active)` : "Custom rules";
+      }
+      rulesInstalled = installed;
+      return installed;
+    }
 
-  function stepSearch(session, budget) {
-    if (session !== searchSession) return;
-    if (session.walk.step(budget)) finishSearch(session);
-    else afterYield(() => stepSearch(session, SLICE_MS));
-  }
-
-  function finishSearch(session) {
-    hits = session.walk.found;
-    for (const hit of hits) {
-      const product = pendingProductOf(hit.node);
-      if (product) {
-        if (!hitsByProduct.has(product)) hitsByProduct.set(product, []);
-        hitsByProduct.get(product).push(hit);
+    function showRulesStatus(installed) {
+      const status = ensureRulesModal().querySelector("#oxv-rules-status");
+      status.textContent = "";
+      status.classList.toggle("px-rules-status-problems", !!(installed && installed.problems.length));
+      if (!installed) {
+        status.textContent = "No custom rules.";
+      } else if (installed.problems.length === 0) {
+        status.textContent = `${installed.patterns} ${plural(installed.patterns, "pattern")}, ` +
+          `${installed.assertions} ${plural(installed.assertions, "assertion")}, applied.`;
       } else {
-        highlight(hit);
-      }
-    }
-    if (!hits.length) status.textContent = "no matches";
-    else if (session.jump) gotoMatch(0);
-    else status.textContent = `${hits.length} matches`;
-  }
-
-  // Walks the parsed document in order, the way the renderer does, and
-  // collects every hit; step(budget) walks until the budget is spent and
-  // says whether it got to the end. A text-only element's text and label
-  // are taken with it, as its row shows them; anything else descends.
-  function hitWalk(query) {
-    const found = [];
-    const labelled = codesLabelled(query);
-    const nameHits = new Map();
-    const nameMatches = (name) => {
-      if (!nameHits.has(name)) nameHits.set(name, displayedTagName(name).toLowerCase().includes(query));
-      return nameHits.get(name);
-    };
-    const stack = [doc];
-    const visit = (node) => {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        if (nameMatches(node.nodeName)) found.push({ node, kind: "name" });
-        for (const attr of node.attributes) {
-          if (attributeMatches(attr, query, labelled)) found.push({ node, kind: "attr", name: attr.name });
+        const list = document.createElement("ul");
+        for (const problem of installed.problems) {
+          const item = document.createElement("li");
+          item.textContent = problem;
+          list.appendChild(item);
         }
-        if (isTextOnly(node)) {
-          for (const child of node.childNodes) {
-            if (child.nodeValue.toLowerCase().includes(query)) found.push({ node: child, kind: "text" });
-          }
-          if (labelMatches(node, query, labelled)) found.push({ node, kind: "label" });
-        } else {
-          for (let k = node.childNodes.length - 1; k >= 0; k--) stack.push(node.childNodes[k]);
-        }
-      } else if (node.nodeType === Node.DOCUMENT_NODE) {
-        for (let k = node.childNodes.length - 1; k >= 0; k--) stack.push(node.childNodes[k]);
-      } else if (nodeText(node).toLowerCase().includes(query)) {
-        const note = node.nodeType === Node.COMMENT_NODE || node.nodeType === Node.PROCESSING_INSTRUCTION_NODE;
-        found.push({ node, kind: note ? "note" : "text" });
-      }
-    };
-    const step = (budget) => {
-      const deadline = performance.now() + budget;
-      let count = 0;
-      while (stack.length && (++count % 512 || performance.now() < deadline)) visit(stack.pop());
-      return stack.length === 0;
-    };
-    return { found, step };
-  }
-
-  // What renderElement draws on one row: text and CDATA, nothing else.
-  // Without building an array per element: that was two fifths of a search.
-  function isTextOnly(el) {
-    let text = false;
-    let other = false;
-    for (let child = el.firstChild; child && !other; child = child.nextSibling) {
-      if (child.nodeType === Node.CDATA_SECTION_NODE) text = true;
-      else if (child.nodeType !== Node.TEXT_NODE) other = true;
-      else if (/\S/.test(child.nodeValue)) text = true;
-    }
-    return text && !other;
-  }
-
-  function nodeText(node) {
-    let text = "";
-    if (node.nodeType === Node.PROCESSING_INSTRUCTION_NODE) text = `${node.target} ${node.data}`;
-    else if (node.nodeType !== Node.DOCUMENT_TYPE_NODE) text = node.nodeValue || "";
-    return text;
-  }
-
-  // Every code whose label holds the query, in any list. A value is looked
-  // up only when it is one of these, so the walk resolves a handful of
-  // labels rather than every coded value in the feed.
-  function codesLabelled(query) {
-    const codes = new Set();
-    const lists = Object.values(window.OnixViewerCodeListsByNumber || {})
-      .concat(Object.values(window.OnixViewerThema ? window.OnixViewerThema.schemes : {}));
-    for (const list of lists) {
-      for (const [code, label] of list) {
-        if (label.toLowerCase().includes(query)) codes.add(code);
+        status.append(document.createTextNode(`${installed.assertions} applied; ` +
+          `${installed.problems.length} ${plural(installed.problems.length, "problem")}:`), list);
       }
     }
-    return codes;
-  }
 
-  function labelMatches(el, query, labelled) {
-    const value = el.textContent.trim();
-    let matches = false;
-    if (onixCtx.isOnix && (labelled.has(value) || labelled.has(value.split(/\s+/)[0]))) {
-      const resolved = window.OnixViewerOnix.resolveCodelist(el, onixCtx);
-      matches = Boolean(resolved && resolved.label.toLowerCase().includes(query));
-    }
-    return matches;
-  }
-
-  function attributeMatches(attr, query, labelled) {
-    let matches = attr.name.toLowerCase().includes(query) || attr.value.toLowerCase().includes(query);
-    if (!matches && onixCtx.isOnix && labelled.has(attr.value)) {
-      const resolved = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
-      matches = Boolean(resolved && resolved.label.toLowerCase().includes(query));
-    }
-    return matches;
-  }
-
-  // The span on screen a hit stands for, once its row exists: a text value
-  // sits in its element's row unless it has one of its own.
-  function spanFor(hit) {
-    const row = elementRows.get(hit.node) || (hit.kind === "text" ? elementRows.get(hit.node.parentNode) : null);
-    let span = null;
-    if (row && hit.kind === "name") {
-      span = row.querySelector(".px-tag-name");
-    } else if (row && hit.kind === "attr") {
-      span = [...row.querySelectorAll(".px-attr")]
-        .find((attr) => attr.querySelector(".px-attr-name").textContent === hit.name) || null;
-    } else if (row && hit.kind === "text") {
-      const texts = [...row.querySelectorAll(".px-text")];
-      span = texts.find((text) => text.textContent === hit.node.nodeValue.trim()) || texts[0] || null;
-    } else if (row && hit.kind === "label") {
-      span = row.querySelector(".px-codelist");
-    } else if (row) {
-      span = row.querySelector(".px-comment, .px-pi");
-    }
-    return span;
-  }
-
-  function highlight(hit) {
-    const span = spanFor(hit);
-    if (span && !span.classList.contains("px-match")) {
-      span.classList.add("px-match");
-      highlighted.push(span);
-    }
-  }
-
-  // Clear from the list of highlighted spans, never by re-querying the tree:
-  // a document-wide querySelectorAll costs more than the search itself on a
-  // large feed. The dialect switch renames tags in place rather than
-  // re-rendering, so these references stay live.
-  function clearMatches() {
-    for (const span of highlighted) span.classList.remove("px-match", "px-match-current");
-    highlighted = [];
-    hits = [];
-    hitIndex = -1;
-    currentHit = null;
-    hitsByProduct.clear();
-  }
-
-  // Renders the hit's Product if it is still deferred — its highlights come
-  // with it — then unfolds the hit's ancestors and scrolls it into view.
-  function gotoMatch(i) {
-    if (!hits.length) return;
-    if (currentHit) currentHit.classList.remove("px-match-current");
-    hitIndex = (i + hits.length) % hits.length;
-    const hit = hits[hitIndex];
-    ensureRendered(hit.node);
-    currentHit = spanFor(hit);
-    if (currentHit) {
-      highlight(hit);
-      currentHit.classList.add("px-match-current");
-      unfoldAncestors(currentHit);
-      jumpTo(currentHit);
-    }
-    status.textContent = `${hitIndex + 1}/${hits.length}`;
-  }
-
-  // ---- keyboard -------------------------------------------------------------
-
-  function setupKeyboard() {
-    document.addEventListener("keydown", (ev) => {
-      // Skip when the user is typing in a field.
-      if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
-      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
-      // A dialog owns the keyboard while it is open; these act on the tree
-      // behind it, which the reader cannot see.
-      if (dialogOpen()) return;
-
-      switch (ev.key) {
-        case "/":
-          ev.preventDefault();
-          openSearch();
-          break;
-        case "e":
-          expandStep();
-          break;
-        case "c":
-        case "b":
-          collapseStep();
-          break;
-        case "w":
-          document.body.classList.toggle("px-no-wrap");
-          break;
-        case "t":
-          applyDialect(otherDialect(displayDialect));
-          break;
-        case "v":
-          showFindings();
-          break;
-        case "?":
-          showAbout();
-          break;
+    // content.js has written the rules to storage: say so where the reader is
+    // looking. Without storage (a test, another browser) the line stays as it
+    // was, which is honest — nothing was kept.
+    function markRulesKept() {
+      const status = ensureRulesModal().querySelector("#oxv-rules-status");
+      const line = status.firstChild;
+      if (line && line.nodeType === Node.TEXT_NODE && !line.data.includes("Kept")) {
+        line.data = `${line.data} Kept for the next document.`;
       }
-    });
-  }
+    }
 
-  // The code-list popup marks the body while it is up; the findings list and
-  // the rules editor are this file's own.
-  function dialogOpen() {
-    return document.body.classList.contains("px-popup-open") ||
-      !!(findingsModal && !findingsModal.hidden) ||
-      !!(rulesModal && !rulesModal.hidden) ||
-      !!(aboutModal && !aboutModal.hidden);
-  }
+    function plural(count, word) {
+      return count === 1 ? word : `${word}s`;
+    }
 
-  // ---- click + active row ---------------------------------------------------
+    // ---- about ----------------------------------------------------------------
 
-  // The chevron toggles collapse; clicking anywhere else on a row makes it the
-  // active row, which is what the selection accent follows.
-  function setupClickHandlers() {
-    root.addEventListener("click", (ev) => {
-      const row = ev.target.closest(".px-row");
-      if (!row) return;
-      if (ev.target.closest("input, button, a")) return;
+    // Behind the mark: what took the page over, which version, which code
+    // lists, the keys, and where the source lives. The version is stamped on
+    // <html> by content.js, the one script that can read the manifest.
+    let aboutModal = null;
+    let aboutLastFocus = null;
 
-      // Chevron click → toggle (only collapsible rows have a chevron).
-      if (ev.target.closest(".px-toggle")) {
-        if (row.classList.contains("px-collapsible")) {
-          row.classList.toggle("px-folded");
-        }
+    const SHORTCUTS = [
+      ["/", "Search; Enter and Shift+Enter step through matches, Esc closes"],
+      ["e", "Expand one level"],
+      ["c", "Collapse one level (also b)"],
+      ["t", "Switch between reference names and short tags"],
+      ["v", "Open the findings list"],
+      ["w", "Toggle soft wrap"],
+      ["?", "This window"],
+    ];
+
+    // The middle link is the place to install from, which depends on the
+    // browser content.js stamped on the shell: Chrome and its relatives have
+    // the Web Store listing, Firefox the AMO one; Safari gets the web page,
+    // which carries its install link, until it has a listing of its own.
+    function aboutLinkList() {
+      const stores = {
+        chrome: ["Chrome Web Store", "https://chromewebstore.google.com/detail/onix-viewer/afdfkehnjkpgfhkgpacimefkkgfgkife"],
+        firefox: ["Firefox Add-ons", "https://addons.mozilla.org/firefox/addon/onix-viewer/"],
+      };
+      const store = stores[extensionBrowser()] || ["Web page", "https://maendeleo.io/onix-viewer/"];
+      return [
+        ["Source on GitHub", "https://github.com/rognlien/onix-viewer"],
+        store,
+        ["ONIX at EDItEUR", "https://www.editeur.org/8/ONIX/"],
+      ];
+    }
+
+    function ensureAboutModal() {
+      if (aboutModal) return aboutModal;
+      const overlay = document.createElement("div");
+      overlay.className = "px-popup-overlay";
+      overlay.id = "oxv-about";
+      overlay.hidden = true;
+
+      const dialog = document.createElement("div");
+      dialog.className = "px-popup px-about";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "oxv-about-title");
+      dialog.append(aboutHeader(), aboutBody());
+      keepTabInside(dialog, "button:not([disabled]), a[href]");
+
+      closeOnBackdrop(overlay, closeAbout);
+      overlay.appendChild(dialog);
+      frame.appendChild(overlay);
+      aboutModal = overlay;
+      return overlay;
+    }
+
+    function extensionVersion() {
+      return env.version || "";
+    }
+
+    // "chrome", "firefox" or "safari", as content.js stamped it; "chrome" when
+    // nothing did, since that is where the viewer began.
+    function extensionBrowser() {
+      return env.browser || "chrome";
+    }
+
+    function aboutHeader() {
+      const header = document.createElement("div");
+      header.className = "px-popup-header";
+      const titleWrap = document.createElement("div");
+      titleWrap.className = "px-popup-title-wrap";
+      const eyebrow = document.createElement("div");
+      eyebrow.className = "px-popup-eyebrow";
+      eyebrow.id = "oxv-about-version";
+      eyebrow.textContent = extensionVersion() ? `Version ${extensionVersion()}` : "";
+      const title = document.createElement("div");
+      title.id = "oxv-about-title";
+      title.className = "px-popup-title";
+      title.textContent = "About ONIX Viewer";
+      titleWrap.append(eyebrow, title);
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "px-popup-close";
+      closeButton.setAttribute("aria-label", "Close");
+      closeButton.appendChild(icon("close"));
+      closeButton.addEventListener("click", closeAbout);
+      header.append(titleWrap, closeButton);
+      return header;
+    }
+
+    function aboutBody() {
+      const body = document.createElement("div");
+      body.className = "px-popup-body";
+      const text = document.createElement("p");
+      text.className = "px-about-text";
+      text.textContent = "Readable ONIX XML: a collapsible tree, short tags or reference names " +
+        "at one click, product summaries, EDItEUR code-list labels in place, and automatic " +
+        "validation against the ONIX 3.0 and 3.1 content models.";
+      const credit = document.createElement("p");
+      credit.className = "px-about-credit";
+      credit.textContent = "ONIX for Books and its code lists are developed and maintained by EDItEUR, " +
+        "which holds the copyright and makes them freely available. ONIX Viewer is an " +
+        "independent tool, not affiliated with or endorsed by EDItEUR.";
+      body.append(text, aboutFacts(), aboutKeys(), aboutLinks(), credit);
+      return body;
+    }
+
+    function aboutFacts() {
+      const facts = document.createElement("dl");
+      facts.className = "px-about-facts";
+      for (const [term, detail] of aboutFactRows()) {
+        const dt = document.createElement("dt");
+        dt.textContent = term;
+        const dd = document.createElement("dd");
+        dd.textContent = detail;
+        facts.append(dt, dd);
+      }
+      return facts;
+    }
+
+    function aboutFactRows() {
+      const rows = [["Version", extensionVersion() || "unknown"]];
+      const versions = window.OnixViewerVersions;
+      if (versions) rows.push(...dataVersionRows(versions));
+      return rows;
+    }
+
+    function dataVersionRows(versions) {
+      const releases = Object.entries(versions.releases)
+        .map(([release, { revision }]) => [`ONIX ${release}`, revision]);
+      return [
+        ["Code lists", `EDItEUR Issue ${versions.codeLists.issue}`],
+        ["Thema", versions.thema.version],
+        ...releases,
+      ];
+    }
+
+    function aboutKeys() {
+      const table = document.createElement("table");
+      table.className = "px-about-keys";
+      table.setAttribute("aria-label", "Keyboard shortcuts");
+      for (const [key, action] of SHORTCUTS) {
+        const row = document.createElement("tr");
+        const keyCell = document.createElement("td");
+        const kbd = document.createElement("kbd");
+        kbd.textContent = key;
+        keyCell.appendChild(kbd);
+        const actionCell = document.createElement("td");
+        actionCell.textContent = action;
+        row.append(keyCell, actionCell);
+        table.appendChild(row);
+      }
+      return table;
+    }
+
+    function aboutLinks() {
+      const links = document.createElement("div");
+      links.className = "px-about-links";
+      for (const [label, href] of aboutLinkList()) {
+        const a = document.createElement("a");
+        a.className = "px-popup-link";
+        a.href = href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = label;
+        links.appendChild(a);
+      }
+      return links;
+    }
+
+    function showAbout() {
+      const overlay = ensureAboutModal();
+      aboutLastFocus = scope.activeElement;
+      overlay.hidden = false;
+      overlay.querySelector(".px-popup-close").focus();
+    }
+
+    function closeAbout() {
+      if (!aboutModal || aboutModal.hidden) return;
+      aboutModal.hidden = true;
+      if (aboutLastFocus && typeof aboutLastFocus.focus === "function") {
+        try { aboutLastFocus.focus(); } catch { /* it may have left the document */ }
+      }
+      aboutLastFocus = null;
+    }
+
+    // ---- copy raw XML ---------------------------------------------------------
+
+    // The "Copy XML" toolbar button hands the user the unannotated source.
+    // SOURCE is the full original XML the viewer parsed — no codelist badges,
+    // no List-N chips, no folding markers. navigator.clipboard.writeText is
+    // the modern API; we keep a document.execCommand fallback for the rare
+    // environments where the modern API isn't available (some file:// pages,
+    // older browsers).
+    function copyRawXml(btn) {
+      const text = displayedXml();
+      if (!text) {
+        flashButton(btn, "Empty", false);
         return;
       }
-
-      // Don't grab focus while the user is selecting text.
-      if (window.getSelection().toString()) return;
-
-      setActiveTreeRow(row);
-    });
-  }
-
-  function setActiveTreeRow(row) {
-    if (activeTreeRow && activeTreeRow !== row) {
-      activeTreeRow.classList.remove("px-active");
+      writeClipboard(text, () => flashButton(btn, "Copied", true), () => flashButton(btn, "Failed", false));
     }
-    row.classList.add("px-active");
-    activeTreeRow = row;
+
+    // What the reader is actually looking at. Untranslated, that's the source
+    // byte for byte. Translated, it's rebuilt from the parsed document — which
+    // still holds every whitespace node, so the indentation, comments and CDATA
+    // of the original survive; only the element names and the EDItEUR namespace
+    // change. The XML declaration isn't a DOM node, so it's carried across from
+    // the source text.
+    function displayedXml() {
+      let xml = SOURCE || "";
+      if (translating() && xml) xml = documentXml(window.OnixViewerOnix.translateNode(doc, displayDialect));
+      return xml;
+    }
+
+    function documentXml(document) {
+      const serializer = new XMLSerializer();
+      let body = "";
+      for (const child of document.childNodes) body += serializer.serializeToString(child);
+      const declaration = SOURCE.match(/^\s*<\?xml[^?]*\?>\s*/i);
+      return (declaration ? declaration[0] : "") + body;
+    }
+
+    // ---- download XML ---------------------------------------------------------
+
+    // What Copy XML puts on the clipboard, saved as a file. Nothing is served,
+    // so there is no response to carry a Content-Disposition header; an anchor
+    // with a download attribute over a blob URL does the same job. The URL is
+    // revoked a little later, since revoking it in the same tick can cancel
+    // the download in Firefox.
+    function downloadXml(btn) {
+      const text = displayedXml();
+      if (text) saveXml(text, downloadName());
+      else flashButton(btn, "Empty", false);
+    }
+
+    function saveXml(text, name) {
+      const url = URL.createObjectURL(new Blob([text], { type: "application/xml" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      frame.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // The file's own name, marked with the dialect when the view translates
+    // it: feed.xml becomes feed-short-tags.xml. A source with no name to
+    // offer is called onix.xml.
+    function downloadName() {
+      const suffix = translating()
+        ? (displayDialect === "short" ? "-short-tags" : "-reference-names")
+        : "";
+      return `${downloadBase()}${suffix}.xml`;
+    }
+
+    function downloadBase() {
+      return safeDecode(env.fileName || "").replace(/\.xml$/i, "") || "onix";
+    }
+
+    function safeDecode(text) {
+      let decoded = text;
+      try {
+        decoded = decodeURIComponent(text);
+      } catch {
+        // A stray "%" in the path: keep it as written.
+      }
+      return decoded;
+    }
+
+    function translating() {
+      return !!(window.OnixViewerOnix && sourceDialect && displayDialect !== sourceDialect);
+    }
+
+    // Prefer the async clipboard API; fall back to execCommand. Exactly one of
+    // done() / failed() is called.
+    function writeClipboard(text, done, failed) {
+      const fallback = () => (execCopyFallback(text) ? done() : failed());
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } else {
+        fallback();
+      }
+    }
+
+    function execCopyFallback(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      frame.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch { /* refused: ok stays false */ }
+      ta.remove();
+      return ok;
+    }
+
+    // How a copy went, for a moment: in the words of a labelled control, or,
+    // on an icon-only button, by its icon and tooltip — a tick for done, a
+    // cross for anything else.
+    function flashButton(btn, msg, ok) {
+      const restore = btn.classList.contains("px-icon-btn") ? flashIcon(btn, msg, ok) : flashLabel(btn, msg);
+      btn.setAttribute("disabled", "");
+      setTimeout(() => {
+        restore();
+        btn.removeAttribute("disabled");
+      }, 1200);
+    }
+
+    function flashIcon(btn, msg, ok) {
+      const glyph = btn.querySelector("svg");
+      const title = btn.title;
+      const flash = icon(ok ? "ok" : "close");
+      glyph.replaceWith(flash);
+      btn.title = msg;
+      return () => {
+        flash.replaceWith(glyph);
+        btn.title = title;
+      };
+    }
+
+    function flashLabel(btn, msg) {
+      const label = labelNode(btn);
+      const original = label.nodeValue;
+      label.nodeValue = msg;
+      return () => {
+        label.nodeValue = original;
+      };
+    }
+
+    // The control's own text, as a node, so writing it leaves anything else in
+    // the control alone: the text inside a .px-label span, or a bare text node,
+    // which gets wrapped on first use.
+    function labelNode(btn) {
+      let span = btn.querySelector(".px-label");
+      if (!span) {
+        span = document.createElement("span");
+        span.className = "px-label";
+        for (const child of [...btn.childNodes]) {
+          if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) span.appendChild(child);
+        }
+        btn.appendChild(span);
+      }
+      let node = span.firstChild;
+      if (!node) {
+        node = document.createTextNode("");
+        span.appendChild(node);
+      }
+      return node;
+    }
+
+    // ---- per-node menu --------------------------------------------------------
+
+    // One shared dropdown, moved next to whichever gutter button opened it.
+    // Menu items act on the source element of the row (via rowElements), so
+    // what gets copied is the original XML subtree — no badges, list chips,
+    // fold markers or other viewer decoration.
+    let nodeMenu = null;
+    let nodeMenuButton = null;
+
+    function setupNodeMenu() {
+      root.addEventListener("click", (event) => {
+        const button = event.target.closest(".px-node-menu-btn");
+        if (button) openNodeMenu(button);
+      });
+      document.addEventListener("click", (event) => {
+        const insideMenu = eventOrigin(event).closest(".px-node-menu, .px-node-menu-btn");
+        if (nodeMenuButton && !insideMenu) closeNodeMenu();
+      }, { signal });
+      keys.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && nodeMenuButton) {
+          const button = nodeMenuButton;
+          closeNodeMenu();
+          button.focus();
+        }
+      }, { signal });
+      // A fixed-position menu would drift away from its row on scroll. A
+      // scroll inside a shadow root does not reach the document, so the
+      // scope listens too.
+      const closeOnScroll = () => { if (nodeMenuButton) closeNodeMenu(); };
+      document.addEventListener("scroll", closeOnScroll, { capture: true, signal });
+      if (scope !== document) scope.addEventListener("scroll", closeOnScroll, { capture: true, signal });
+    }
+
+    function ensureNodeMenu() {
+      if (!nodeMenu) {
+        nodeMenu = document.createElement("div");
+        nodeMenu.id = "oxv-node-menu";
+        nodeMenu.className = "px-node-menu";
+        nodeMenu.setAttribute("role", "menu");
+        nodeMenu.hidden = true;
+
+        const copyItem = document.createElement("button");
+        copyItem.type = "button";
+        copyItem.className = "px-node-menu-item";
+        copyItem.setAttribute("role", "menuitem");
+        copyItem.dataset.nodeAction = "copy-xml";
+        copyItem.textContent = "Copy node XML";
+        nodeMenu.appendChild(copyItem);
+
+        nodeMenu.addEventListener("click", (event) => {
+          const item = event.target.closest("[data-node-action]");
+          if (item) runNodeAction(item.dataset.nodeAction, item);
+        });
+        frame.appendChild(nodeMenu);
+      }
+      return nodeMenu;
+    }
+
+    function openNodeMenu(button) {
+      const menu = ensureNodeMenu();
+      if (nodeMenuButton && nodeMenuButton !== button) closeNodeMenu();
+      nodeMenuButton = button;
+      button.classList.add("px-open");
+      button.setAttribute("aria-expanded", "true");
+      menu.hidden = false;
+      positionNodeMenu(menu, button);
+      const firstItem = menu.querySelector(".px-node-menu-item");
+      if (firstItem) firstItem.focus();
+    }
+
+    function positionNodeMenu(menu, button) {
+      const anchor = button.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      let left = anchor.left;
+      let top = anchor.bottom + 2;
+      if (top + menuRect.height > window.innerHeight) top = anchor.top - menuRect.height - 2;
+      if (left + menuRect.width > window.innerWidth) left = window.innerWidth - menuRect.width - 4;
+      menu.style.left = `${Math.max(0, left)}px`;
+      menu.style.top = `${Math.max(0, top)}px`;
+    }
+
+    function closeNodeMenu() {
+      if (nodeMenu) nodeMenu.hidden = true;
+      if (nodeMenuButton) {
+        nodeMenuButton.classList.remove("px-open");
+        nodeMenuButton.setAttribute("aria-expanded", "false");
+      }
+      nodeMenuButton = null;
+    }
+
+    function runNodeAction(action, item) {
+      const row = nodeMenuButton && nodeMenuButton.closest(".px-row");
+      const element = row && rowElements.get(row);
+      if (!element) {
+        closeNodeMenu();
+      } else if (action === "copy-xml") {
+        copyNodeXml(element, item);
+      }
+    }
+
+    function copyNodeXml(element, item) {
+      const finish = (message, ok) => {
+        flashButton(item, message, ok);
+        setTimeout(closeNodeMenu, 900);
+      };
+      writeClipboard(nodeXml(element), () => finish("Copied", true), () => finish("Failed", false));
+    }
+
+    // Serialise an element the way it appears in the source: XMLSerializer
+    // re-declares the element's namespace on the subtree root (correct for a
+    // standalone fragment, but noise when the original element inherited it),
+    // and inner lines keep their absolute indentation from the file, so the
+    // result is de-indented to the element's own column.
+    function nodeXml(element) {
+      const copied = translating()
+        ? window.OnixViewerOnix.translateNode(element, displayDialect)
+        : element;
+      let xml = new XMLSerializer().serializeToString(copied);
+      // The "did the source declare it?" question is asked of the original; the
+      // declaration to strip is the one the serialiser wrote for the copy.
+      xml = stripSynthesizedNamespace(xml, element, copied.namespaceURI);
+      return dedent(xml, leadingIndent(element));
+    }
+
+    function stripSynthesizedNamespace(xml, element, namespaceURI) {
+      let result = xml;
+      const namespace = namespaceURI || element.namespaceURI;
+      const attributeName = element.prefix ? `xmlns:${element.prefix}` : "xmlns";
+      if (namespace && !element.hasAttribute(attributeName)) {
+        const declaration = ` ${attributeName}="${namespace}"`;
+        const openTagEnd = xml.indexOf(">");
+        const openTag = xml.slice(0, openTagEnd);
+        result = openTag.replace(declaration, "") + xml.slice(openTagEnd);
+      }
+      return result;
+    }
+
+    // Whitespace between the last newline and the element's start tag.
+    function leadingIndent(element) {
+      let indent = "";
+      const previous = element.previousSibling;
+      if (previous && previous.nodeType === Node.TEXT_NODE) {
+        const text = previous.nodeValue;
+        const candidate = text.slice(text.lastIndexOf("\n") + 1);
+        if (text.includes("\n") && /^[ \t]*$/.test(candidate)) indent = candidate;
+      }
+      return indent;
+    }
+
+    function dedent(xml, indent) {
+      let result = xml;
+      if (indent) {
+        result = xml
+          .split("\n")
+          .map((line, i) => (i > 0 && line.startsWith(indent) ? line.slice(indent.length) : line))
+          .join("\n");
+      }
+      return result;
+    }
+
+    // ---- search ---------------------------------------------------------------
+
+    // A hit is a place in the parsed document, not a span on screen: an
+    // element's name as displayed, one of its attributes (name, value or
+    // code-list label), a text value, an element's code-list label, or a
+    // comment or processing instruction. Searching the document needs nothing
+    // rendered, so a deferred Product is built only when the reader goes to a
+    // hit inside it. The old search read the rendered tree and so built every
+    // Product first, which on a large feed hung the browser.
+    let hits = [];
+    let hitIndex = -1;
+    let currentHit = null;
+    let highlighted = [];
+    let searchTimer = null;
+    let searchSession = null;
+    // Hits inside deferred Products, highlighted when the Product renders.
+    const hitsByProduct = new Map();
+
+    // The field is collapsed to its icon until wanted, so it costs a button's
+    // width in the toolbar instead of 420px. Browser find is not a substitute:
+    // it cannot see folded rows, nor a deferred Product, which has no rows
+    // until it nears the viewport — so on a large feed it sees a screenful.
+    function setupSearch() {
+      const button = scope.querySelector('#oxv-toolbar [data-action="search"]');
+      if (button && !button.firstChild) button.appendChild(icon("search"));
+
+      search.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(runSearch, 120);
+      });
+      search.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          if (ev.shiftKey) gotoMatch(hitIndex - 1);
+          else gotoMatch(hitIndex + 1);
+        } else if (ev.key === "Escape") {
+          closeSearch();
+        }
+      });
+      search.addEventListener("blur", (event) => {
+        // Leave it open while it holds a query, so the match counter and the
+        // highlights stay put when focus moves to the tree. And leave the state
+        // alone when focus is heading for the toggle: that button's own click is
+        // what decides, and closing here first would make it reopen.
+        if (event.relatedTarget === button) return;
+        if (!search.value.trim()) closeSearch();
+      });
+
+      // The same problem via the mouse, where relatedTarget can't help because
+      // the sequence is blur-then-click: mousedown on the toggle blurred the
+      // field, blur closed the search, and the click that followed found it
+      // closed and opened it straight back up — so pressing the button while
+      // the field was open and empty appeared to do nothing. Keeping focus in
+      // the field means no blur fires and the click is the only decision.
+      if (button) button.addEventListener("mousedown", (event) => event.preventDefault());
+    }
+
+    function toggleSearch() {
+      if (frame.classList.contains("px-search-open")) closeSearch();
+      else openSearch();
+    }
+
+    function openSearch() {
+      frame.classList.add("px-search-open");
+      setSearchExpanded(true);
+      search.removeAttribute("tabindex");
+      search.focus();
+      search.select();
+    }
+
+    function closeSearch() {
+      const wasFocused = scope.activeElement === search;
+      search.value = "";
+      runSearch();
+      frame.classList.remove("px-search-open");
+      setSearchExpanded(false);
+      // Out of the tab order while collapsed: the button is the way in.
+      search.setAttribute("tabindex", "-1");
+      search.blur();
+      // Hand focus to the toggle rather than dropping it on <body>: the field
+      // is now zero-width and untabbable, and a bare blur would send the next
+      // Tab back to the top of the document. The button is where the reader
+      // just was, and where they would go to reopen.
+      if (wasFocused) {
+        const button = scope.querySelector('#oxv-toolbar [data-action="search"]');
+        if (button) button.focus();
+      }
+    }
+
+    function setSearchExpanded(open) {
+      const button = scope.querySelector('#oxv-toolbar [data-action="search"]');
+      if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    // The walk runs in slices, like validation: a 176 MB feed takes seconds to
+    // search, and the tab stays responsive meanwhile. A new query, or closing
+    // the field, supersedes a search still running; it stops at its next slice.
+    // `jump` is false when the hits are refreshed under the reader — the
+    // dialect switch renames what a name hit matches — rather than asked for.
+    function runSearch(jump = true) {
+      clearMatches();
+      const query = search.value.trim().toLowerCase();
+      searchSession = query ? { query, jump, walk: hitWalk(query) } : null;
+      status.textContent = query ? "Searching…" : "";
+      if (searchSession) stepSearch(searchSession, FIRST_SLICE_MS);
+    }
+
+    function stepSearch(session, budget) {
+      if (session !== searchSession) return;
+      if (session.walk.step(budget)) finishSearch(session);
+      else afterYield(() => stepSearch(session, SLICE_MS));
+    }
+
+    function finishSearch(session) {
+      hits = session.walk.found;
+      for (const hit of hits) {
+        const product = pendingProductOf(hit.node);
+        if (product) {
+          if (!hitsByProduct.has(product)) hitsByProduct.set(product, []);
+          hitsByProduct.get(product).push(hit);
+        } else {
+          highlight(hit);
+        }
+      }
+      if (!hits.length) status.textContent = "no matches";
+      else if (session.jump) gotoMatch(0);
+      else status.textContent = `${hits.length} matches`;
+    }
+
+    // Walks the parsed document in order, the way the renderer does, and
+    // collects every hit; step(budget) walks until the budget is spent and
+    // says whether it got to the end. A text-only element's text and label
+    // are taken with it, as its row shows them; anything else descends.
+    function hitWalk(query) {
+      const found = [];
+      const labelled = codesLabelled(query);
+      const nameHits = new Map();
+      const nameMatches = (name) => {
+        if (!nameHits.has(name)) nameHits.set(name, displayedTagName(name).toLowerCase().includes(query));
+        return nameHits.get(name);
+      };
+      const stack = [doc];
+      const visit = (node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          if (nameMatches(node.nodeName)) found.push({ node, kind: "name" });
+          for (const attr of node.attributes) {
+            if (attributeMatches(attr, query, labelled)) found.push({ node, kind: "attr", name: attr.name });
+          }
+          if (isTextOnly(node)) {
+            for (const child of node.childNodes) {
+              if (child.nodeValue.toLowerCase().includes(query)) found.push({ node: child, kind: "text" });
+            }
+            if (labelMatches(node, query, labelled)) found.push({ node, kind: "label" });
+          } else {
+            for (let k = node.childNodes.length - 1; k >= 0; k--) stack.push(node.childNodes[k]);
+          }
+        } else if (node.nodeType === Node.DOCUMENT_NODE) {
+          for (let k = node.childNodes.length - 1; k >= 0; k--) stack.push(node.childNodes[k]);
+        } else if (nodeText(node).toLowerCase().includes(query)) {
+          const note = node.nodeType === Node.COMMENT_NODE || node.nodeType === Node.PROCESSING_INSTRUCTION_NODE;
+          found.push({ node, kind: note ? "note" : "text" });
+        }
+      };
+      const step = (budget) => {
+        const deadline = performance.now() + budget;
+        let count = 0;
+        while (stack.length && (++count % 512 || performance.now() < deadline)) visit(stack.pop());
+        return stack.length === 0;
+      };
+      return { found, step };
+    }
+
+    // What renderElement draws on one row: text and CDATA, nothing else.
+    // Without building an array per element: that was two fifths of a search.
+    function isTextOnly(el) {
+      let text = false;
+      let other = false;
+      for (let child = el.firstChild; child && !other; child = child.nextSibling) {
+        if (child.nodeType === Node.CDATA_SECTION_NODE) text = true;
+        else if (child.nodeType !== Node.TEXT_NODE) other = true;
+        else if (/\S/.test(child.nodeValue)) text = true;
+      }
+      return text && !other;
+    }
+
+    function nodeText(node) {
+      let text = "";
+      if (node.nodeType === Node.PROCESSING_INSTRUCTION_NODE) text = `${node.target} ${node.data}`;
+      else if (node.nodeType !== Node.DOCUMENT_TYPE_NODE) text = node.nodeValue || "";
+      return text;
+    }
+
+    // Every code whose label holds the query, in any list. A value is looked
+    // up only when it is one of these, so the walk resolves a handful of
+    // labels rather than every coded value in the feed.
+    function codesLabelled(query) {
+      const codes = new Set();
+      const lists = Object.values(window.OnixViewerCodeListsByNumber || {})
+        .concat(Object.values(window.OnixViewerThema ? window.OnixViewerThema.schemes : {}));
+      for (const list of lists) {
+        for (const [code, label] of list) {
+          if (label.toLowerCase().includes(query)) codes.add(code);
+        }
+      }
+      return codes;
+    }
+
+    function labelMatches(el, query, labelled) {
+      const value = el.textContent.trim();
+      let matches = false;
+      if (onixCtx.isOnix && (labelled.has(value) || labelled.has(value.split(/\s+/)[0]))) {
+        const resolved = window.OnixViewerOnix.resolveCodelist(el, onixCtx);
+        matches = Boolean(resolved && resolved.label.toLowerCase().includes(query));
+      }
+      return matches;
+    }
+
+    function attributeMatches(attr, query, labelled) {
+      let matches = attr.name.toLowerCase().includes(query) || attr.value.toLowerCase().includes(query);
+      if (!matches && onixCtx.isOnix && labelled.has(attr.value)) {
+        const resolved = window.OnixViewerOnix.resolveAttributeCodelist(attr.name, attr.value);
+        matches = Boolean(resolved && resolved.label.toLowerCase().includes(query));
+      }
+      return matches;
+    }
+
+    // The span on screen a hit stands for, once its row exists: a text value
+    // sits in its element's row unless it has one of its own.
+    function spanFor(hit) {
+      const row = elementRows.get(hit.node) || (hit.kind === "text" ? elementRows.get(hit.node.parentNode) : null);
+      let span = null;
+      if (row && hit.kind === "name") {
+        span = row.querySelector(".px-tag-name");
+      } else if (row && hit.kind === "attr") {
+        span = [...row.querySelectorAll(".px-attr")]
+          .find((attr) => attr.querySelector(".px-attr-name").textContent === hit.name) || null;
+      } else if (row && hit.kind === "text") {
+        const texts = [...row.querySelectorAll(".px-text")];
+        span = texts.find((text) => text.textContent === hit.node.nodeValue.trim()) || texts[0] || null;
+      } else if (row && hit.kind === "label") {
+        span = row.querySelector(".px-codelist");
+      } else if (row) {
+        span = row.querySelector(".px-comment, .px-pi");
+      }
+      return span;
+    }
+
+    function highlight(hit) {
+      const span = spanFor(hit);
+      if (span && !span.classList.contains("px-match")) {
+        span.classList.add("px-match");
+        highlighted.push(span);
+      }
+    }
+
+    // Clear from the list of highlighted spans, never by re-querying the tree:
+    // a document-wide querySelectorAll costs more than the search itself on a
+    // large feed. The dialect switch renames tags in place rather than
+    // re-rendering, so these references stay live.
+    function clearMatches() {
+      for (const span of highlighted) span.classList.remove("px-match", "px-match-current");
+      highlighted = [];
+      hits = [];
+      hitIndex = -1;
+      currentHit = null;
+      hitsByProduct.clear();
+    }
+
+    // Renders the hit's Product if it is still deferred — its highlights come
+    // with it — then unfolds the hit's ancestors and scrolls it into view.
+    function gotoMatch(i) {
+      if (!hits.length) return;
+      if (currentHit) currentHit.classList.remove("px-match-current");
+      hitIndex = (i + hits.length) % hits.length;
+      const hit = hits[hitIndex];
+      ensureRendered(hit.node);
+      currentHit = spanFor(hit);
+      if (currentHit) {
+        highlight(hit);
+        currentHit.classList.add("px-match-current");
+        unfoldAncestors(currentHit);
+        jumpTo(currentHit);
+      }
+      status.textContent = `${hitIndex + 1}/${hits.length}`;
+    }
+
+    // ---- keyboard -------------------------------------------------------------
+
+    function setupKeyboard() {
+      keys.addEventListener("keydown", (ev) => {
+        // Skip when the user is typing in a field.
+        const origin = eventOrigin(ev);
+        if (origin instanceof HTMLInputElement || origin instanceof HTMLTextAreaElement) return;
+        if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+        // A dialog owns the keyboard while it is open; these act on the tree
+        // behind it, which the reader cannot see.
+        if (dialogOpen()) return;
+
+        switch (ev.key) {
+          case "/":
+            ev.preventDefault();
+            openSearch();
+            break;
+          case "e":
+            expandStep();
+            break;
+          case "c":
+          case "b":
+            collapseStep();
+            break;
+          case "w":
+            frame.classList.toggle("px-no-wrap");
+            break;
+          case "t":
+            applyDialect(otherDialect(displayDialect));
+            break;
+          case "v":
+            showFindings();
+            break;
+          case "?":
+            showAbout();
+            break;
+        }
+      }, { signal });
+    }
+
+    // The code-list popup marks the body while it is up; the findings list and
+    // the rules editor are this file's own.
+    function dialogOpen() {
+      return frame.classList.contains("px-popup-open") ||
+        !!(findingsModal && !findingsModal.hidden) ||
+        !!(rulesModal && !rulesModal.hidden) ||
+        !!(aboutModal && !aboutModal.hidden);
+    }
+
+    // ---- click + active row ---------------------------------------------------
+
+    // The chevron toggles collapse; clicking anywhere else on a row makes it the
+    // active row, which is what the selection accent follows.
+    function setupClickHandlers() {
+      root.addEventListener("click", (ev) => {
+        const row = ev.target.closest(".px-row");
+        if (!row) return;
+        if (ev.target.closest("input, button, a")) return;
+
+        // Chevron click → toggle (only collapsible rows have a chevron).
+        if (ev.target.closest(".px-toggle")) {
+          if (row.classList.contains("px-collapsible")) {
+            row.classList.toggle("px-folded");
+          }
+          return;
+        }
+
+        // Don't grab focus while the user is selecting text.
+        if (currentSelection().toString()) return;
+
+        setActiveTreeRow(row);
+      });
+    }
+
+    // Where an event began. A listener outside a shadow root sees the host
+    // as the target, so it asks the composed path instead.
+    function eventOrigin(event) {
+      const path = event.composedPath ? event.composedPath() : [];
+      return path[0] instanceof Element ? path[0] : event.target;
+    }
+
+    // Chrome keeps a selection inside a shadow root on the root itself.
+    function currentSelection() {
+      return scope.getSelection ? scope.getSelection() : window.getSelection();
+    }
+
+    function setActiveTreeRow(row) {
+      if (activeTreeRow && activeTreeRow !== row) {
+        activeTreeRow.classList.remove("px-active");
+      }
+      row.classList.add("px-active");
+      activeTreeRow = row;
+    }
+
+    // ---- error UI -------------------------------------------------------------
+
+    function showParseError(errEl) {
+      const box = document.createElement("div");
+      box.className = "px-error";
+      const h = document.createElement("h2");
+      h.textContent = "Could not parse XML";
+      const p = document.createElement("p");
+      p.textContent = errEl.textContent || "The document is not well-formed.";
+      const pre = document.createElement("pre");
+      // Show the first 2000 chars of source for context.
+      pre.textContent = SOURCE.slice(0, 2000) + (SOURCE.length > 2000 ? "\n…" : "");
+      box.append(h, p, pre);
+      root.appendChild(box);
+      meta.textContent = "parse error";
+    }
+
+    // Custom rules reach the page the way the source does: as the text of an
+    // inert data block, #__oxv-rules__, which content.js writes from storage
+    // when the reader has kept a rule set. Installed before the pass, so it
+    // judges them too.
+    function installCustomRules() {
+      if (!FEATURES.customRules) return;
+      const holder = scope.getElementById("__oxv-rules__");
+      installRules(holder ? holder.textContent : "");
+    }
+
+    // Last, once every declaration above is initialised: check the document.
+    // Automatic rather than on demand, sliced rather than blocking.
+    function destroy() {
+      listening.abort();
+      if (pendingObserver) pendingObserver.disconnect();
+      if (pumpChannel) pumpChannel.port1.close();
+      clearTimeout(searchTimer);
+      activeSession = null;
+      searchSession = null;
+    }
+
+    installCustomRules();
+    startValidation();
+    return { destroy };
   }
 
-  // ---- error UI -------------------------------------------------------------
-
-  function showParseError(errEl) {
-    const box = document.createElement("div");
-    box.className = "px-error";
-    const h = document.createElement("h2");
-    h.textContent = "Could not parse XML";
-    const p = document.createElement("p");
-    p.textContent = errEl.textContent || "The document is not well-formed.";
-    const pre = document.createElement("pre");
-    // Show the first 2000 chars of source for context.
-    pre.textContent = SOURCE.slice(0, 2000) + (SOURCE.length > 2000 ? "\n…" : "");
-    box.append(h, p, pre);
-    root.appendChild(box);
-    meta.textContent = "parse error";
+  // The extension's page: content.js has put the shell in the document, the
+  // source in a non-executing <script type="application/xml"> data block, and
+  // the rest on <html>. The test harness still sets window.__OXV_SOURCE__.
+  function documentEnvironment() {
+    const sourceElement = document.getElementById("__oxv-source__");
+    const stamped = (name) => document.documentElement.getAttribute(`data-oxv-${name}`);
+    return {
+      scope: document,
+      frame: document.body,
+      source: (sourceElement && sourceElement.textContent) || window.__OXV_SOURCE__ || "",
+      bytes: Number(stamped("bytes")) || 0,
+      models: stampedModels(stamped("models")),
+      version: stamped("version") || "",
+      browser: stamped("browser") || "",
+      // A blob: URL or a path ending in "/" has no name to offer.
+      fileName: location.protocol === "blob:" ? "" : location.pathname.split("/").pop(),
+    };
   }
 
-  // Custom rules reach the page the way the source does: as the text of an
-  // inert data block, #__oxv-rules__, which content.js writes from storage
-  // when the reader has kept a rule set. Installed before the pass, so it
-  // judges them too.
-  function installCustomRules() {
-    if (!FEATURES.customRules) return;
-    const holder = document.getElementById("__oxv-rules__");
-    installRules(holder ? holder.textContent : "");
+  function stampedModels(text) {
+    let urls = {};
+    try {
+      urls = JSON.parse(text || "{}");
+    } catch {
+      urls = {};
+    }
+    return urls;
   }
 
-  // Last, once every declaration above is initialised: check the document.
-  // Automatic rather than on demand, sliced rather than blocking.
-  installCustomRules();
-  startValidation();
+  window.OnixViewerView = { mount };
+  if (document.getElementById("oxv-root")) mount(documentEnvironment());
 })();

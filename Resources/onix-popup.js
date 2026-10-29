@@ -4,12 +4,14 @@
 // definition. Triggered by clicks on the "List N" badges in either pane.
 //
 // Public API:
-//   window.OnixViewerPopup.show(codelistKey, currentValue?, context?)
+//   window.OnixViewerPopup.show(codelistKey, currentValue?, context?, place?)
 //
 // `codelistKey` is an element name, or `list:N` for a list no element is
 // bound to — a second-order list picked by a sibling's code. `context` then
 // says which ("ProductFormFeatureValue when ProductFormFeatureType is 09")
-// and takes the element name's place in the eyebrow.
+// and takes the element name's place in the eyebrow. `place` is the viewer
+// asking, { frame, scope }: the element the overlay goes in and the document
+// or shadow root it lives in. Without it the overlay goes in <body>.
 //
 // Lifecycle: a single overlay node is mounted lazily on first show() and
 // reused across opens. Esc, the close button, or a click on the backdrop
@@ -22,20 +24,28 @@
   let dialog = null;
   let lastFocus = null;
   let escListener = null;
+  let frame = null;
+  let scope = null;
 
-  function show(codelistKey, currentValue, context) {
+  function show(codelistKey, currentValue, context, place) {
     if (!window.OnixViewerOnix || !window.OnixViewerCodeLists) return;
     const meta = window.OnixViewerOnix.codelistMeta(codelistKey);
     const entries = window.OnixViewerOnix.codelistEntries(codelistKey);
     if (!meta || !entries) return;
 
+    close();
+    frame = (place && place.frame) || document.body;
+    scope = (place && place.scope) || document;
     ensureMounted();
     populate(meta, entries, currentValue, context);
     open();
   }
 
   function ensureMounted() {
-    if (overlay) return;
+    if (overlay) {
+      if (overlay.parentNode !== frame) frame.appendChild(overlay);
+      return;
+    }
 
     overlay = document.createElement("div");
     overlay.className = "px-popup-overlay";
@@ -51,7 +61,7 @@
     dialog.setAttribute("aria-labelledby", "px-popup-title");
     overlay.appendChild(dialog);
 
-    document.body.appendChild(overlay);
+    frame.appendChild(overlay);
   }
 
   function populate(meta, entries, currentValue, context) {
@@ -156,9 +166,9 @@
   }
 
   function open() {
-    lastFocus = document.activeElement;
+    lastFocus = scope.activeElement;
     overlay.removeAttribute("hidden");
-    document.body.classList.add("px-popup-open");
+    frame.classList.add("px-popup-open");
     escListener = (ev) => {
       if (ev.key === "Escape") {
         ev.preventDefault();
@@ -168,11 +178,11 @@
       // aria-modal="true" says nothing outside the dialog is reachable, so
       // keep Tab inside it. The close button is the only control here, which
       // makes the cycle a single element — but Tab must still not escape.
-      if (ev.key === "Tab" && dialog.contains(ev.target)) {
+      if (ev.key === "Tab" && dialog.contains(ev.composedPath()[0])) {
         const focusable = [...dialog.querySelectorAll("button:not([disabled]), [href]")];
         if (!focusable.length) return;
         const edge = ev.shiftKey ? focusable[0] : focusable[focusable.length - 1];
-        if (document.activeElement === edge) {
+        if (scope.activeElement === edge) {
           ev.preventDefault();
           (ev.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
         }
@@ -186,7 +196,7 @@
   function close() {
     if (!overlay || overlay.hasAttribute("hidden")) return;
     overlay.setAttribute("hidden", "");
-    document.body.classList.remove("px-popup-open");
+    frame.classList.remove("px-popup-open");
     if (escListener) {
       document.removeEventListener("keydown", escListener);
       escListener = null;

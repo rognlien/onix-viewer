@@ -96,8 +96,7 @@ describe("About window", () => {
   });
 
   test("without a stamped version it says so rather than nothing", () => {
-    const w = render("onix-3.1-valid.xml");
-    w.document.documentElement.removeAttribute("data-oxv-version");
+    const w = render("onix-3.1-valid.xml", (window) => window.document.documentElement.removeAttribute("data-oxv-version"));
     mark(w).click();
     assert(w.document.getElementById("oxv-about-version").textContent === "", "no eyebrow");
     assert($$(w, "#oxv-about dd")[0].textContent === "unknown", "but the fact row is honest");

@@ -27,8 +27,15 @@
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="${cssURL}">
 </head>
-<body>
-<div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
+<body class="px-frame">
+${viewer({ logoURL, logoURL2x })}</body>
+</html>`;
+  }
+
+  // The toolbar and the tree, without the page around them: the extension's
+  // shell puts them in <body>, the <onix-viewer> element in its shadow root.
+  function viewer({ logoURL, logoURL2x }) {
+    return `<div id="oxv-toolbar" role="toolbar" aria-label="XML viewer controls">
   <div class="px-left">
     <!-- The mark says which extension took the page over — a raw XML URL gives
          no other clue. It is the app icon at the box's own size, 28px, with
@@ -84,8 +91,7 @@
 <div id="oxv-main">
   <main id="oxv-root" tabindex="0" aria-label="XML tree"></main>
 </div>
-</body>
-</html>`;
+`;
   }
 
   // The page shown in the viewer's place when it will not open a document:
@@ -112,5 +118,5 @@
       .replace(/"/g, "&quot;");
   }
 
-  globalThis.OnixViewerShell = { html, notice };
+  globalThis.OnixViewerShell = { html, viewer, notice };
 })();

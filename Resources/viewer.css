@@ -4,7 +4,7 @@
  * then overridden in @media (prefers-color-scheme: dark).
  */
 
-:root {
+:root, :host {
   /* Surfaces — three layers from bottom (page) to top (cards) so the right
      pane reads as a clearly raised surface above the tree pane. */
   --bg: #fbfcfd;
@@ -62,7 +62,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root, :host {
     --bg: #0d1117;
     --bg-surface: #131922;
     --bg-toolbar: #161c25;
@@ -103,7 +103,7 @@
 
 * { box-sizing: border-box; }
 
-html, body {
+html, body, :host, .px-frame {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -114,7 +114,15 @@ html, body {
   line-height: 1.55;
 }
 
-body {
+/* The <onix-viewer> element: a box of its own, which the page sizes. The
+   tree scrolls inside it, under a toolbar that stays put. */
+:host {
+  display: block;
+  height: 600px;
+  border: 1px solid var(--border);
+}
+
+.px-frame {
   display: flex;
   flex-direction: column;
 }
@@ -295,7 +303,7 @@ body {
   padding: 4px 0;
   margin-right: 0;
 }
-body.px-search-open #oxv-toolbar .px-icon-btn[data-action="search"] {
+.px-frame.px-search-open #oxv-toolbar .px-icon-btn[data-action="search"] {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -315,7 +323,7 @@ body.px-search-open #oxv-toolbar .px-icon-btn[data-action="search"] {
   pointer-events: none;
   transition: width 120ms ease, padding 120ms ease, opacity 120ms ease;
 }
-body.px-search-open #oxv-search {
+.px-frame.px-search-open #oxv-search {
   width: min(320px, 40vw);
   padding: 4px 10px;
   border-color: var(--border);
@@ -335,7 +343,7 @@ body.px-search-open #oxv-search {
   color: var(--fg-muted);
   text-align: left;
 }
-body:not(.px-search-open) #oxv-search-status { display: none; }
+.px-frame:not(.px-search-open) #oxv-search-status { display: none; }
 
 /* The document pill: file icon, what the document is, which blocks it
    carries, and its size — one bordered unit, matching the release selector
@@ -435,13 +443,13 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
    verdict opened nothing. The issue is in About; the verdict is nowhere
    else. */
 @media (max-width: 900px) {
-  body.px-search-open #oxv-meta { display: none; }
+  .px-frame.px-search-open #oxv-meta { display: none; }
 }
 @media (max-width: 800px) {
   #oxv-release-group { display: none; }
 }
 @media (max-width: 1000px) {
-  body.px-search-open #oxv-release-group { display: none; }
+  .px-frame.px-search-open #oxv-release-group { display: none; }
 }
 @media (max-width: 760px) {
   #oxv-meta { display: none; }
@@ -470,17 +478,17 @@ body:not(.px-search-open) #oxv-search-status { display: none; }
   outline: none;
 }
 
-/* View modes: layout is driven by a body class. Default is XML-only. */
+/* View modes: layout is driven by a class on the frame. Default is XML-only. */
 
 /* The Ref / Short toggle only means something for an ONIX document in a
    known dialect; viewer.js sets this class otherwise. */
-body.px-no-onix .px-dialect-group,
-body.px-no-dialect-toggle .px-dialect-group { display: none; }
+.px-frame.px-no-onix .px-dialect-group,
+.px-frame.px-no-dialect-toggle .px-dialect-group { display: none; }
 
 /* The toolbar "Wrap" toggle now reverses the default: turning it OFF disables
    wrapping so the viewer behaves like the original raw-XML mode. */
-body.px-no-wrap .px-row { white-space: pre; word-break: normal; }
-body.px-no-wrap #oxv-root { overflow-x: auto; }
+.px-frame.px-no-wrap .px-row { white-space: pre; word-break: normal; }
+.px-frame.px-no-wrap #oxv-root { overflow-x: auto; }
 
 .px-row {
   display: block;
@@ -1051,7 +1059,7 @@ body.px-no-wrap #oxv-root { overflow-x: auto; }
 .px-popup-link:hover { text-decoration: underline; }
 .px-popup-link .px-extlink-icon { width: 12px; height: 12px; flex-basis: 12px; }
 
-body.px-popup-open { overflow: hidden; }
+.px-frame.px-popup-open { overflow: hidden; }
 
 /* search highlight */
 .px-match {
