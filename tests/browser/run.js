@@ -7,7 +7,9 @@
 // raw XML page over at all, and that Chrome's XPath engine — the one the
 // custom Schematron rules actually run on — agrees with the suite. This
 // loads Resources/ unpacked into a headless Chrome, serves the fixtures over
-// http as application/xml, and asks the page.
+// http as application/xml, and asks the page. It also puts the
+// <onix-viewer> element on an ordinary page, for the styling, layout and
+// lazy rendering jsdom cannot do inside a shadow root.
 //
 // It needs a Chrome on the machine (puppeteer-core drives the installed one
 // and downloads nothing); GitHub's Ubuntu runners have it. It is not part of
@@ -40,7 +42,9 @@ function serve() {
   const held = new Set();
   const generated = { "large.xml": largeFeed(300), "many-warnings.xml": manyWarningsFeed(300) };
   const server = http.createServer((request, response) => {
-    const name = path.basename(decodeURIComponent(request.url.split("?")[0]));
+    const pathname = decodeURIComponent(request.url.split("?")[0]);
+    if (servePage(pathname, response)) return;
+    const name = path.basename(pathname);
     const once = name.startsWith("once-");
     const login = name.startsWith("login-");
     const huge = name.startsWith("huge-");
@@ -73,6 +77,26 @@ function serve() {
       url: (name) => `http://127.0.0.1:${server.address().port}/${name}`,
     }));
   });
+}
+
+// The <onix-viewer> element's side of the server: an empty HTML page that
+// loads the element, and the element's own folder and Resources/ beside it,
+// as a site hosting the component would serve them.
+const CONTENT_TYPES = { ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".html": "text/html" };
+const COMPONENT_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Component</title><script src="/component/onix-viewer-element.js"></script></head><body></body></html>`;
+
+function servePage(pathname, response) {
+  const file = path.join(ROOT, pathname);
+  const shared = /^\/(component|Resources)\//.test(pathname) && file.startsWith(ROOT) && fs.existsSync(file);
+  if (pathname === "/component-page.html") {
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.end(COMPONENT_PAGE);
+  } else if (shared) {
+    response.writeHead(200, { "Content-Type": CONTENT_TYPES[path.extname(file)] || "application/octet-stream" });
+    response.end(fs.readFileSync(file));
+  }
+  return pathname === "/component-page.html" || shared;
 }
 
 function largeFeed(count) {
@@ -212,6 +236,7 @@ async function main() {
     await releaseSelector(browser, served);
     await findingsList(browser, served);
     await schematronInChrome(browser, served);
+    await component(browser, served);
     if (features.customRules) await rulesRoundTrip(browser, served);
     else console.log("\nThe rules editor is held back; the storage round trip is skipped");
   } finally {
@@ -583,6 +608,123 @@ async function schematronInChrome(browser, served) {
   });
 
   await page.close();
+}
+
+// The <onix-viewer> element on an ordinary page. jsdom never loads the
+// stylesheet into a shadow root, lays nothing out and has no
+// IntersectionObserver, so what depends on those is asked here.
+async function componentPage(browser, served, style) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 800 });
+  page.on("pageerror", (error) => { throw error; });
+  await page.goto(served.url("component-page.html"), { waitUntil: "load" });
+  if (style) await page.addStyleTag({ content: style });
+  return page;
+}
+
+// Add a viewer showing `src` and wait for its first finished pass and for
+// its stylesheet, which reveals the frame.
+async function addViewer(page, src) {
+  await page.evaluate((url) => new Promise((resolve, reject) => {
+    const element = document.createElement("onix-viewer");
+    const timer = setTimeout(() => reject(new Error(`no onix-validated event for ${url}`)), 10000);
+    element.addEventListener("onix-validated", () => { clearTimeout(timer); resolve(); }, { once: true });
+    element.setAttribute("src", url);
+    document.body.appendChild(element);
+  }), src);
+  await page.waitForFunction(
+    () => [...document.querySelectorAll("onix-viewer")].every((element) => {
+      const frame = element.shadowRoot.querySelector(".px-frame");
+      return frame && !frame.hidden;
+    }), { timeout: 10000 });
+}
+
+async function component(browser, served) {
+  console.log("\nThe <onix-viewer> element");
+
+  await test("renders styled, in a shadow root the page's own styles do not reach", async () => {
+    const page = await componentPage(browser, served, ".px-row, #oxv-toolbar { display: none; color: red; }");
+    await addViewer(page, "/onix-3.1-valid.xml");
+    const state = await page.evaluate(() => {
+      const element = document.querySelector("onix-viewer");
+      const shadow = element.shadowRoot;
+      const row = shadow.querySelector("#oxv-root .px-row");
+      return {
+        height: element.getBoundingClientRect().height,
+        toolbar: getComputedStyle(shadow.getElementById("oxv-toolbar")).display,
+        row: getComputedStyle(row).display,
+        rows: shadow.querySelectorAll("#oxv-root .px-row").length,
+        badge: shadow.querySelector("#oxv-root .px-codelist")?.textContent || "",
+        verdict: shadow.getElementById("oxv-validation").textContent,
+        leaked: Boolean(document.getElementById("oxv-root")),
+        versions: Boolean(window.OnixViewerVersions),
+      };
+    });
+    await page.close();
+    assert(state.height >= 600 && state.height <= 602, `the host's default height; got ${state.height}`);
+    assert(state.toolbar === "grid", `the toolbar is laid out by viewer.css; got "${state.toolbar}"`);
+    assert(state.row !== "none", "the page's rule for .px-row does not reach the rows");
+    assert(state.rows > 30 && state.badge !== "", `the tree with its labels; got ${state.rows} rows`);
+    assert(state.verdict.includes("Valid"), `the verdict; got "${state.verdict}"`);
+    assert(!state.leaked, "nothing of the viewer in the page's own document");
+    assert(state.versions, "versions.js is loaded, for About");
+  });
+
+  await test("a 300-product feed renders its Products as the viewer scrolls to them", async () => {
+    const page = await componentPage(browser, served);
+    await addViewer(page, "/large.xml");
+    const pending = () => page.evaluate(() =>
+      document.querySelector("onix-viewer").shadowRoot.querySelectorAll("#oxv-root .px-children.px-pending").length);
+    const before = await pending();
+    assert(before > 250, `most Products wait for the viewport; got ${before} pending`);
+    await page.evaluate(() => {
+      const root = document.querySelector("onix-viewer").shadowRoot.getElementById("oxv-root");
+      root.scrollTo(0, root.scrollHeight);
+    });
+    await page.waitForFunction(() => {
+      const shadow = document.querySelector("onix-viewer").shadowRoot;
+      const containers = shadow.querySelectorAll("#oxv-root > .px-children > .px-children");
+      return !containers[containers.length - 1].classList.contains("px-pending");
+    }, { timeout: 10000 });
+    const after = await pending();
+    await page.close();
+    assert(after < before && after > 200, `the Products near the end rendered, the middle did not; got ${after} pending`);
+  });
+
+  await test("the code-list popup opens inside the viewer, takes focus, and Escape gives it back", async () => {
+    const page = await componentPage(browser, served);
+    await addViewer(page, "/onix-3.1-valid.xml");
+    await page.click("onix-viewer >>> .px-codelist-link");
+    await page.waitForSelector("onix-viewer >>> .px-popup-overlay:not([hidden])", { timeout: 5000 });
+    const focused = () => page.evaluate(() => {
+      const active = document.querySelector("onix-viewer").shadowRoot.activeElement;
+      return active ? active.className : "";
+    });
+    const opened = await focused();
+    await page.keyboard.press("Escape");
+    const state = await page.evaluate(() => ({
+      open: Boolean(document.querySelector("onix-viewer").shadowRoot.querySelector(".px-popup-overlay:not([hidden])")),
+      inPage: Boolean(document.querySelector(".px-popup-overlay")),
+    }));
+    const closed = await focused();
+    await page.close();
+    assert(opened.includes("px-popup-close"), `the close button has focus; got "${opened}"`);
+    assert(!state.open && !state.inPage, "Escape closed it, and it was never in the page");
+    assert(closed.includes("px-codelist-link"), `focus is back on the link; got "${closed}"`);
+  });
+
+  await test("a key goes to the viewer that has focus, and to no other", async () => {
+    const page = await componentPage(browser, served);
+    await addViewer(page, "/onix-3.1-valid.xml");
+    await addViewer(page, "/onix-3.1-valid.xml");
+    await page.focus("onix-viewer:first-of-type >>> #oxv-root");
+    await page.keyboard.press("c");
+    const folded = await page.evaluate(() => [...document.querySelectorAll("onix-viewer")]
+      .map((element) => element.shadowRoot.querySelectorAll(".px-row.px-folded").length));
+    await page.close();
+    assert(folded[0] > 0, `the focused viewer folded; got ${folded[0]} folded rows`);
+    assert(folded[1] === 0, `the other did not; got ${folded[1]} folded rows`);
+  });
 }
 
 // The rules editor end to end: pasted in the modal, kept in extension

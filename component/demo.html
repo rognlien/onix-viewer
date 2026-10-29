@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ONIX Viewer element</title>
+<style>
+  body { margin: 0; padding: 16px; font: 14px/1.5 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { margin: 0 0 12px; }
+  .viewers { display: grid; gap: 16px; }
+  onix-viewer { height: 70vh; }
+  #log { font: 12px ui-monospace, monospace; white-space: pre-wrap; }
+</style>
+<script src="onix-viewer-element.js"></script>
+</head>
+<body>
+<h1>&lt;onix-viewer&gt;</h1>
+<p>
+  Serve the repository root (<code>python3 -m http.server</code>) and open
+  <code>/component/demo.html</code>. Pick a file to show it in the first viewer;
+  the second loads a sample by its <code>src</code>.
+</p>
+<p><input type="file" id="file" accept=".xml,application/xml,text/xml"></p>
+<div class="viewers">
+  <onix-viewer id="picked"></onix-viewer>
+  <onix-viewer src="../Onix/onix-3.1-whimsical.xml"></onix-viewer>
+</div>
+<p id="log"></p>
+<script>
+  "use strict";
+  const picked = document.getElementById("picked");
+  const log = document.getElementById("log");
+  document.getElementById("file").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (file) picked.xml = await file.text();
+  });
+  document.addEventListener("onix-validated", (event) => {
+    const { version, errors, warnings } = event.detail;
+    log.textContent += `${event.target.id || event.target.getAttribute("src")}: ONIX ${version}, ${errors} errors, ${warnings} warnings\n`;
+  });
+</script>
+</body>
+</html>
