@@ -69,6 +69,13 @@ npm run test:browser   # the extension in a headless Chrome
 npm run build          # the store packages, into dist/
 ```
 
+Each store's folder in `dist/` also holds what its listing needs: the
+listing copy, the screenshots and, per store, the icon, promo tiles and
+release notes. `listing-changes.md` beside them lists every listing field and
+image with its status since the previous release tag, and the new text of
+whatever changed, ready to paste. `LISTING_SINCE=v0.9.21 npm run build`
+compares with another tag, for when a version never reached a store.
+
 The code lists, Thema, the content models and the table of their versions
 are generated from EDItEUR's files in `tools/data/` and committed; CI fails if
 they drift. Each test

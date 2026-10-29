@@ -55,6 +55,7 @@ manual run has to look for. `content.js` is unchanged.
 tools/package-extension.sh --target=safari
 #   dist/safari/onix-viewer-<v>-safari/          the pruned folder, for Add Temporary Extension…
 #   dist/safari/ONIX Viewer/ONIX Viewer.xcodeproj   the converter's project, to build and sign
+#   dist/safari/listing-changes.md               what to change in App Store Connect since the last release
 tools/package-extension.sh --dev --target=safari   # or npm run build:dev, for all three
 #   dist/dev/safari/onix-viewer-safari/          the same folder with version_name kept
 #   dist/dev/safari/ONIX Viewer Dev/ONIX Viewer Dev.xcodeproj
