@@ -98,7 +98,7 @@ describe("Listing changes", () => {
       "- [ ] Clear field: Old (no longer in the listing)",
       "- [ ] Replace screenshot Main.png: `dist/firefox/screenshots/Main.png`",
       "- [ ] Remove screenshot Gone.png from the listing",
-      "- [ ] Paste Release notes (below)",
+      "- [ ] Paste Version notes (below)",
     ].join("\n")), text);
   });
 
@@ -106,7 +106,7 @@ describe("Listing changes", () => {
     const text = firefoxReport();
     assert(text.includes("## Summary\n\n```\nnew\n```\n\nReference only, what changed since v0.9.0:\n\n```diff\n- old\n+ new\n```"), text);
     assert(text.includes("## New (new field)\n\n```\ny\n```"), text);
-    assert(text.includes("## Release notes for 1.0.0\n\n```\n• Fixed it.\n```"), text);
+    assert(text.includes("## Version notes for 1.0.0\n\n```\n• Fixed it.\n```"), text);
   });
 
   test("unchanged items share one line at the bottom", () => {
