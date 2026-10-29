@@ -37,7 +37,7 @@ const STORES = {
   },
   firefox: {
     title: "addons.mozilla.org",
-    releaseNotes: "Release notes",
+    releaseNotes: "Version notes",
     packageSteps: (version) => [
       `Upload new package: \`dist/firefox/onix-viewer-${version}-firefox.zip\``,
       `Upload source code: \`dist/firefox/onix-viewer-${version}-firefox-source.zip\``,
