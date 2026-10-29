@@ -76,16 +76,56 @@ describe("Listing changes", () => {
     assert(previousTag(tags, "0.9.9") === null, "nothing older");
   });
 
-  test("the report opens with a summary and gives changed text in full", () => {
-    const fields = compareFields([{ label: "Summary", text: "old" }, { label: "Name", text: "A" }],
-      [{ label: "Summary", text: "new" }, { label: "Name", text: "A" }]);
-    const images = compareImages([{ label: "Icon", upload: "icon-128.png", before: "1", after: "1" }]);
-    const text = report({ browser: "firefox", version: "1.0.0", baseline: "v0.9.0", note: null, fields, notesText: "• Fixed it.", images });
-    assert(text.includes("**Change:** Summary, Release notes.  \n**Unchanged:** Name, Icon."), text);
-    assert(text.includes("### Summary — CHANGED\n\n```diff\n- old\n+ new\n```\n\nNew text, to paste:\n\n```\nnew\n```"), text);
-    assert(text.includes("### Name — unchanged\n"), text);
-    assert(text.includes("## Release notes — enter for 1.0.0\n\n```\n• Fixed it.\n```"), text);
-    assert(text.includes("| Icon | unchanged | `icon-128.png` |"), text);
+  const firefoxReport = () => {
+    const fields = compareFields([{ label: "Summary", text: "old" }, { label: "Name", text: "A" }, { label: "Old", text: "x" }],
+      [{ label: "Summary", text: "new" }, { label: "Name", text: "A" }, { label: "New", text: "y" }]);
+    const images = compareImages([
+      { label: "Icon", upload: "icon-128.png", before: "1", after: "1" },
+      { label: "Screenshot Main.png", upload: "screenshots/Main.png", before: "1", after: "2" },
+      { label: "Screenshot Gone.png", upload: "screenshots/Gone.png", before: "1", after: null },
+    ]);
+    return report({ browser: "firefox", version: "1.0.0", baseline: "v0.9.0", note: null, fields, notesText: "• Fixed it.", images });
+  };
+
+  test("the report opens with the versions and a checklist of every action", () => {
+    const text = firefoxReport();
+    assert(text.startsWith("# addons.mozilla.org listing for 1.0.0\n\n1.0.0 compared with v0.9.0.\n\n## Checklist\n\n"), text);
+    assert(text.includes([
+      "- [ ] Upload new package: `dist/firefox/onix-viewer-1.0.0-firefox.zip`",
+      "- [ ] Upload source code: `dist/firefox/onix-viewer-1.0.0-firefox-source.zip`",
+      "- [ ] Replace text: Summary (below)",
+      "- [ ] Fill in new field: New (below)",
+      "- [ ] Clear field: Old (no longer in the listing)",
+      "- [ ] Replace screenshot Main.png: `dist/firefox/screenshots/Main.png`",
+      "- [ ] Remove screenshot Gone.png from the listing",
+      "- [ ] Paste Release notes (below)",
+    ].join("\n")), text);
+  });
+
+  test("changed text comes ready to paste, with the diff after it for reference", () => {
+    const text = firefoxReport();
+    assert(text.includes("## Summary\n\n```\nnew\n```\n\nReference only, what changed since v0.9.0:\n\n```diff\n- old\n+ new\n```"), text);
+    assert(text.includes("## New (new field)\n\n```\ny\n```"), text);
+    assert(text.includes("## Release notes for 1.0.0\n\n```\n• Fixed it.\n```"), text);
+  });
+
+  test("unchanged items share one line at the bottom", () => {
+    const text = firefoxReport();
+    assert(text.endsWith("\n\n**Unchanged** — text: Name; images: Icon.\n"), text);
+    assert(!text.includes("## Name"), text);
+  });
+
+  test("a release that changes only the package says so", () => {
+    const fields = compareFields([{ label: "Name", text: "A" }], [{ label: "Name", text: "A" }]);
+    const images = compareImages([{ label: "Store icon", upload: "icon-128.png", before: "1", after: "1" }]);
+    const text = report({ browser: "chrome", version: "1.0.0", baseline: "v0.9.0", note: null, fields, notesText: null, images });
+    assert(text.includes("## Checklist\n\n- [ ] Upload new package: `dist/chrome/onix-viewer-1.0.0-chrome.zip`\n\nNo listing field or image changed."), text);
+  });
+
+  test("a missing baseline is a warning on the first line", () => {
+    const fields = compareFields([], [{ label: "Name", text: "A" }]);
+    const text = report({ browser: "safari", version: "1.0.0", baseline: null, note: "No release tag older than 1.0.0 was found.", fields, notesText: "• Fixed it.", images: [] });
+    assert(text.startsWith("> **Warning:** No release tag older than 1.0.0 was found.\n\n# App Store listing for 1.0.0\n\n1.0.0 compared with nothing."), text);
   });
 
   test("every store is described", () => {
