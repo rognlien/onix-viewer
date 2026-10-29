@@ -48,6 +48,30 @@ SVG) is left to the browser.
   *Load unpacked* and pick `Resources/`. Building the Safari app is described
   in [safari/](safari/README.md).
 
+## In a web page
+
+The viewer is also an `<onix-viewer>` custom element, for any HTML page:
+
+```html
+<script src="component/onix-viewer-element.js"></script>
+<onix-viewer src="feed.xml"></onix-viewer>
+```
+
+With the XML already in hand, set `element.xml = text` instead. The element
+loads the viewer's scripts and stylesheet from `Resources/` (the `resources`
+attribute points elsewhere) and renders into its own shadow root, so the
+page's styles do not reach it and several viewers can share a page. Each
+finished validation pass fires an `onix-validated` event whose `detail` holds
+the release, the counts and the findings.
+
+To try it, serve the repository root (`python3 -m http.server`) and open
+`/component/demo.html`.
+
+Not yet done: the narrow-window layout follows the window's width, not the
+element's; modals cover the whole window; every page loads all the data
+(about 1 MB with Thema and both content models); and About shows the
+version as "unknown".
+
 ## Keyboard
 
 | Key | Action |

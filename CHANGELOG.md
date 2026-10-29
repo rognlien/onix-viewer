@@ -3,6 +3,14 @@
 All notable changes to ONIX Viewer. Versions correspond to tags `vX.Y.Z` on
 the main branch.
 
+## Unreleased
+
+### Added
+- **The viewer as a web component**: `<onix-viewer src="feed.xml">` shows
+  ONIX in any HTML page, in a shadow root of its own, and reports each
+  validation pass as an `onix-validated` event. It lives in `component/`
+  and is not part of the extension.
+
 ## 0.9.23 — 2026-10-28
 
 ### Added
