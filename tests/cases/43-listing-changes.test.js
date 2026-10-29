@@ -4,7 +4,7 @@
 const path = require("path");
 const { test, describe, assert, ROOT } = require("../harness");
 const {
-  listingFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, STORES,
+  listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, STORES,
 } = require(path.join(ROOT, "tools", "listing-changes.js"));
 
 const LISTING = [
@@ -74,6 +74,13 @@ describe("Listing changes", () => {
     const after = [{ label: "Category", text: "Developer Tools" }, { label: "Primary", text: "Utilities" }];
     const statuses = compareFields([], after, old).map((field) => field.status);
     assert(JSON.stringify(statuses) === JSON.stringify(["added", "added"]), JSON.stringify(statuses));
+  });
+
+  test("a renamed field compares with its old label", () => {
+    const before = renameFields([{ label: "Screenshots", text: "Captions." }], STORES.firefox.renamedFields);
+    const fields = compareFields(before, [{ label: "Screenshot captions", text: "Captions." }]);
+    assert(JSON.stringify(fields.map((field) => [field.label, field.status])) === JSON.stringify([["Screenshot captions", "unchanged"]]),
+      JSON.stringify(fields));
   });
 
   test("the diff keeps one line of context and marks the gaps", () => {

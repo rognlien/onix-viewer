@@ -14,6 +14,8 @@
 // A field new since the baseline is unchanged when the baseline wrote its
 // value inline: every line of it between its **label** and the next blank
 // line or **label**:.
+// A store's renamedFields maps a field's old label to its new one, so a
+// renamed label still compares with the previous release.
 // Images compare by git blob hash, that is by bytes. The promo tiles are not
 // committed, so they compare by what they are rendered from.
 
@@ -41,6 +43,7 @@ const STORES = {
   firefox: {
     title: "addons.mozilla.org",
     releaseNotes: "Version notes",
+    renamedFields: { Screenshots: "Screenshot captions" },
     packageSteps: (version) => [
       `Upload new package: \`dist/firefox/onix-viewer-${version}-firefox.zip\``,
       `Upload source code: \`dist/firefox/onix-viewer-${version}-firefox-source.zip\``,
@@ -148,6 +151,10 @@ function lineDiff(before, after, context = 1) {
     }
   });
   return lines.join("\n");
+}
+
+function renameFields(fields, renamedFields) {
+  return fields.map((field) => ({ ...field, label: renamedFields[field.label] || field.label }));
 }
 
 function labelParagraph(markdown, label) {
@@ -325,7 +332,8 @@ function listingChanges(browser, since) {
   const { tag, note } = baselineFor(version, since);
   const listing = `${browser}/listing.md`;
   const oldListing = tag ? git(["show", `${tag}:${listing}`]) : null;
-  const fields = compareFields(listingFields(oldListing || ""), listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")), oldListing || "");
+  const oldFields = renameFields(listingFields(oldListing || ""), STORES[browser].renamedFields || {});
+  const fields = compareFields(oldFields, listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")), oldListing || "");
   const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
   const notesText = STORES[browser].releaseNotes ? releaseNotes(changelog, version) : null;
   const missingListing = tag && oldListing === null ? `${listing} did not exist at ${tag}, so every field is listed as new.` : null;
@@ -348,4 +356,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { listingFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, STORES };
+module.exports = { listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, STORES };

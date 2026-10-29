@@ -1,7 +1,8 @@
 # Chrome Web Store listing — copy & checklist
 
-Paste-ready text for the CWS Developer Dashboard fields. Update the version
-number when you regenerate the zip via `tools/package-extension.sh`.
+Paste-ready text for the CWS Developer Dashboard fields. The build copies this
+file into `dist/chrome/` beside `listing-changes.md`, the checklist of what to
+change in the dashboard since the previous release.
 
 ## Build
 
@@ -153,11 +154,11 @@ No, I am not using remote code
 - ☑ I do not use or transfer user data to determine creditworthiness or
   for lending purposes.
 
-**Privacy policy URL**: not required for an extension that doesn't collect
-data — but if the dashboard insists, host a one-pager somewhere
-(e.g. a GitHub Pages page) saying "ONIX Viewer collects no data and
-makes no network requests outside re-fetching the page the user is
-viewing."
+**Privacy policy URL** (the page in `site/`, published with the rest of the site):
+
+```
+https://maendeleo.io/onix-viewer/privacy.html
+```
 
 ## Visibility
 
@@ -176,10 +177,11 @@ viewing."
 
 **Screenshots live in `chrome/screenshots/` and are version-controlled**,
 already at 1280 × 800, so they upload without a resize step. `npm run
-screenshots` re-takes them in a headless Chrome whenever the UI changes;
+screenshots:chrome` re-takes them in a headless Chrome whenever the UI changes;
 commit the result, which is the record of what the listing shows. `Main.png`
 is the tree, `CodeList.png` the code-list popup, `Violations.png` the
-findings list. `firefox/screenshots/` is the same set from Firefox, for AMO.
+findings list. `firefox/screenshots/` and `safari/screenshots/` are the same
+three views from Firefox and Safari, for AMO and the App Store.
 
 The icon and the two promo tiles are **generated**, so they are not committed —
 `dist/` is gitignored in full. The Chrome package build
@@ -188,15 +190,10 @@ beside the zip, with a copy of this file and the screenshots, and `npm run
 icons` re-renders the tiles there when the artwork changes; the tiles
 themselves are `tools/render-tiles.sh`.
 
-The screenshots in `dist/chrome/` are copies the build makes; the originals are `chrome/screenshots/`. There were once two kept by hand in the upload folder from
-May, and because nothing kept them in sync with the committed set they quietly
-went two UI revisions out of date while the committed pair moved on.
+The screenshots in `dist/chrome/` are copies the build makes; the originals
+are `chrome/screenshots/`. Never edit the copies.
 
-Further shots worth adding, if you want more than two:
-
-1. The validation findings list over a file with real defects — the feature
-   with no equivalent anywhere else, and the reason to install.
-2. The same record under both dialects, showing the switch.
+A shot worth adding: the same record under both dialects, showing the switch.
 
 ## Review notes (paste into "Notes for reviewer")
 
