@@ -3,10 +3,11 @@
 //
 //   node tools/listing-changes.js <chrome|firefox|safari> [--since=<tag>]
 //
-// The baseline is the listing as of the previous release: the newest v* tag
-// older than the manifest's version, or the tag --since names, for when a
-// version never reached a store. tools/package-extension.sh writes the result
-// to dist/<browser>/listing-changes.md, passing LISTING_SINCE as --since.
+// The baseline is the listing the stores hold: the newest listing/v* tag
+// older than the manifest's version (npm run listing:mark sets one on the
+// commit that was uploaded), else the newest such v* tag. The tag --since
+// names wins over both. tools/package-extension.sh writes the result to
+// dist/<browser>/listing-changes.md, passing LISTING_SINCE as --since.
 //
 // A text field is a fenced block with no language in <browser>/listing.md,
 // named by the nearest heading or line-leading **bold** label above it;
@@ -67,12 +68,17 @@ function compareVersions(left, right) {
   return index < 0 ? 0 : leftParts[index] - rightParts[index];
 }
 
-function previousTag(tags, version) {
+function previousTag(tags, version, prefix = "v") {
+  const versionOf = (tag) => tag.slice(prefix.length);
   const older = tags
-    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag))
-    .filter((tag) => compareVersions(tag.slice(1), version) < 0)
-    .sort((left, right) => compareVersions(right.slice(1), left.slice(1)));
+    .filter((tag) => tag.startsWith(prefix) && /^\d+\.\d+\.\d+$/.test(versionOf(tag)))
+    .filter((tag) => compareVersions(versionOf(tag), version) < 0)
+    .sort((left, right) => compareVersions(versionOf(right), versionOf(left)));
   return older[0] || null;
+}
+
+function baselineTag(tags, version, since) {
+  return since || previousTag(tags, version, "listing/v") || previousTag(tags, version, "v");
 }
 
 function fieldLabel(line) {
@@ -297,10 +303,10 @@ function imageAssets(browser, tag) {
 }
 
 function baselineFor(version, since) {
-  const tags = (git(["tag", "--list", "v*"]) || "").split("\n").filter(Boolean);
-  const tag = since || previousTag(tags, version);
+  const tags = (git(["tag", "--list", "v*", "listing/v*"]) || "").split("\n").filter(Boolean);
+  const tag = baselineTag(tags, version, since);
   let note = null;
-  if (!tag) note = `No release tag older than ${version} was found, so there is nothing to compare with: every field and image is listed as new.`;
+  if (!tag) note = `No listing or release tag older than ${version} was found, so there is nothing to compare with: every field and image is listed as new.`;
   else if (!blobAt(tag, "Resources/manifest.json")) note = `${tag} is not a tag in this checkout, so there is nothing to compare with: every field and image is listed as new.`;
   return { tag: note ? null : tag, note };
 }
@@ -334,4 +340,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, STORES };
+module.exports = { listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, baselineTag, report, STORES };

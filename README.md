@@ -72,10 +72,12 @@ npm run build          # the store packages, into dist/
 Each store's folder in `dist/` also holds what its listing needs: the
 listing copy, the screenshots and, per store, the icon, promo tiles and
 release notes. `listing-changes.md` beside them opens with a checklist of
-what to do in the store since the previous release tag (the package, each
+what to do in the store since the listing last uploaded (the package, each
 changed field, each changed image with the file in `dist/` to upload), then
-the new text of each changed field, ready to paste. `LISTING_SINCE=v0.9.21 npm run build`
-compares with another tag, for when a version never reached a store.
+the new text of each changed field, ready to paste. After uploading,
+`npm run listing:mark` tags the commit as `listing/v<version>`, the next
+version's baseline; without one, the previous release tag is used.
+`LISTING_SINCE=v0.9.21 npm run build` compares with another tag.
 
 The code lists, Thema, the content models and the table of their versions
 are generated from EDItEUR's files in `tools/data/` and committed; CI fails if
