@@ -9,7 +9,7 @@ module.exports = [
     ignores: [
       "Resources/onix-codelists.js",
       "Resources/onix-content-model-*.js",
-      "dist/**", "site/**", "node_modules/**",
+      "dist/**", "site/**", "node_modules/**", ".claude/**",
     ],
   },
   js.configs.recommended,

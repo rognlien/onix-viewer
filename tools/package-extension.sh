@@ -31,7 +31,7 @@
 #   dist/chrome/    onix-viewer-<v>-chrome.zip, chrome-listing.md, listing-changes.md,
 #                   screenshots/, icon-128.png, the promo tile and the marquee
 #   dist/firefox/   onix-viewer-<v>-firefox.zip, onix-viewer-<v>-firefox-source.zip
-#                   (AMO asks for the source, three shipped files being generated),
+#                   (AMO asks for the source, five shipped files being generated),
 #                   firefox-listing.md, listing-changes.md, release-notes.txt,
 #                   screenshots/, icon-128.png
 #   dist/safari/    onix-viewer-<v>-safari/ (the pruned folder, for Safari's
@@ -252,7 +252,7 @@ if [ "$DEV" = 0 ]; then
   assemble_listing
   if [ "$TARGET" = "firefox" ]; then
     # AMO asks for the source whenever the upload holds generated files, and
-    # three shipped files are. The archive is the working tree minus editor
+    # five shipped files are. The archive is the working tree minus editor
     # and tool config; the README says how to rebuild the zip from it.
     SOURCE="$OUT_DIR/$STEM-source.zip"
     rm -f "$SOURCE"
