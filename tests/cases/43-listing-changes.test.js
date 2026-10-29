@@ -6,7 +6,8 @@ const os = require("os");
 const path = require("path");
 const { test, describe, assert, ROOT } = require("../harness");
 const {
-  listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, report, refreshListingChanges, STORES,
+  listingFields, renameFields, compareFields, lineDiff, assetStatus, compareImages, previousTag, baselineTag, report,
+  refreshListingChanges, STORES,
 } = require(path.join(ROOT, "tools", "listing-changes.js"));
 
 const COMMIT = { hash: "abc1234", dirty: false };
@@ -105,6 +106,27 @@ describe("Listing changes", () => {
     assert(previousTag(tags, "0.9.23") === "v0.9.22", previousTag(tags, "0.9.23"));
     assert(previousTag(tags, "0.10.1") === "v0.10.0", previousTag(tags, "0.10.1"));
     assert(previousTag(tags, "0.9.9") === null, "nothing older");
+  });
+
+  test("a listing tag, which marks what the stores hold, wins over a release tag", () => {
+    const tags = ["v0.9.22", "v0.9.23", "listing/v0.9.22", "listing/v0.9.23", "listing/v0.9.24"];
+    assert(baselineTag(tags, "0.9.24", null) === "listing/v0.9.23", baselineTag(tags, "0.9.24", null));
+  });
+
+  test("with no older listing tag, the baseline is the release tag", () => {
+    const tags = ["v0.9.22", "v0.9.23", "listing/v0.9.24"];
+    assert(baselineTag(tags, "0.9.24", null) === "v0.9.23", baselineTag(tags, "0.9.24", null));
+  });
+
+  test("a tag named with --since wins over both", () => {
+    const tags = ["v0.9.23", "listing/v0.9.23"];
+    assert(baselineTag(tags, "0.9.24", "v0.9.21") === "v0.9.21", baselineTag(tags, "0.9.24", "v0.9.21"));
+  });
+
+  test("listing tags order by version number, not by text", () => {
+    const tags = ["listing/v0.9.9", "listing/v0.9.10", "listing/v0.10.0", "listing/vX"];
+    assert(baselineTag(tags, "0.9.11", null) === "listing/v0.9.10", baselineTag(tags, "0.9.11", null));
+    assert(baselineTag(tags, "0.11.0", null) === "listing/v0.10.0", baselineTag(tags, "0.11.0", null));
   });
 
   const firefoxReport = () => {
