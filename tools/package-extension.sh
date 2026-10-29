@@ -28,20 +28,25 @@
 # so we zip from inside a copy of Resources/. Each store gets a folder of
 # its own under dist/ holding everything its upload needs:
 #
-#   dist/chrome/    onix-viewer-<v>-chrome.zip, chrome-listing.md, screenshots/,
-#                   icon-128.png, the promo tile and the marquee
+#   dist/chrome/    onix-viewer-<v>-chrome.zip, chrome-listing.md, listing-changes.md,
+#                   screenshots/, icon-128.png, the promo tile and the marquee
 #   dist/firefox/   onix-viewer-<v>-firefox.zip, onix-viewer-<v>-firefox-source.zip
 #                   (AMO asks for the source, three shipped files being generated),
-#                   firefox-listing.md, screenshots/, icon-128.png
+#                   firefox-listing.md, listing-changes.md, release-notes.txt,
+#                   screenshots/, icon-128.png
 #   dist/safari/    onix-viewer-<v>-safari/ (the pruned folder, for Safari's
 #                   Settings → Developer → "Add Temporary Extension…"), the Xcode
 #                   project Apple's converter wraps it in (ONIX Viewer/, which is
 #                   what gets built, signed and submitted — see safari/README.md),
-#                   safari-listing.md, screenshots/
+#                   safari-listing.md, listing-changes.md, release-notes.txt,
+#                   screenshots/
 #
 # The listing copy and the screenshots are copies of the committed ones in
 # <browser>/, so the folder is complete on its own and nothing in it is the
-# original.
+# original. Each store folder also gets listing-changes.md: every listing
+# field and image, changed or not since the previous release tag, with the
+# new text to paste (tools/listing-changes.js). LISTING_SINCE=v0.9.21 sets
+# the baseline instead, for when a version never reached a store.
 #
 # The copy exists for the manifest edits. The committed manifest carries
 # "version_name": "X.Y.Z-dev", which is what chrome://extensions and the
@@ -124,8 +129,9 @@ build_number() {
 }
 
 # The listing material beside the package: the store's copy of the listing
-# text and the screenshots, for the two that take one, the 128px icon, and
-# for the two with a "What's New" field, the version's plain-text notes.
+# text and the screenshots, for the two that take one, the 128px icon, for
+# the two with a "What's New" field, the version's plain-text notes, and
+# what changed in the listing since the previous release.
 # Not for a dev build, which is never uploaded.
 assemble_listing() {
   rsync -a --delete --exclude .DS_Store "$TARGET/screenshots/" "$OUT_DIR/screenshots/"
@@ -133,7 +139,8 @@ assemble_listing() {
   [ "$TARGET" = "safari" ] || cp Resources/icons/icon-128.png "$OUT_DIR/icon-128.png"
   [ "$TARGET" != "chrome" ] || tools/render-tiles.sh "$OUT_DIR"
   [ "$TARGET" = "chrome" ] || node tools/release-notes.js "$VERSION" > "$OUT_DIR/release-notes.txt"
-  echo "  $OUT_DIR/  <- $TARGET-listing.md, screenshots/$([ "$TARGET" = safari ] || echo ', icon-128.png')$([ "$TARGET" = chrome ] || echo ', release-notes.txt')"
+  node tools/listing-changes.js "$TARGET" ${LISTING_SINCE:+"--since=$LISTING_SINCE"} > "$OUT_DIR/listing-changes.md"
+  echo "  $OUT_DIR/  <- $TARGET-listing.md, listing-changes.md, screenshots/$([ "$TARGET" = safari ] || echo ', icon-128.png')$([ "$TARGET" = chrome ] || echo ', release-notes.txt')"
 }
 
 # Everything shipped, minus .DS_Store and editor cruft.
