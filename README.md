@@ -38,7 +38,8 @@ SVG) is left to the browser.
   For local files, turn on *Allow access to file URLs* in the extension's
   details.
 - **Firefox 140+:** [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/onix-viewer/).
-  Local files need no setting.
+  From Firefox 153, for local files, turn on *Access local files on your
+  computer* under the add-on's *Permissions and data* in `about:addons`.
 - **Safari 18+ (macOS 15+):** [Mac App Store](https://apps.apple.com/app/onix-viewer/id6816859194?mt=12).
   Open the app once, turn the extension on in Safari's *Settings →
   Extensions*, then choose *Always Allow on Every Website* from its toolbar
