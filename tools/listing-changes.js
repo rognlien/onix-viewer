@@ -13,6 +13,9 @@
 // A text field is a fenced block with no language in <browser>/listing.md,
 // named by the nearest heading or line-leading **bold** label above it;
 // fenced blocks with a language (```bash) are instructions, not fields.
+// A field new since the baseline is unchanged when the baseline wrote its
+// value inline: every line of it between its **label** and the next blank
+// line or **label**:.
 // A store's renamedFields maps a field's old label to its new one, so a
 // renamed label still compares with the previous release.
 // Images compare by git blob hash, that is by bytes. The promo tiles are not
@@ -156,12 +159,31 @@ function renameFields(fields, renamedFields) {
   return fields.map((field) => ({ ...field, label: renamedFields[field.label] || field.label }));
 }
 
-function compareFields(before, after) {
+function labelParagraph(markdown, label) {
+  const opening = `**${label}**`;
+  const start = markdown.indexOf(opening);
+  const rest = start < 0 ? null : markdown.slice(start + opening.length);
+  return rest === null ? null : rest.split(/\n\n|\*\*[^*\n]+\*\*:/)[0];
+}
+
+function writtenInline(markdown, field) {
+  const paragraph = labelParagraph(markdown, field.label);
+  const lines = field.text.split("\n").map((line) => line.trim()).filter(Boolean);
+  return paragraph !== null && lines.length > 0 && lines.every((line) => paragraph.includes(line));
+}
+
+function fieldStatus(old, field, oldMarkdown) {
+  let status = old === field.text ? "unchanged" : "changed";
+  if (old === undefined) status = writtenInline(oldMarkdown, field) ? "unchanged" : "added";
+  return status;
+}
+
+function compareFields(before, after, oldMarkdown = "") {
   const beforeByLabel = new Map(before.map((field) => [field.label, field.text]));
   const afterLabels = new Set(after.map((field) => field.label));
   const current = after.map((field) => {
     const old = beforeByLabel.get(field.label);
-    const status = old === undefined ? "added" : old === field.text ? "unchanged" : "changed";
+    const status = fieldStatus(old, field, oldMarkdown);
     const diff = status === "changed" ? lineDiff(old, field.text) : null;
     return { label: field.label, status, text: field.text, diff };
   });
@@ -322,7 +344,7 @@ function listingChanges(browser, since) {
   const listing = `${browser}/listing.md`;
   const oldListing = tag ? git(["show", `${tag}:${listing}`]) : null;
   const oldFields = renameFields(listingFields(oldListing || ""), STORES[browser].renamedFields || {});
-  const fields = compareFields(oldFields, listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")));
+  const fields = compareFields(oldFields, listingFields(fs.readFileSync(path.join(ROOT, listing), "utf8")), oldListing || "");
   const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
   const notesText = STORES[browser].releaseNotes ? releaseNotes(changelog, version) : null;
   const missingListing = tag && oldListing === null ? `${listing} did not exist at ${tag}, so every field is listed as new.` : null;

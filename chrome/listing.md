@@ -79,9 +79,21 @@ code lists for offline lookup. It is an independent tool, not
 affiliated with or endorsed by EDItEUR.
 ```
 
-**Category**: `Developer Tools` (or `Productivity` — both are reasonable)
+**Category**:
 
-**Language**: English (United Kingdom) or English (United States)
+```
+Developer Tools
+```
+
+Or `Productivity` — both are reasonable.
+
+**Language**:
+
+```
+English (United Kingdom)
+```
+
+Or English (United States).
 
 ## Privacy practices (required tab in Dashboard)
 
@@ -111,7 +123,12 @@ Worth stating plainly in the same field: **`permissions` is `[]` and
 nothing to weigh, and it is easy to miss that the only broad thing here is a
 content-script match pattern.
 
-**Remote code use**: **No, I am not using remote code**.
+**Remote code use**:
+
+```
+No, I am not using remote code
+```
+
 (All scripts are bundled inside the extension. No `eval`, no remote `<script src>`, no fetched/cached code. The only network request is a re-fetch of the page's own URL to obtain the XML source.)
 
 **Data usage**:
@@ -137,8 +154,11 @@ content-script match pattern.
 - ☑ I do not use or transfer user data to determine creditworthiness or
   for lending purposes.
 
-**Privacy policy URL**: `https://maendeleo.io/onix-viewer/privacy.html`
-(the page in `site/`, published with the rest of the site).
+**Privacy policy URL** (the page in `site/`, published with the rest of the site):
+
+```
+https://maendeleo.io/onix-viewer/privacy.html
+```
 
 ## Visibility
 
