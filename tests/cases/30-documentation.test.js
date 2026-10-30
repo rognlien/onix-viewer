@@ -83,6 +83,13 @@ describe("Documentation", () => {
     }
   });
 
+  test("site/ shows the manifest's version, linked to its release", () => {
+    const { manifestVersion, versionLink, stampedVersionLink } = require(path.join(ROOT, "tools", "site-sync.js"));
+    const expected = versionLink(manifestVersion());
+    assert(stampedVersionLink() === expected,
+      `site/index.html should carry ${expected}, has ${stampedVersionLink()}; run npm run site:sync`);
+  });
+
   test("site/'s screenshots and icon are the committed ones, byte for byte", () => {
     const pairs = {
       "site/Main.png": "chrome/screenshots/Main.png",
