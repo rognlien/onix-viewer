@@ -60,10 +60,13 @@ node -e "
   }
 "
 
+# The site page shows the released version; stamp the new one.
+node tools/site-sync.js
+
 # The checkout may already carry the version — 0.9.20 did, after the first
 # tag of that name was taken back — in which case there is nothing to commit
 # and the tag goes on HEAD.
-git add Resources/manifest.json package.json
+git add Resources/manifest.json package.json site/index.html
 if ! git diff --cached --quiet; then
   git commit -m "Release $TAG"
 fi

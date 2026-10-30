@@ -13,6 +13,9 @@
 // picture for a month after the page around it had changed. A test holds
 // both the copies and the queries to the files. render-icons.sh and the
 // Chrome screenshot script run this, so neither step needs remembering.
+//
+// It also stamps the manifest's version, linked to its GitHub release, into
+// the page's <a data-version> element; release.sh runs it on a bump.
 
 const crypto = require("crypto");
 const fs = require("fs");
@@ -28,6 +31,9 @@ const COPIES = {
 };
 const PAGES = ["index.html", "privacy.html", "faq.html"];
 const REFERENCE = /((?:src|href)=")([A-Za-z0-9._-]+\.(?:png|svg))(?:\?v=[0-9a-f]*)?(")/g;
+const VERSION_PAGE = "index.html";
+const VERSION_LINK = /<a data-version href="[^"]*">[^<]*<\/a>/;
+const RELEASES = "https://github.com/rognlien/onix-viewer/releases/tag/v";
 
 function hashOf(file) {
   return crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex").slice(0, 8);
@@ -41,6 +47,31 @@ function references(page) {
     refs.push({ asset: match[1], version: match[2] || "", expected: hashOf(path.join(SITE, match[1])) });
   }
   return refs;
+}
+
+function manifestVersion() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, "Resources", "manifest.json"), "utf8")).version;
+}
+
+function versionLink(version) {
+  return `<a data-version href="${RELEASES}${version}">Version ${version}</a>`;
+}
+
+// The page's version link as it is, or null when there is none.
+function stampedVersionLink() {
+  const html = fs.readFileSync(path.join(SITE, VERSION_PAGE), "utf8");
+  const match = html.match(VERSION_LINK);
+  return match ? match[0] : null;
+}
+
+function stampVersion() {
+  const file = path.join(SITE, VERSION_PAGE);
+  const html = fs.readFileSync(file, "utf8");
+  const stamped = html.replace(VERSION_LINK, versionLink(manifestVersion()));
+  if (stamped !== html) {
+    fs.writeFileSync(file, stamped);
+  }
+  return stamped !== html;
 }
 
 function sync() {
@@ -63,6 +94,9 @@ function sync() {
       changed.push(`site/${page}: asset queries`);
     }
   }
+  if (stampVersion()) {
+    changed.push(`site/${VERSION_PAGE}: version ${manifestVersion()}`);
+  }
   return changed;
 }
 
@@ -71,4 +105,4 @@ if (require.main === module) {
   console.log(changed.length ? changed.map((c) => `  ${c}`).join("\n") : "  site/ already in step");
 }
 
-module.exports = { sync, references, hashOf, COPIES, PAGES };
+module.exports = { sync, references, hashOf, manifestVersion, versionLink, stampedVersionLink, COPIES, PAGES };
